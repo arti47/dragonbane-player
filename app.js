@@ -121,6 +121,21 @@
       }
     },
 
+    async ensureAuth() {
+      if (!this.enabled) this.init();
+      if (!this.enabled) return false;
+      if (!this.uid && this.auth) {
+        try {
+          const cred = await this.auth.signInAnonymously();
+          this.user = cred.user;
+          this.uid = cred.user.uid;
+        } catch (e) {
+          console.warn("Anonymous sign-in failed:", e);
+        }
+      }
+      return !!this.uid;
+    },
+
     generateJoinCode() {
       const w = FANTASY_WORDS;
       const pick = () => w[Math.floor(Math.random() * w.length)];
@@ -128,7 +143,7 @@
     },
 
     async createCampaign(name) {
-      if (!this.enabled || !this.uid) { alert("Cloud sync is not enabled or connected."); return; }
+      if (!await this.ensureAuth()) { alert("Cloud sync is not enabled or connected."); return; }
       const id = "camp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const joinCode = this.generateJoinCode();
       const camp = { id, name: name || "Dragonbane Campaign", joinCode, createdAt: Date.now(), ownerUid: this.uid };
@@ -144,7 +159,7 @@
     },
 
     async joinCampaign(code) {
-      if (!this.enabled || !this.uid) { alert("Cloud sync is not enabled."); return; }
+      if (!await this.ensureAuth()) { alert("Cloud sync is not enabled."); return; }
       const clean = String(code).trim().toLowerCase();
       if (!clean) return;
       const snap = await this.db.ref(`joinCodes/${clean}`).once("value");
@@ -1087,6 +1102,7 @@
           if (att) att.acted = true;
         }
         Combat.save(comb);
+        if (attackerCombatantId) Combat.advanceTurn(attackerCombatantId);
 
         applyBtn.disabled = true;
         applyBtn.textContent = `✓ Applied ${netDmg} Net Damage to ${tgt.name}!`;
@@ -1133,12 +1149,20 @@
       head.appendChild(ctl);
       atkDiv.appendChild(head);
 
+      const isLong = (weapon.features || []).some(f => /long/i.test(f));
+      if (isLong) {
+        atkDiv.appendChild(el(`<p class="stat-line" style="color:var(--accent);margin:4px 0">🗡️ <b>Long Weapon (2m Reach):</b> Strike enemies 2m away without provoking close combat retaliation.</p>`));
+      }
+
       if (c.state.conditions && c.state.conditions[attr]) {
         atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ ${attr} condition bane applies</p>`));
       }
 
       if (isRanged) {
         if (typeof c.state.combatAmmo !== "number") c.state.combatAmmo = 12;
+        const pbRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
+        pbRow.querySelector("input").onchange = (e) => { net += e.target.checked ? -1 : 1; upd(); };
+        atkDiv.appendChild(pbRow);
         const ammoRow = el(`<div style="display:flex;align-items:center;gap:8px;margin-top:8px"></div>`);
         const aMin = el(`<button class="step" style="width:28px;height:28px;font-size:1.2rem">−</button>`);
         const aPl = el(`<button class="step" style="width:28px;height:28px;font-size:1.2rem">+</button>`);
@@ -1221,6 +1245,9 @@
         }
         outcomeHtml += `</div>`;
         out.innerHTML = outcomeHtml;
+        if (!success && combatantId && !isPush) {
+          Combat.advanceTurn(combatantId);
+        }
 
         if (crit) {
           rollDmgBtn.textContent = `Roll CRITICAL Damage (Double Dice: ${esc(weapon.damage)}×2${bonusDie ? " +" + bonusDie : ""})`;
@@ -1307,6 +1334,7 @@
         const ok = d <= w.skill;
         const crit = d === 1; const fumble = d === 20;
         out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="font-size:1.6rem;margin-top:12px">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : ok ? "Hit!" : "Miss!"} (rolled ${d} vs ${w.skill})</p>`;
+        if (!ok && combatantId) Combat.advanceTurn(combatantId);
       };
       const bodyElems = [el(`<p class="stat-line">Skill level ${w.skill} · Damage ${esc(w.damage)}${w.bonus ? " +" + esc(w.bonus) : ""}</p>`), rollBtn];
       if (w.damage) {
@@ -1327,16 +1355,68 @@
       m.body.append(...bodyElems);
     },
 
+    rollNpcAttackTable(npcName, combatantId) {
+      if (combatantId) {
+        const comb = Combat.load();
+        if (comb && comb.combatants) {
+          const att = comb.combatants.find(cb => cb.id === combatantId);
+          if (att && !att.acted) { att.acted = true; Combat.save(comb); const activeNav = document.querySelector("#app-nav button.active"); if (activeNav && activeNav.dataset.route === "party") Combat.rerender(); }
+        }
+      }
+      const nat = typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks;
+      if (!nat) return;
+      const roles = nat.roles || ["Melee Attacker", "Ranged Attacker", "Sneaky Attacker", "Magic Attacker"];
+      const m = modal(`${npcName}: NPC Attack Table`);
+      const sel = el(`<select class="input" style="width:100%;margin-bottom:10px"></select>`);
+      roles.forEach(r => sel.appendChild(el(`<option value="${r}">${r}</option>`)));
+      const rollBtn = el(`<button class="btn block">🎲 Roll D6 AI Action</button>`);
+      const out = el(`<div style="margin-top:12px"></div>`);
+      rollBtn.onclick = () => {
+        const role = sel.value;
+        const roleMap = { "Melee Attacker": "melee", "Ranged Attacker": "ranged", "Sneaky Attacker": "sneaky", "Magic Attacker": "magic" };
+        const prop = roleMap[role] || "melee";
+        const r = Dice.d(6);
+        const row = nat.rows.find(x => (x.d6 === "4" && r === 4) || (x.d6 === "5" && r === 5) || (x.d6 === "6" && r === 6) || (x.d6 === "1-3" && r <= 3)) || nat.rows[0];
+        out.innerHTML = `<div style="padding:12px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
+          <p class="outcome ok" style="font-size:1.4rem;margin:0">Rolled ${r}: ${role}</p>
+          <p class="stat-line" style="margin-top:6px;font-size:1.15rem">${row[prop] || "—"}</p>
+        </div>`;
+      };
+      m.body.append(el(`<p class="stat-line">Select NPC role:</p>`), sel, rollBtn, out);
+    },
+
     // ---- Spell / trick casting ----
     cast(charId, spell, isTrick) {
       const c = Store.get(charId); if (!c) return;
-      // Casting skill: the INT magic-school skill, or (Harmonism bard) the Performance skill.
       let schoolEntry = Object.entries(c.skills).find(([, v]) => v.kind === "magic");
       if (!schoolEntry && c.spells && c.spells.castSkill && c.skills[c.spells.castSkill]) schoolEntry = [c.spells.castSkill, c.skills[c.spells.castSkill]];
       const level = schoolEntry ? schoolEntry[1].level : 0;
       const schoolName = schoolEntry ? schoolEntry[0] : "(no school)";
       const castAttr = schoolEntry ? schoolEntry[1].attribute : "INT";
       const m = modal(`Cast: ${spell.name}`);
+      
+      const sDetail = el(`<div class="spell-detail-card" style="margin-bottom:12px;padding:10px;background:var(--bg-raised);border-left:4px solid var(--gold)">
+        <p style="margin:0;font-weight:bold">${esc(spell.name)} <span class="tag">${spell.rank ? `Rank ${spell.rank}` : "Trick"}</span></p>
+        <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">${esc(spell.text || spell.desc || "Magical incantation.")}</p>
+        ${spell.range ? `<p class="stat-line" style="margin:4px 0 0 0;font-size:0.85rem"><b>Range:</b> ${esc(spell.range)} · <b>Time:</b> ${esc(spell.time || "Action")}</p>` : ""}
+      </div>`);
+      if (c.state.wp <= 1) {
+        const pftbBtn = el(`<button class="btn ghost block" style="border:1px dashed var(--bad);color:var(--bad);font-weight:bold;margin-top:8px">🩸 Power from the Body (Convert HP to WP)</button>`);
+        pftbBtn.onclick = () => {
+          if (confirm("Use Power from the Body? Take 1D6 damage to gain 1D6 WP.")) {
+            const dmg = Dice.d(6), wpGain = Dice.d(6);
+            Store.update(charId, ch => {
+              ch.state.hp = Math.max(0, ch.state.hp - dmg);
+              ch.state.wp = Math.min(ch.derived.wpMax || 99, ch.state.wp + wpGain);
+            });
+            alert(`🩸 Power from the Body!\nTook ${dmg} damage.\nGained ${wpGain} Willpower Points!`);
+            m.close();
+            Roller.cast(charId, spell, isTrick);
+          }
+        };
+        sDetail.appendChild(pftbBtn);
+      }
+
       if (isTrick) {
         const out = el(`<div class="roll-result"></div>`);
         const btn = el(`<button class="btn block">Cast (1 WP, auto-success)</button>`);
@@ -1345,7 +1425,7 @@
           Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - 1); }); this.refresh(charId);
           out.innerHTML = `<p class="outcome ok">Cast! −1 WP.</p>`;
         };
-        m.body.append(el(`<p class="stat-line">Magic tricks succeed automatically and cost 1 WP.</p>`), btn, out);
+        m.body.append(sDetail, el(`<p class="stat-line">Magic tricks succeed automatically and cost 1 WP.</p>`), btn, out);
         return;
       }
       const isDraco = spell.school === "dracomancy";
@@ -1402,7 +1482,7 @@
         this.refresh(charId);
       };
       castBtn.onclick = () => doCast(null);
-      m.body.append(head, plRow, castBtn, out);
+      m.body.append(sDetail, head, plRow, castBtn, out);
     }
   };
 
@@ -1645,6 +1725,52 @@
       vitals.appendChild(stepper("Hit Points", c.state.hp, c.derived.hpMax, "hp", "hp"));
       vitals.appendChild(stepper("Willpower", c.state.wp, effWpMax(c), "wp", "wp"));
       top.appendChild(vitals);
+
+      // Movement Tracker
+      const baseMove = c.derived.movement || 10;
+      if (typeof c.state.moveSpent !== "number") c.state.moveSpent = 0;
+      if (typeof c.state.isDashing !== "boolean") c.state.isDashing = false;
+      if (typeof c.state.isMounted !== "boolean") c.state.isMounted = false;
+      
+      const calcMaxMove = () => {
+        let m = c.state.isMounted ? 20 : baseMove;
+        if (c.abilities?.some(x => x.name === "Longstrider")) m *= 2;
+        if (c.state.isDashing) m *= 2;
+        return m;
+      };
+      
+      const movePanel = el(`<div class="move-panel">
+        <div class="move-meter">
+          <span>🏃 <b>Movement Pool:</b> <small>(Base ${baseMove}m)</small></span>
+          <span class="move-val">${Math.max(0, calcMaxMove() - c.state.moveSpent)}m / ${calcMaxMove()}m</span>
+        </div>
+        <div class="move-toggles">
+          <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Dash: doubles pool & auto-spends Action">⚡ Dash ${c.state.isDashing ? "ON" : "OFF"}</button>
+          <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted: base speed 20m">🐴 Mount</button>
+          <button type="button" class="move-btn" title="Step 2m (1 grid square)">+2m</button>
+          <button type="button" class="move-btn" title="Difficult Terrain (Water/Door) → spends 4m">+4m (½)</button>
+          <button type="button" class="move-btn" title="Reset movement turn">↺ Reset</button>
+        </div>
+      </div>`);
+      
+      const moveBtns = movePanel.querySelectorAll(".move-btn");
+      moveBtns[0].onclick = () => this.mutate(ch => {
+        ch.state.isDashing = !ch.state.isDashing;
+        if (ch.state.isDashing) {
+          const comb = Combat.load();
+          if (comb && comb.combatants) {
+            const ref = comb.combatants.find(x => x.charId === ch.id);
+            if (ref) { ref.acted = true; Combat.save(comb); }
+          }
+        }
+      });
+      moveBtns[1].onclick = () => this.mutate(ch => { ch.state.isMounted = !ch.state.isMounted; });
+      moveBtns[2].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
+      moveBtns[3].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
+      moveBtns[4].onclick = () => this.mutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
+      
+      top.appendChild(movePanel);
+
       // Permanent WP loss (rituals / corruption)
       if (c.state.wpPenalty || (c.spells.tricks || []).length || (c.spells.known || []).length) {
         const pen = el(`<div class="wp-pen"><span class="stat-line">Permanent WP loss (rituals/corruption): <b>${c.state.wpPenalty || 0}</b> · max WP ${effWpMax(c)}/${c.derived.wpMax}</span></div>`);
@@ -1866,7 +1992,42 @@
     load() { try { return JSON.parse(localStorage.getItem(this.KEY)) || { round: 0, combatants: [] }; } catch (_) { return { round: 0, combatants: [] }; } },
     save(s) { localStorage.setItem(this.KEY, JSON.stringify(s)); },
     rerender() { const y = window.scrollY; const sc = $("#screen"); sc.innerHTML = ""; sc.appendChild(this.view()); window.scrollTo(0, y); },
-    mutate(fn) { const s = this.load(); fn(s); this.save(s); this.rerender(); },
+    mutate(fn) {
+      const s = this.load();
+      fn(s);
+      if (s.combatants && s.combatants.length > 0) {
+        if (!s.round || s.combatants.some(c => c.init == null)) {
+          this.draw(s);
+          s.round = s.round || 1;
+        }
+        s.combatants.sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init));
+      }
+      this.save(s);
+      this.rerender();
+    },
+    advanceTurn(combatantId) {
+      this.mutate(st => {
+        if (combatantId) {
+          const ref = st.combatants.find(c => c.id === combatantId);
+          if (ref) { ref.done = true; ref.acted = true; }
+        }
+        const enemies = st.combatants.filter(c => c.kind === "monster" || (c.kind === "npc" && !c.isCompanion));
+        const allEnemiesDead = enemies.length > 0 && enemies.every(c => c.hp != null && c.hp <= 0);
+        if (allEnemiesDead) {
+          st.round = 0;
+          st.combatants = st.combatants.filter(c => c.kind === "hero");
+          setTimeout(() => alert("🎉 VICTORY! All enemies defeated! Battle concluded."), 50);
+          return;
+        }
+        const active = st.combatants.filter(c => c.hp == null || c.hp > 0);
+        if (active.length > 0 && active.every(c => c.done)) {
+          this.draw(st);
+          st.round = (st.round || 1) + 1;
+          st.combatants.forEach(c => { c.done = false; c.acted = false; });
+          setTimeout(() => alert("⚔️ Round " + st.round + "! Initiative redrawn."), 50);
+        }
+      });
+    },
     draw(s) {
       s.combatants = (s.combatants || []).filter(c => !c.isArmyOfOneSecondary);
       const cards = [1,2,3,4,5,6,7,8,9,10];
@@ -1974,7 +2135,21 @@
       resetTurns.onclick = () => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); });
       const end = el(`<button class="btn ghost">End combat</button>`);
       end.onclick = () => { if (confirm("End combat and clear all combatants?")) this.mutate((st) => { st.round = 0; st.combatants = []; }); };
-      btns.append(drawBtn, nextTurn, nextRound, resetTurns, end); ctrl.appendChild(btns);
+      const fleeBtn = el(`<button class="btn ghost" style="border:1px dashed var(--bad);color:var(--bad)">🏃 Flee Close Combat</button>`);
+      fleeBtn.onclick = () => {
+        const d = Dice.d(20);
+        if (d <= 5) {
+          alert(`🏃 Evade Roll: ${d} ≤ 5 → Success!\nYou successfully flee close combat without provoking a Free Attack.`);
+        } else {
+          const fm = modal("Evade Failed! Free Attack Triggered");
+          fm.body.append(
+            el(`<p class="outcome bad" style="font-size:1.4rem">Rolled ${d} (Failed Evade)</p>`),
+            el(`<p class="stat-line">You fail to break away cleanly. The engaged enemy gets an immediate Free Attack against you!</p>`),
+            el(`<button class="btn block" style="background:var(--bad);color:#fff" onclick="this.disabled=true;alert('🎲 GM rolls Enemy Free Attack! Apply damage as usual.');">🎲 Roll Enemy Free Attack</button>`)
+          );
+        }
+      };
+      btns.append(drawBtn, nextTurn, nextRound, resetTurns, fleeBtn, end); ctrl.appendChild(btns);
       root.appendChild(ctrl);
 
       // Combatant list (ordered accordions)
@@ -2137,7 +2312,6 @@
           const npcDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
           if (cb.desc) npcDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0;font-size:1.15rem">${esc(cb.desc)}</p>`));
           if (cb.weapons && cb.weapons.length) {
-            npcDiv.appendChild(el(`<p class="stat-line" style="margin:0"><b>Rulebook Attacks & Skills:</b></p>`));
             const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
             cb.weapons.forEach(w => {
               const b = el(`<button class="btn secondary block" style="text-align:left;font-size:1.15rem;padding:8px">${esc(w.name)} <br><small>Skill ${w.skill}${w.damage ? ` (${w.damage}${w.bonus ? "+"+w.bonus : ""})` : ""}</small></button>`);
@@ -2146,7 +2320,12 @@
             });
             npcDiv.appendChild(grid);
           } else {
-            npcDiv.appendChild(el(`<p class="stat-line" style="margin:0">Humanoid NPC · roll standard d20 skill checks (default 5).</p>`));
+            npcDiv.appendChild(el(`<p class="stat-line" style="margin:0">💡 Ordinary NPCs roll standard combat skills against PCs. True Monsters auto-hit.</p>`));
+          }
+          if (typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks) {
+            const natBtn = el(`<button class="btn ghost block" style="margin-top:4px;border:1px dashed var(--accent)">🎲 Roll NPC Attack Table (AI Action)</button>`);
+            natBtn.onclick = () => Roller.rollNpcAttackTable(cb.name, cb.id);
+            npcDiv.appendChild(natBtn);
           }
           body.appendChild(npcDiv);
         }
@@ -2389,6 +2568,17 @@
       };
       root.appendChild(nPanel);
 
+      const jPanel = el(`<div class="panel" style="margin-top:12px;border-left:4px solid var(--ok)">
+        <h3>🌲 Wilderness Journeys &amp; Travel Reference</h3>
+        <p class="stat-line"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p>
+        <p><b>⛺ Camp &amp; Rest:</b> Roll Bushcraft. Success lets party rest (Shift rest = full HP/WP). Failure = Mishap Roll.</p>
+        <p><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making Bushcraft/Hunting checks for rations.</p>
+        <details style="margin-top:8px"><summary style="color:var(--bad);font-weight:bold;cursor:pointer">🎲 View Journey Mishap Table (D6)</summary>
+          <p class="stat-line" style="margin-top:6px">1: Sudden Downpour (cold condition)<br>2: Spoiled Rations<br>3: Wild Beast Attack<br>4: Lost Way<br>5: Broken Gear<br>6: Restless Spirits (fear condition)</p>
+        </details>
+      </div>`);
+      root.appendChild(jPanel);
+
       return root;
     }
   };
@@ -2462,42 +2652,55 @@
     party() { return Combat.view(); },
 
     rules() {
-      const counts = {
-        kin: (DB.kin || []).length,
-        professions: (DB.professions || []).length,
-        skills: (DB.skills || []).length,
-        heroicAbilities: (DB.heroicAbilities || []).length,
-        spells: ["general", "animism", "elementalism", "mentalism"]
-          .reduce((n, s) => n + ((DB.spells?.[s]?.tricks?.length || 0) + (DB.spells?.[s]?.spells?.length || 0)), 0),
-        weapons: (DB.weapons || []).length,
-        gear: (DB.gear || []).length
-      };
-
       const root = el(`
         <div>
-          ${sectionTitle("Rules library")}
-          <div class="panel">
-            <p class="stat-line">Dragonbane core rules, loaded on-device. Tap a section to browse.</p>
-            <div class="card-grid" id="rules-cats"></div>
+          ${sectionTitle("Rules library & Compendiums")}
+          <div class="panel" style="margin-bottom:12px;padding:10px">
+            <input type="text" id="rules-search" class="input" placeholder="🔍 Search rules, spells, gear, journeys..." style="width:100%;font-size:1.1rem;padding:10px">
           </div>
-          <div id="rules-detail"></div>
+          <div id="rules-acc-wrap" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>`);
 
       const cats = [
-        ["Kin", "kin", `${counts.kin} kin`],
-        ["Professions", "professions", `${counts.professions} professions`],
-        ["Skills", "skills", `${counts.skills} skills`],
-        ["Heroic Abilities", "heroicAbilities", `${counts.heroicAbilities} abilities`],
-        ["Spells & Tricks", "spells", `${counts.spells} entries`],
-        ["Weapons & Armor", "equipment", `${counts.weapons} weapons`],
-        ["Adventuring Gear", "gear", `${counts.gear} items`]
+        ["🔄 Core Loop & Gameplay Stages", "stages"],
+        ["🌲 Wilderness Journeys & Travel", "journeys"],
+        ["🧑 Kin", "kin"],
+        ["🛡️ Professions", "professions"],
+        ["🎯 Skills", "skills"],
+        ["⚡ Heroic Abilities", "heroicAbilities"],
+        ["✨ Spells & Tricks", "spells"],
+        ["⚔️ Weapons & Armor", "equipment"],
+        ["🎒 Adventuring Gear", "gear"]
       ];
-      const catWrap = root.querySelector("#rules-cats");
-      cats.forEach(([label, key, meta]) => {
-        const c = el(`<button class="card"><h3>${label}</h3><div class="meta">${meta}</div></button>`);
-        c.addEventListener("click", () => renderRuleDetail(key, root.querySelector("#rules-detail")));
-        catWrap.appendChild(c);
+
+      const accWrap = root.querySelector("#rules-acc-wrap");
+      cats.forEach(([label, key]) => {
+        const contentHtml = renderRuleDetail(key, null);
+        const acc = el(`<details class="rule-accordion" data-cat="${key}" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;overflow:hidden">
+          <summary style="font-size:1.25rem;font-weight:bold;cursor:pointer;padding:6px 0;list-style:none;display:flex;justify-content:space-between;align-items:center">
+            <span>${label}</span><span style="font-size:0.9rem;color:var(--muted)">▼</span>
+          </summary>
+          <div class="rule-content" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">${contentHtml}</div>
+        </details>`);
+        accWrap.appendChild(acc);
       });
+
+      const sInp = root.querySelector("#rules-search");
+      sInp.oninput = (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        root.querySelectorAll("details.rule-accordion").forEach(acc => {
+          if (!q) {
+            acc.style.display = "";
+            acc.open = false;
+          } else {
+            const text = acc.textContent.toLowerCase();
+            const match = text.includes(q);
+            acc.style.display = match ? "" : "none";
+            if (match) acc.open = true;
+          }
+        });
+      };
+
       return root;
     },
 
@@ -2509,28 +2712,33 @@
           <div class="panel" id="settings-panel"><h3>Content</h3></div>
           <div class="panel">
             <h3>Dragonbane Player</h3>
-            <p class="stat-line">A character creator &amp; tracker for the Dragonbane RPG, with a real-time shared party. Based on the core rules.</p>
-            <p><span class="tag">Storage: ${Store.mode === "cloud" ? "Cloud sync" : "Local / offline"}</span>
-               <span class="tag">${installed ? "Installed (PWA)" : "In browser"}</span></p>
-            <p class="stat-line">Not affiliated with or endorsed by Free League Publishing. For personal use with the Dragonbane rules.</p>
+            <p class="meta">Locally persistent character sheet, wizard, and initiative tracker for the <b>Dragonbane RPG</b> (Fria Ligan).</p>
+            <p class="stat-line">Zero telemetry, full offline support, PWA installable. Works entirely out of your browser's local storage.</p>
+          </div>
+          <div class="panel">
+            <h3>Data management</h3>
+            <div class="rest-row">
+              <button class="btn secondary" id="btn-export">Export heroes (JSON)</button>
+              <button class="btn secondary" id="btn-import">Import heroes (JSON)</button>
+              <button class="btn ghost" id="btn-clear" style="color:var(--bad)">Clear all storage</button>
+            </div>
+            <input type="file" id="file-import" accept=".json" style="display:none">
           </div>
         </div>`);
+
       const sp = root.querySelector("#settings-panel");
-      // Book of Magic content toggle
       const bom = Settings.bookOfMagic();
       const row = el(`<div class="toggle-row"><div><b>Book of Magic content</b><br><span class="stat-line">Adds the 9 new schools &amp; extra spells to the Rules browser and character creation. Revised core spells apply either way.</span></div></div>`);
       const tog = el(`<button class="toggle ${bom ? "on" : ""}" role="switch" aria-checked="${bom}"><span class="knob"></span></button>`);
       tog.onclick = () => { Settings.set("bookOfMagic", !Settings.bookOfMagic()); Router.go("about"); };
       row.appendChild(tog); sp.appendChild(row);
 
-      // Solo Mode toggle
       const sm = Settings.soloMode();
       const row2 = el(`<div class="toggle-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px"><div><b>Solo Mode Campaign</b><br><span class="stat-line">Unlocks solo heroic abilities (Army of One, Sole Survivor) during character creation.</span></div></div>`);
       const tog2 = el(`<button class="toggle ${sm ? "on" : ""}" role="switch" aria-checked="${sm}"><span class="knob"></span></button>`);
       tog2.onclick = () => { Settings.set("soloMode", !Settings.soloMode()); Router.go("about"); };
       row2.appendChild(tog2); sp.appendChild(row2);
 
-      // Multiplayer & Sync Panel
       const syncPanel = el(`<div class="panel" id="multiplayer-panel"><h3>Multiplayer &amp; Cloud Sync</h3></div>`);
       if (!Sync.enabled) {
         syncPanel.appendChild(el(`<p class="stat-line">Cloud sync is currently disabled. To enable party sharing across devices, configure your Firebase keys in <code>firebase-config.js</code>.</p>`));
@@ -2539,42 +2747,45 @@
         const authLine = `<p class="stat-line"><b>Identity:</b> ${esc(authName)} ${Sync.user?.isAnonymous ? `<button class="btn ghost small" id="link-google" style="margin-left:8px;padding:2px 8px;font-size:0.8rem">🔗 Link Google</button>` : '✓ Google Linked'}</p>`;
         syncPanel.appendChild(el(authLine));
         if (Sync.user?.isAnonymous) {
-          const lbtn = syncPanel.querySelector("#link-google");
-          if (lbtn) lbtn.onclick = () => Sync.linkGoogle();
+          syncPanel.querySelector("#link-google").onclick = () => Sync.linkGoogle();
         }
 
-        if (Sync.campaign) {
-          const cbox = el(`<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--accent);border-radius:6px">
-            <b>Active Campaign:</b> ${esc(Sync.campaign.name)} (${Sync.campaign.role.toUpperCase()})<br>
-            <span class="stat-line">Invite Code: <b style="color:var(--accent);user-select:all">${esc(Sync.campaign.joinCode)}</b></span>
-            <div style="margin-top:8px"><button class="btn secondary block small" id="leave-camp">Leave Campaign</button></div>
+        if (!Sync.campaign) {
+          const createRow = el(`<div style="margin-top:8px"><button class="btn secondary block" id="btn-create-camp">⚡ Create New Party Campaign</button></div>`);
+          createRow.querySelector("#btn-create-camp").onclick = () => {
+            const n = prompt("Enter a Campaign / Party Name:");
+            if (n) Sync.createCampaign(n);
+          };
+          const joinRow = el(`<div style="display:flex;gap:8px;margin-top:8px">
+            <input type="text" id="join-code" class="input" placeholder="Join Code (e.g. VALE42)" style="flex:1;text-transform:uppercase">
+            <button class="btn" id="btn-join-camp">Join</button>
           </div>`);
-          cbox.querySelector("#leave-camp").onclick = () => Sync.leaveCampaign();
-          syncPanel.appendChild(cbox);
+          joinRow.querySelector("#btn-join-camp").onclick = () => {
+            const code = joinRow.querySelector("#join-code").value.trim();
+            if (code) Sync.joinCampaign(code);
+          };
+          syncPanel.append(createRow, joinRow);
         } else {
-          const createRow = el(`<div style="margin-top:10px;display:flex;gap:8px">
-            <input type="text" id="camp-name-inp" placeholder="New Campaign Name" style="flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
-            <button class="btn secondary" id="create-camp">Create</button>
+          const campInfo = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
+            <b>Active Campaign:</b> ${esc(Sync.campaign.name)}<br>
+            <b>Join Code:</b> <code style="font-size:1.1rem;color:var(--accent)">${esc(Sync.campaign.joinCode)}</code><br>
+            <span class="stat-line" style="font-size:0.85rem">Share this code with players so they can join your party.</span>
           </div>`);
-          createRow.querySelector("#create-camp").onclick = () => {
-            const name = createRow.querySelector("#camp-name-inp").value.trim();
-            Sync.createCampaign(name);
-          };
-          syncPanel.appendChild(createRow);
-
-          const joinRow = el(`<div style="margin-top:8px;display:flex;gap:8px">
-            <input type="text" id="camp-code-inp" placeholder="Join Code (e.g. red-dragon-sword)" style="flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
-            <button class="btn secondary" id="join-camp">Join</button>
-          </div>`);
-          joinRow.querySelector("#join-camp").onclick = () => {
-            const code = joinRow.querySelector("#camp-code-inp").value.trim();
-            Sync.joinCampaign(code);
-          };
-          syncPanel.appendChild(joinRow);
+          const leaveBtn = el(`<button class="btn ghost block" style="margin-top:8px;color:var(--bad)">Disconnect from Campaign</button>`);
+          leaveBtn.onclick = () => { if (confirm("Disconnect from this party campaign?")) Sync.leaveCampaign(); };
+          syncPanel.append(campInfo, leaveBtn);
         }
       }
-      root.insertBefore(syncPanel, sp.nextSibling);
+      root.appendChild(syncPanel);
 
+      root.querySelector("#btn-export").addEventListener("click", () => this.export());
+      root.querySelector("#btn-import").addEventListener("click", () => root.querySelector("#file-import").click());
+      root.querySelector("#file-import").addEventListener("change", (e) => this.importFile(e));
+      root.querySelector("#btn-clear").addEventListener("click", () => {
+        if (confirm("Clear all locally saved heroes and reset app?")) {
+          Store.clear(); Router.go("home");
+        }
+      });
       return root;
     }
   };
@@ -2582,7 +2793,29 @@
   /* ---- Rule detail rendering ----------------------------------------- */
   function renderRuleDetail(key, container) {
     let html = "";
-    if (key === "kin") {
+    if (key === "stages") {
+      html = `<div class="panel" style="border-left:4px solid var(--accent)">
+        <h3>Core Gameplay Loop &amp; Stages</h3>
+        <details style="margin-bottom:8px" open><summary style="cursor:pointer"><b>⏱️ Time Scales (Rounds vs Shifts)</b></summary>
+          <p class="stat-line" style="margin-top:4px">· <b>Combat Rounds:</b> Roughly 10 seconds. Every combatant gets 1 Turn (Action + Movement).<br>· <b>Wilderness Shifts:</b> Roughly 6 hours (Morning, Day, Evening, Night).</p>
+        </details>
+        <details style="margin-bottom:8px"><summary style="cursor:pointer"><b>⚔️ Combat Stage Sequence</b></summary>
+          <p class="stat-line" style="margin-top:4px">1. <b>Draw Initiative:</b> 1 to 10 ascending.<br>2. <b>Take Turns:</b> Move + Action (Attack, Cast, Dash, Rally).<br>3. <b>Reaction:</b> Parry or Evade (spends your upcoming action).<br>4. <b>End Round:</b> Redraw cards if needed.</p>
+        </details>
+        <details style="margin-bottom:8px"><summary style="cursor:pointer"><b>🎲 Core D20 Mechanic &amp; Pushing</b></summary>
+          <p class="stat-line" style="margin-top:4px">Roll D20 ≤ Skill level. 1 is Dragon (Critical), 20 is Demon (Mishap). If you fail, you can <b>Push</b> the roll by accepting a Condition Bane (Exhausted, Battered, etc.).</p>
+        </details>
+      </div>`;
+    } else if (key === "journeys") {
+      html = `<div class="panel" style="border-left:4px solid var(--ok)">
+        <h3>Wilderness Journeys &amp; Travel</h3>
+        <p class="stat-line"><b>Time Measurement:</b> In wilderness, time is measured in <b>Shifts</b> (Morning, Day, Evening, Night — ~6h each). Travel speed: 1 node/hex per shift.</p>
+        <p><b>⛺ Camp &amp; Rest:</b> Making camp requires a Bushcraft check. Success lets party rest (Shift rest = restore full HP/WP). Failure means no rest &amp; roll on Mishap Table.</p>
+        <p><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making Bushcraft/Hunting checks to gather rations.</p>
+        <h4 style="margin:8px 0 4px 0;color:var(--bad)">🎲 Journey Mishaps (D6)</h4>
+        <p class="stat-line">1: Sudden Downpour (cold condition) · 2: Spoiled Rations · 3: Wild Beast Attack · 4: Lost Way · 5: Broken Gear · 6: Restless Spirits (fear condition)</p>
+      </div>`;
+    } else if (key === "kin") {
       html = (DB.kin || []).map((k) => `
         <div class="panel">
           <h3>${esc(k.name)} <span class="tag">Move ${k.movement}</span></h3>
@@ -2628,8 +2861,11 @@
       html = `<div class="panel"><h3>Adventuring gear</h3>` + (DB.gear || []).map((g) =>
         `<p><b>${esc(g.name)}</b> <span class="tag">${esc(g.cost)}</span> <span class="tag">wt ${g.weight}</span><br><span class="stat-line">${esc(g.effect || "")}</span></p>`).join("") + `</div>`;
     }
-    container.innerHTML = html;
-    container.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (container) {
+      container.innerHTML = html;
+      container.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return html;
   }
 
   /* =================================================================
@@ -2637,6 +2873,14 @@
    * ================================================================= */
   const Router = {
     go(route) {
+      if (route === "solo" && !Settings.soloMode()) {
+        this.go("home");
+        return;
+      }
+      const soloNav = document.querySelector("#app-nav button[data-route='solo']");
+      if (soloNav) {
+        soloNav.style.display = Settings.soloMode() ? "" : "none";
+      }
       const screen = $("#screen");
       screen.innerHTML = "";
       screen.appendChild((Screens[route] || Screens.home)());

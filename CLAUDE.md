@@ -38,13 +38,15 @@ A player-facing character app for the **Dragonbane** fantasy tabletop RPG (Free 
 - **Pushing** a failed roll — re-roll once; auto-applies a **condition** of the player's choice (enforces "can't pick a condition you already have"; blocks pushing once all six are held).
 - **Weapon damage** rolls with the correct STR/AGL **damage bonus** auto-added.
 
-### 2.3 Rules Library (baked in — `data.js`)
-The full Dragonbane core game data so the wizard and play can auto-fill and validate:
+### 2.3 Rules Library & Compendiums (baked in — `data.js`)
+The full Dragonbane core game data organized into searchable accordion categories (`<details class="rule-accordion">`) with live text filter:
 - All **6 kin** + innate abilities (and base movement).
 - All **professions** with trained-skill lists and starting gear/equipment.
 - All **30 core skills** with governing attribute (+ secondary/magic skills).
 - All **heroic abilities** (requirements, WP cost, effect).
 - All **spells** across the three schools: **Animism, Elementalism, Mentalism** (+ magic tricks, rank 0).
+- **Wilderness Journeys & Travel compendium** — Shifts time measurement (~6h each), camp/rest Bushcraft rules, foraging, and D6 Mishap Table (also accessible in Solo tab).
+- **Core Gameplay Loop & Stages compendium** — Time scales (10s combat rounds vs 6h wilderness shifts), combat stage sequence, and D20 pushing rules.
 
 ### 2.4 In-Play Tracking (deepest tier)
 - **Conditions** — the six (Exhausted/STR, Sickly/CON, Dazed/AGL, Angry/INT, Scared/WIL, Disheartened/CHA) with their **roll penalties auto-applied** to the relevant attribute/skill rolls.
@@ -116,7 +118,7 @@ The full Dragonbane core game data so the wizard and play can auto-fill and vali
 | File | Purpose | Status |
 |---|---|---|
 | `index.html` | App shell / markup | 🟨 shell done (header, nav, screen mount, script loads); wizard/tracker markup added in later phases |
-| `app.js` | Application logic (wizard, tracker, dice, sync) | 🟨 Phases 1–4, 3B, 4B, 5, 5B done: wizard, sheet, roller, combat tracker, solo assistant. Sync & Book of Magic remaining |
+| `app.js` | Application logic (wizard, tracker, dice, sync) | ✅ ALL PHASES COMPLETE (Phases 1–6, 3B, 4B, 5, 5B): wizard, sheet, roller, combat tracker, solo assistant, cloud sync, accordions/compendiums. |
 | `styles.css` | Theming (Dragonbane look + light/dark) | ✅ Dragonbane theme (light + dark) + wizard/sheet styles (chips, attr grid, forms, steps) — verified in browser |
 | `data.js` | Dragonbane rules library (kin, professions, skills, abilities, spells, equipment) | ✅ COMPLETE — kin, conditions, derived tables, ages, 30 skills + 3 magic schools, 10 professions (+ full gear tables), 44 heroic abilities, all spells (4 schools), weapons/shields/armor/helmets, general gear, instruments, currency |
 | `data-magic.js` | Book of Magic library (revised spells, new spells for existing schools, 9 new schools) | ✅ DATA COMPLETE — 6 revised spells + 39 new spells for existing schools (+familiar table) + all 9 new schools (Demonology, Harmonism, Illusionism, Necromancy, Symbolism, Witchcraft, Alchemy, Enchanting, Dracomancy); **254 magic entries total**, validated via node. NOT yet wired into `index.html` or the wizard (Phase 3B feature work remains) |
@@ -269,6 +271,7 @@ characters/{characterId}
 | 2026-06-25 | **Combat Damage Applier Targets Fix COMPLETE.** Fixed hallucinated `Store.get("combat")` and `Store.set("combat")` references across `Roller.renderDamageApplier`, `heroWeaponAttack`, `monsterAttack`, and `npcAttack` that caused the damage modal to always report "No active opponent targets in combat tracker" and prevented applying combat damage. Replaced with canonical `Combat.load()`, `Combat.save()`, and live `Combat.rerender()`. SW cache v20. |
 | 2026-06-25 | **Phase 5B Solo Mode Wiring COMPLETE.** Built dedicated `🧭 Solo` assistant navigation screen featuring interactive Fortune Chart Oracle (1D6/2D6 fate engine with twist highlights), Inspiration 3D20 generator (`Action+Attribute+Thing`), Dragon/Demon narrative twist roller, Solo NPC instantiator with 1-click `Quick Add to Combat Tracker`, and D6 NPC Attack Table AI roller across 4 combat roles. Wired solo heroic abilities into `Wizard` (unlocked via Solo Mode setting), wired *Sole Survivor* into skill/attack/cast roll pushing (−3 WP option to avoid suffering conditions), and wired *Army of One* into `Combat.draw` (drawing 2 unique initiative cards granting two turns). SW cache v21. |
 | 2026-06-25 | **Phase 5 (Multiplayer & Sync) COMPLETE.** Implemented `Sync` module in `app.js` with Firebase Realtime Database connection, anonymous/Google authentication, fantasy join codes, optimistic cloud sync interceptors in `Store` and `Combat`, party roster overview banner, canvas portrait downscaling (~400×400), and SW PWA reload toast banner. Created `database.rules.json` and added Firebase CDN scripts to `index.html`. |
+| 2026-06-25 | **Phase 6 (Navigation & Rules Neatening) COMPLETE.** Reorganized Rules Library into searchable accordion categories (`<details class="rule-accordion">`) with live text filter. Added comprehensive **Wilderness Journeys & Travel Reference** compendium (Shifts, camp/rest Bushcraft rules, foraging, mishap table) to both Rules and Solo tabs. Added **Core Gameplay Loop & Stages** walkthrough compendium (Rounds vs Shifts time scales, combat stage sequence, D20 pushing). Updated `Router.go` and `Router.init` to dynamically hide the Solo navigation button (`🧭 Solo`) when Solo Mode is disabled in Settings. Verified valid syntax. |
 
 ---
 

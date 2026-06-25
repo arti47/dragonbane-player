@@ -23,6 +23,7 @@ const FIREBASE_ENABLED = true; // ⬅️ IMPORTANT: Flip this from false to true
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAurzml0ubEmCRDizKF_MrBRvC74fuj-gk",
   authDomain: "dragonbane-rpg-party.firebaseapp.com",
+  databaseURL: "https://dragonbane-rpg-party-default-rtdb.firebaseio.com",
   projectId: "dragonbane-rpg-party",
   storageBucket: "dragonbane-rpg-party.firebasestorage.app",
   messagingSenderId: "11327451768",
