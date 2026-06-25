@@ -25,7 +25,7 @@ const FIREBASE_CONFIG = {
   authDomain: "dragonbane-rpg-party.firebaseapp.com",
   databaseURL: "https://dragonbane-rpg-party-default-rtdb.firebaseio.com",
   projectId: "dragonbane-rpg-party",
-  storageBucket: "dragonbane-rpg-party.firebasestorage.app",
+  storageBucket: "",
   messagingSenderId: "11327451768",
   appId: "1:11327451768:web:76d3abbfa11259b23df38d",
   measurementId: "G-11B04X1Q8L"
