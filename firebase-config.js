@@ -24,7 +24,7 @@ const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAurzml0ubEmCRDizKF_MrBRvC74fuj-gk",
   authDomain: "dragonbane-rpg-party.firebaseapp.com",
   projectId: "dragonbane-rpg-party",
-  storageBucket: "dragonbane-rpg-party.firebasestorage.app",
+  storageBucket: "",
   messagingSenderId: "11327451768",
   appId: "1:11327451768:web:76d3abbfa11259b23df38d",
   measurementId: "G-11B04X1Q8L"
