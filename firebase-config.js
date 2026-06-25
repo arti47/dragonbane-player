@@ -18,17 +18,16 @@
  * NOTE: these keys are NOT secret (they ship in client code) — but DO keep
  * your database security rules locked down. Never commit a service-account key.
  */
-
-const FIREBASE_ENABLED = false; // flip to true once FIREBASE_CONFIG is filled in
+const FIREBASE_ENABLED = true; // ⬅️ IMPORTANT: Flip this from false to true!
 
 const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId:         "YOUR_PROJECT",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey: "AIzaSyAurzml0ubEmCRDizKF_MrBRvC74fuj-gk",
+  authDomain: "dragonbane-rpg-party.firebaseapp.com",
+  projectId: "dragonbane-rpg-party",
+  storageBucket: "dragonbane-rpg-party.firebasestorage.app",
+  messagingSenderId: "11327451768",
+  appId: "1:11327451768:web:76d3abbfa11259b23df38d",
+  measurementId: "G-11B04X1Q8L"
 };
 
 if (typeof window !== "undefined") {
