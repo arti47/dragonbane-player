@@ -86,7 +86,7 @@
         }
         this.db = firebase.database();
         this.auth = firebase.auth();
-        this.storage = firebase.storage();
+        try { if (window.FIREBASE_CONFIG?.storageBucket && !window.FIREBASE_CONFIG.storageBucket.includes("YOUR_PROJECT")) this.storage = firebase.storage(); } catch (_) { this.storage = null; }
         this.enabled = true;
         Store.mode = "cloud";
 
