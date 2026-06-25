@@ -447,6 +447,12 @@ input.wt { width: 56px; padding: 6px 8px; border: 1px solid var(--line); border-
   opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+.update-toast {
+  position: fixed; left: 50%; top: 16px; transform: translate(-50%, 0);
+  z-index: 100; background: var(--accent); color: #fff;
+  padding: 10px 20px; border-radius: 999px; font-weight: bold; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
 
 .inv-add select { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 

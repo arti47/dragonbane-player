@@ -228,12 +228,12 @@ characters/{characterId}
 - [x] Dracomancy learn-in-play — a **"Learn a spell or school"** modal (`Sheet.learnMagic`) in the Magic panel.
 
 ### Phase 5 — Multiplayer & Sync
-- [ ] Firebase Realtime Database (RTDB) setup & schema initialization.
-- [ ] Security Rules: enforce player read/write own sheet + shared combat state; GM read/write all sheets.
-- [ ] Instant Local/Anonymous auth flow + "Link Google Account" button in Settings.
-- [ ] Party overview dashboard & live sheet sync.
-- [ ] Shared combat tracker sync (`dragonbane.combat` RTDB node).
-- [ ] Portrait image upload (client-side canvas compression) & PWA reload toast.
+- [x] Firebase Realtime Database (RTDB) setup & schema initialization.
+- [x] Security Rules: enforce player read/write own sheet + shared combat state; GM read/write all sheets.
+- [x] Instant Local/Anonymous auth flow + "Link Google Account" button in Settings.
+- [x] Party overview dashboard & live sheet sync.
+- [x] Shared combat tracker sync (`dragonbane.combat` RTDB node).
+- [x] Portrait image upload (client-side canvas compression) & PWA reload toast.
 
 ### Phase 5B — Solo Mode Wiring *(depends on Phase 5)*
 - [x] Fortune Chart oracle widget (6 columns, 3 likelihoods).
@@ -268,6 +268,7 @@ characters/{characterId}
 | 2026-06-25 | **Hero Combat Attack Roll Bugfix COMPLETE.** Fixed hallucinated `Dice.under`, `toast`, and `c.state.marks` references in `Roller.heroWeaponAttack` that caused "Roll Attack" button clicks to fail silently. Corrected to use canonical `Roller.d20net`, standard `alert`, and character `c.skills[skillName].mark` data model. SW cache v19. |
 | 2026-06-25 | **Combat Damage Applier Targets Fix COMPLETE.** Fixed hallucinated `Store.get("combat")` and `Store.set("combat")` references across `Roller.renderDamageApplier`, `heroWeaponAttack`, `monsterAttack`, and `npcAttack` that caused the damage modal to always report "No active opponent targets in combat tracker" and prevented applying combat damage. Replaced with canonical `Combat.load()`, `Combat.save()`, and live `Combat.rerender()`. SW cache v20. |
 | 2026-06-25 | **Phase 5B Solo Mode Wiring COMPLETE.** Built dedicated `🧭 Solo` assistant navigation screen featuring interactive Fortune Chart Oracle (1D6/2D6 fate engine with twist highlights), Inspiration 3D20 generator (`Action+Attribute+Thing`), Dragon/Demon narrative twist roller, Solo NPC instantiator with 1-click `Quick Add to Combat Tracker`, and D6 NPC Attack Table AI roller across 4 combat roles. Wired solo heroic abilities into `Wizard` (unlocked via Solo Mode setting), wired *Sole Survivor* into skill/attack/cast roll pushing (−3 WP option to avoid suffering conditions), and wired *Army of One* into `Combat.draw` (drawing 2 unique initiative cards granting two turns). SW cache v21. |
+| 2026-06-25 | **Phase 5 (Multiplayer & Sync) COMPLETE.** Implemented `Sync` module in `app.js` with Firebase Realtime Database connection, anonymous/Google authentication, fantasy join codes, optimistic cloud sync interceptors in `Store` and `Combat`, party roster overview banner, canvas portrait downscaling (~400×400), and SW PWA reload toast banner. Created `database.rules.json` and added Firebase CDN scripts to `index.html`. |
 
 ---
 

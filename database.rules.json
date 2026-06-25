@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "campaigns": {
+      "$campaignId": {
+        "meta": {
+          ".read": true,
+          ".write": "!data.exists() || data.child('ownerUid').val() === auth.uid"
+        },
+        "members": {
+          ".read": "root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists()",
+          "$uid": {
+            ".write": "auth !== null && (auth.uid === $uid || root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm')"
+          }
+        },
+        "combat": {
+          ".read": "root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists()",
+          ".write": "root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists()"
+        }
+      }
+    },
+    "characters": {
+      ".indexOn": ["campaignId", "owner"],
+      "$characterId": {
+        ".read": "auth !== null && (data.child('owner').val() === auth.uid || (data.child('campaignId').exists() && root.child('campaigns/' + data.child('campaignId').val() + '/members/' + auth.uid).exists()))",
+        ".write": "auth !== null && (!data.exists() || data.child('owner').val() === auth.uid || (data.child('campaignId').exists() && root.child('campaigns/' + data.child('campaignId').val() + '/members/' + auth.uid + '/role').val() === 'gm'))"
+      }
+    }
+  }
+}

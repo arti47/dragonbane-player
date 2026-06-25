@@ -26,11 +26,228 @@
       try { return JSON.parse(localStorage.getItem(this.KEY)) || []; }
       catch (_) { return []; }
     },
+    listLocalOnly() {
+      return this.list().filter((c) => !c.campaignId);
+    },
     save(chars) { localStorage.setItem(this.KEY, JSON.stringify(chars)); },
+    put(c) {
+      const list = this.list();
+      const idx = list.findIndex((x) => x.id === c.id);
+      if (idx >= 0) list[idx] = c; else list.push(c);
+      this.save(list);
+      if (typeof Sync !== "undefined" && Sync.enabled) {
+        if (!c.owner && Sync.uid) c.owner = Sync.uid;
+        if (Sync.campaign && !c.campaignId) c.campaignId = Sync.campaign.id;
+        Sync.pushChar(c);
+      }
+      return c;
+    },
     get(id) { return this.list().find((x) => x.id === id) || null; },
     // Apply a mutator to one character and persist. Returns the updated char.
-    update(id, fn) { const list = this.list(); const c = list.find((x) => x.id === id); if (!c) return null; fn(c); this.save(list); return c; },
-    remove(id) { this.save(this.list().filter((x) => x.id !== id)); }
+    update(id, fn) {
+      const list = this.list(); const c = list.find((x) => x.id === id); if (!c) return null; fn(c); this.save(list);
+      if (typeof Sync !== "undefined" && Sync.enabled && (c.owner === Sync.uid || (Sync.campaign && Sync.campaign.role === "gm"))) {
+        Sync.pushChar(c);
+      }
+      return c;
+    },
+    remove(id) {
+      this.save(this.list().filter((x) => x.id !== id));
+      if (typeof Sync !== "undefined" && Sync.enabled) Sync.removeChar(id);
+    }
+  };
+
+  /* =================================================================
+   * Firebase Sync & Multiplayer (Phase 5)
+   * ================================================================= */
+  const FANTASY_WORDS = ["dragon","demon","sword","shield","spear","mage","knight","wolf","falcon","griffon","shadow","flame","frost","storm","thunder","crown","skull","rune","iron","gold","ruby","emerald","forest","mountain","river","cavern","tower","castle","keep","dungeon","red","blue","dark","light","wild","ancient","mighty","silent","broken","golden"];
+
+  const Sync = {
+    enabled: false,
+    app: null,
+    db: null,
+    auth: null,
+    storage: null,
+    uid: null,
+    user: null,
+    campaign: null, // { id, joinCode, name, role }
+    combatRef: null,
+    charsRef: null,
+
+    init() {
+      if (!window.FIREBASE_ENABLED || typeof firebase === "undefined" || !window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
+        return;
+      }
+      try {
+        if (!firebase.apps.length) {
+          this.app = firebase.initializeApp(window.FIREBASE_CONFIG);
+        } else {
+          this.app = firebase.app();
+        }
+        this.db = firebase.database();
+        this.auth = firebase.auth();
+        this.storage = firebase.storage();
+        this.enabled = true;
+        Store.mode = "cloud";
+
+        try { this.campaign = JSON.parse(localStorage.getItem("dragonbane.campaign")) || null; } catch (_) {}
+
+        this.auth.onAuthStateChanged((user) => {
+          if (user) {
+            this.user = user;
+            this.uid = user.uid;
+            this.attachListeners();
+            this.updateHeaderStatus();
+          } else {
+            this.auth.signInAnonymously().catch(() => {});
+          }
+        });
+      } catch (e) {
+        console.warn("Firebase initialization failed:", e);
+      }
+    },
+
+    updateHeaderStatus() {
+      const pill = $("#sync-status");
+      if (!pill) return;
+      if (this.enabled && this.uid) {
+        pill.textContent = this.campaign ? `Party (${this.campaign.joinCode})` : "Synced";
+        pill.className = "status-pill synced";
+        pill.title = this.campaign ? `Connected to ${this.campaign.name}` : "Cloud sync active";
+      } else {
+        pill.textContent = "Local";
+        pill.className = "status-pill local";
+        pill.title = "Local / offline storage";
+      }
+    },
+
+    generateJoinCode() {
+      const w = FANTASY_WORDS;
+      const pick = () => w[Math.floor(Math.random() * w.length)];
+      return `${pick()}-${pick()}-${pick()}`;
+    },
+
+    async createCampaign(name) {
+      if (!this.enabled || !this.uid) { alert("Cloud sync is not enabled or connected."); return; }
+      const id = "camp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const joinCode = this.generateJoinCode();
+      const camp = { id, name: name || "Dragonbane Campaign", joinCode, createdAt: Date.now(), ownerUid: this.uid };
+      await this.db.ref(`campaigns/${id}/meta`).set(camp);
+      await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Game Master", role: "gm" });
+      await this.db.ref(`joinCodes/${joinCode}`).set(id);
+      this.campaign = { id, joinCode, name: camp.name, role: "gm" };
+      localStorage.setItem("dragonbane.campaign", JSON.stringify(this.campaign));
+      this.attachListeners();
+      this.updateHeaderStatus();
+      alert(`Created campaign "${camp.name}"!\nInvite Code: ${joinCode}`);
+      Router.go("about");
+    },
+
+    async joinCampaign(code) {
+      if (!this.enabled || !this.uid) { alert("Cloud sync is not enabled."); return; }
+      const clean = String(code).trim().toLowerCase();
+      if (!clean) return;
+      const snap = await this.db.ref(`joinCodes/${clean}`).once("value");
+      const id = snap.val();
+      if (!id) { alert("Invalid join code. Check the spelling and try again."); return; }
+      const metaSnap = await this.db.ref(`campaigns/${id}/meta`).once("value");
+      const meta = metaSnap.val() || { name: "Campaign" };
+      await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" });
+      this.campaign = { id, joinCode: clean, name: meta.name, role: "player" };
+      localStorage.setItem("dragonbane.campaign", JSON.stringify(this.campaign));
+      this.attachListeners();
+      this.updateHeaderStatus();
+      alert(`Joined campaign "${meta.name}"!`);
+      Router.go("home");
+    },
+
+    leaveCampaign() {
+      if (confirm("Disconnect from current campaign? Your local characters will remain.")) {
+        this.detachListeners();
+        this.campaign = null;
+        localStorage.removeItem("dragonbane.campaign");
+        this.updateHeaderStatus();
+        Router.go("about");
+      }
+    },
+
+    linkGoogle() {
+      if (!this.enabled || !this.auth || !this.user) return;
+      const provider = new firebase.auth.GoogleAuthProvider();
+      this.user.linkWithPopup(provider).then((res) => {
+        this.user = res.user;
+        alert("Linked to Google account: " + (res.user.displayName || res.user.email));
+        Router.go("about");
+      }).catch((err) => {
+        if (err.code === "auth/credential-already-in-use") {
+          alert("This Google account is already linked to another Dragonbane profile.");
+        } else {
+          alert("Google linking failed: " + err.message);
+        }
+      });
+    },
+
+    attachListeners() {
+      this.detachListeners();
+      if (!this.enabled || !this.campaign) return;
+      const id = this.campaign.id;
+
+      this.combatRef = this.db.ref(`campaigns/${id}/combat`);
+      this.combatRef.on("value", (snap) => {
+        const val = snap.val();
+        if (val) {
+          localStorage.setItem("dragonbane.combat", JSON.stringify(val));
+          const partyBtn = $("#app-nav button[data-route='party']");
+          if (partyBtn && partyBtn.classList.contains("active")) {
+            Combat.rerender();
+          }
+        }
+      });
+
+      this.charsRef = this.db.ref("characters").orderByChild("campaignId").equalTo(id);
+      this.charsRef.on("value", (snap) => {
+        const list = [];
+        snap.forEach((cSnap) => { list.push(cSnap.val()); });
+        const local = Store.listLocalOnly();
+        const merged = [...local];
+        list.forEach((rem) => {
+          const idx = merged.findIndex((x) => x.id === rem.id);
+          if (idx >= 0) merged[idx] = rem;
+          else merged.push(rem);
+        });
+        localStorage.setItem(Store.KEY, JSON.stringify(merged));
+        const homeBtn = $("#app-nav button[data-route='home']");
+        if (window.activeCharacterId && Store.get(window.activeCharacterId)) {
+          if ($("#screen .wiz-progress")) {
+            Sheet.rerender();
+          }
+        } else if (homeBtn && homeBtn.classList.contains("active")) {
+          Router.go("home");
+        }
+      });
+    },
+
+    detachListeners() {
+      if (this.combatRef) { this.combatRef.off(); this.combatRef = null; }
+      if (this.charsRef) { this.charsRef.off(); this.charsRef = null; }
+    },
+
+    pushChar(charObj) {
+      if (!this.enabled || !this.uid || !this.db) return;
+      const payload = { ...charObj, owner: charObj.owner || this.uid };
+      if (this.campaign && !payload.campaignId) payload.campaignId = this.campaign.id;
+      this.db.ref(`characters/${charObj.id}`).set(payload).catch(() => {});
+    },
+
+    removeChar(charId) {
+      if (!this.enabled || !this.uid || !this.db) return;
+      this.db.ref(`characters/${charId}`).remove().catch(() => {});
+    },
+
+    pushCombat(combatState) {
+      if (!this.enabled || !this.campaign || !this.db) return;
+      this.db.ref(`campaigns/${this.campaign.id}/combat`).set(combatState).catch(() => {});
+    }
   };
 
   /* =================================================================
@@ -1227,6 +1444,43 @@
       this.id = id; this.render();
     },
     mutate(fn) { Store.update(this.id, fn); this.render(); },
+    uploadPortrait() {
+      const inp = document.createElement("input");
+      inp.type = "file"; inp.accept = "image/*";
+      inp.onchange = (e) => {
+        const file = e.target.files?.[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const maxDim = 400;
+            let w = img.width, h = img.height;
+            if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
+            else { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL("image/webp", 0.82);
+            if (typeof Sync !== "undefined" && Sync.enabled && Sync.storage && Sync.campaign) {
+              canvas.toBlob((blob) => {
+                const ref = Sync.storage.ref(`portraits/${Sync.campaign.id}/${this.id}.webp`);
+                ref.put(blob).then(() => ref.getDownloadURL()).then((url) => {
+                  this.mutate((ch) => { ch.identity.portraitUrl = url; });
+                }).catch(() => {
+                  this.mutate((ch) => { ch.identity.portraitUrl = dataUrl; });
+                });
+              }, "image/webp", 0.82);
+            } else {
+              this.mutate((ch) => { ch.identity.portraitUrl = dataUrl; });
+            }
+          };
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+      inp.click();
+    },
     toast(msg) {
       const t = el(`<div class="toast">${esc(msg)}</div>`);
       document.body.appendChild(t);
@@ -1355,8 +1609,20 @@
 
       // Identity + derived + HP/WP
       const top = el(`<div class="panel"></div>`);
-      top.appendChild(el(`<h2 style="margin-bottom:2px">${esc(c.identity.name)}</h2>
-        <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>`));
+      const portUrl = c.identity.portraitUrl;
+      const portImg = portUrl
+        ? `<img src="${portUrl}" alt="Portrait" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);cursor:pointer;flex-shrink:0" title="Tap to change portrait">`
+        : `<div style="width:56px;height:56px;border-radius:50%;background:var(--bg);border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:1.4rem;cursor:pointer;flex-shrink:0" title="Tap to upload portrait">🖼️</div>`;
+
+      const idWrap = el(`<div style="display:flex;align-items:center;gap:12px">
+        <div id="portrait-wrap">${portImg}</div>
+        <div>
+          <h2 style="margin-bottom:2px">${esc(c.identity.name)}</h2>
+          <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
+        </div>
+      </div>`);
+      idWrap.querySelector("#portrait-wrap").onclick = () => this.uploadPortrait();
+      top.appendChild(idWrap);
       const attrRow = el(`<div class="rolled-row" style="margin-top:8px">${(DB.attributes||[]).map((at)=>`<span class="tag ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":""}">${at.key} ${a[at.key]}${condByAttr[at.key]?" ⚠":""}</span>`).join("")}</div>`);
       top.appendChild(attrRow);
       top.appendChild(el(`<p class="stat-line">Move ${c.derived.movement} · STR dmg ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"} · AGL dmg ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"} · Enc. limit ${encLimit(c)}</p>`));
@@ -1623,6 +1889,7 @@
     view() {
       const s = this.load();
       const root = el(`<div></div>`);
+      if (typeof renderPartyBanner === "function") { const pb = renderPartyBanner(); if (pb) root.appendChild(pb); }
       root.appendChild(el(sectionTitle("Combat tracker")));
       root.appendChild(el(`<p class="stat-line">An all-in-one tabletop dashboard: track initiative order, step HP/WP vitals (+/−), and roll monster auto-hits or hero attacks inline.</p>`));
 
@@ -2126,6 +2393,29 @@
     }
   };
 
+  function renderPartyBanner() {
+    if (typeof Sync === "undefined" || !Sync.enabled || !Sync.campaign) return null;
+    const chars = Store.list().filter(c => c.campaignId === Sync.campaign.id);
+    if (!chars.length) return null;
+    const items = chars.map(c => {
+      const isMe = c.owner === Sync.uid;
+      const conds = Object.entries(c.state?.conditions || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+        <div><b>${esc(c.identity?.name || "Hero")}</b> ${isMe ? '<span class="tag" style="background:var(--accent);color:#fff">YOU</span>' : ''}<br>
+        <span class="stat-line" style="font-size:0.8rem">${esc(c.identity?.kin||"")} ${esc(c.identity?.profession||"")}</span></div>
+        <div style="text-align:right"><b>❤️ ${c.state?.hp}/${c.derived?.hpMax} · ⚡ ${c.state?.wp}/${c.derived?.wpMax}</b>
+        ${conds ? `<br><span style="color:var(--bad);font-size:0.8rem">⚠ ${esc(conds)}</span>` : ''}</div>
+      </div>`;
+    }).join("");
+    return el(`<div class="panel" style="border-color:var(--accent);background:rgba(122,46,29,0.05);margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
+        <span class="tag code">${esc(Sync.campaign.joinCode)}</span>
+      </div>
+      <div style="margin-top:8px">${items}</div>
+    </div>`);
+  }
+
   /* =================================================================
    * Screens
    * ================================================================= */
@@ -2161,6 +2451,7 @@
           <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>`;
       }
       const root = el(`<div>${body}</div>`);
+      const pb = renderPartyBanner(); if (pb) root.insertBefore(pb, root.firstChild);
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
       root.querySelectorAll(".card[data-id]").forEach((card) =>
@@ -2238,6 +2529,52 @@
       const tog2 = el(`<button class="toggle ${sm ? "on" : ""}" role="switch" aria-checked="${sm}"><span class="knob"></span></button>`);
       tog2.onclick = () => { Settings.set("soloMode", !Settings.soloMode()); Router.go("about"); };
       row2.appendChild(tog2); sp.appendChild(row2);
+
+      // Multiplayer & Sync Panel
+      const syncPanel = el(`<div class="panel" id="multiplayer-panel"><h3>Multiplayer &amp; Cloud Sync</h3></div>`);
+      if (!Sync.enabled) {
+        syncPanel.appendChild(el(`<p class="stat-line">Cloud sync is currently disabled. To enable party sharing across devices, configure your Firebase keys in <code>firebase-config.js</code>.</p>`));
+      } else {
+        const authName = Sync.user?.isAnonymous ? `Anonymous Player (${Sync.uid.slice(0,6)})` : (Sync.user?.displayName || Sync.user?.email || "Connected Player");
+        const authLine = `<p class="stat-line"><b>Identity:</b> ${esc(authName)} ${Sync.user?.isAnonymous ? `<button class="btn ghost small" id="link-google" style="margin-left:8px;padding:2px 8px;font-size:0.8rem">🔗 Link Google</button>` : '✓ Google Linked'}</p>`;
+        syncPanel.appendChild(el(authLine));
+        if (Sync.user?.isAnonymous) {
+          const lbtn = syncPanel.querySelector("#link-google");
+          if (lbtn) lbtn.onclick = () => Sync.linkGoogle();
+        }
+
+        if (Sync.campaign) {
+          const cbox = el(`<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--accent);border-radius:6px">
+            <b>Active Campaign:</b> ${esc(Sync.campaign.name)} (${Sync.campaign.role.toUpperCase()})<br>
+            <span class="stat-line">Invite Code: <b style="color:var(--accent);user-select:all">${esc(Sync.campaign.joinCode)}</b></span>
+            <div style="margin-top:8px"><button class="btn secondary block small" id="leave-camp">Leave Campaign</button></div>
+          </div>`);
+          cbox.querySelector("#leave-camp").onclick = () => Sync.leaveCampaign();
+          syncPanel.appendChild(cbox);
+        } else {
+          const createRow = el(`<div style="margin-top:10px;display:flex;gap:8px">
+            <input type="text" id="camp-name-inp" placeholder="New Campaign Name" style="flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
+            <button class="btn secondary" id="create-camp">Create</button>
+          </div>`);
+          createRow.querySelector("#create-camp").onclick = () => {
+            const name = createRow.querySelector("#camp-name-inp").value.trim();
+            Sync.createCampaign(name);
+          };
+          syncPanel.appendChild(createRow);
+
+          const joinRow = el(`<div style="margin-top:8px;display:flex;gap:8px">
+            <input type="text" id="camp-code-inp" placeholder="Join Code (e.g. red-dragon-sword)" style="flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
+            <button class="btn secondary" id="join-camp">Join</button>
+          </div>`);
+          joinRow.querySelector("#join-camp").onclick = () => {
+            const code = joinRow.querySelector("#camp-code-inp").value.trim();
+            Sync.joinCampaign(code);
+          };
+          syncPanel.appendChild(joinRow);
+        }
+      }
+      root.insertBefore(syncPanel, sp.nextSibling);
+
       return root;
     }
   };
@@ -2318,16 +2655,29 @@
    * Bootstrap
    * ================================================================= */
   function init() {
-    // Reflect storage mode in the header pill.
+    if (typeof Sync !== "undefined") Sync.init();
+
     const pill = $("#sync-status");
-    if (Store.mode === "cloud") { pill.textContent = "Synced"; pill.className = "status-pill synced"; }
+    if (pill && Store.mode === "cloud") { pill.textContent = "Synced"; pill.className = "status-pill synced"; }
 
     Theme.init();
     Router.init();
 
-    // Register service worker for offline/installable PWA (ignored on file://).
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("service-worker.js").catch(() => {});
+      navigator.serviceWorker.register("service-worker.js").then((reg) => {
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                const toast = el(`<div class="update-toast" role="alert" title="Click to reload with updated version">Update Available: Click to Reload 🔄</div>`);
+                toast.onclick = () => window.location.reload();
+                document.body.appendChild(toast);
+              }
+            });
+          }
+        });
+      }).catch(() => {});
     }
 
     if (!window.DRAGONBANE) {
