@@ -1821,6 +1821,7 @@
     if (typeof c.state.weaknessCooldown !== "boolean") c.state.weaknessCooldown = false;
     if (!c.state.teacherTrained || typeof c.state.teacherTrained !== "object") c.state.teacherTrained = {};
     if (c.state.familiar === undefined) c.state.familiar = null;
+    if (typeof c.state.prone !== "boolean") c.state.prone = false;
   }
   // Effective max WP after permanent reductions (rituals, corruption); restorable via Focused.
   const abilityCount = (c, name) => (c.abilities || []).filter((a) => a.name === name).length;
@@ -2243,12 +2244,15 @@
         <div class="move-toggles">
           <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Dash: doubles pool & auto-spends Action">⚡ Dash ${c.state.isDashing ? "ON" : "OFF"}</button>
           <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted: base speed 20m">🐴 Mount</button>
+          <button type="button" class="move-btn ${c.state.prone ? "active" : ""}" title="Change position — free action (drop prone / stand up)">${c.state.prone ? "🛌 Prone" : "🧍 Stand"}</button>
           <button type="button" class="move-btn" title="Step 2m (1 grid square)">+2m</button>
-          <button type="button" class="move-btn" title="Difficult Terrain (Water/Door) → spends 4m">+4m (½)</button>
+          <button type="button" class="move-btn" title="Difficult Terrain (Water) → spends 4m">+4m (½)</button>
+          <button type="button" class="move-btn" title="Through a closed door → spends half your movement pool">🚪 Door (−½)</button>
+          <button type="button" class="move-btn" title="Leap a gap (Acrobatics if over ¼ of your movement)">🤸 Leap</button>
           <button type="button" class="move-btn" title="Reset movement turn">↺ Reset</button>
         </div>
       </div>`);
-      
+
       const moveBtns = movePanel.querySelectorAll(".move-btn");
       moveBtns[0].onclick = () => this.mutate(ch => {
         ch.state.isDashing = !ch.state.isDashing;
@@ -2261,10 +2265,18 @@
         }
       });
       moveBtns[1].onclick = () => this.mutate(ch => { ch.state.isMounted = !ch.state.isMounted; });
-      moveBtns[2].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
-      moveBtns[3].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
-      moveBtns[4].onclick = () => this.mutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
-      
+      moveBtns[2].onclick = () => this.mutate(ch => { ch.state.prone = !ch.state.prone; }); // free action
+      moveBtns[3].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
+      moveBtns[4].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
+      moveBtns[5].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + Math.ceil(calcMaxMove() / 2)); }); // door = half pool
+      moveBtns[6].onclick = () => {
+        const d = parseFloat(prompt(`Leap distance (m)? A gap longer than ¼ of your movement (${(calcMaxMove() / 4).toFixed(1)} m) needs an Acrobatics roll.`, ""));
+        if (isNaN(d) || d <= 0) return;
+        if (d > calcMaxMove() / 4) Roller.skill(this.id, "Acrobatics");
+        else this.toast(`Leap ${d} m — automatic (≤ ¼ of ${calcMaxMove()} m).`);
+      };
+      moveBtns[7].onclick = () => this.mutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
+
       top.appendChild(movePanel);
 
       // Permanent WP loss (rituals / corruption)
@@ -2727,6 +2739,32 @@
         m.body.append(el(`<p class="stat-line">Exchange turn order (initiative card) with:</p>`), sel, btn);
       });
     },
+    // Parry / Dodge reaction: rolls the skill, consumes the turn (flips the
+    // initiative card), and on a successful dodge offers a free 2 m move.
+    reaction(combatantId, kind) {
+      const s = this.load();
+      const cb = s.combatants.find((c) => c.id === combatantId);
+      if (!cb || cb.kind !== "hero" || !cb.charId) return;
+      const ch = Store.get(cb.charId); if (!ch) return;
+      let skillName = "Evade";
+      if (kind === "parry") { const w = resolveEquippedWeapons(ch.inventory && ch.inventory.items)[0]; skillName = (w && w.skill) || "Evade"; }
+      const sk = ch.skills[skillName] || { level: 5 };
+      const m = modal(`${cb.name}: ${kind === "parry" ? "Parry" : "Dodge"} (reaction)`);
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll ${esc(skillName)} ≤ ${sk.level}</button>`);
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const r = Dice.d(20), ok = r <= sk.level;
+        this.mutate((st) => { const ref = st.combatants.find((c) => c.id === combatantId); if (ref) { ref.acted = true; ref.done = true; } });
+        out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}">${r} vs ${sk.level} — ${ok ? "Success" : "Failure"}! (the reaction consumes your upcoming action)</p>`;
+        if (ok && kind === "dodge") {
+          const mv = el(`<button class="btn secondary block" style="margin-top:8px">+2 m free move (successful dodge)</button>`);
+          mv.onclick = () => { Store.update(cb.charId, (c2) => { c2.state.moveSpent = Math.max(0, (c2.state.moveSpent || 0) - 2); }); mv.disabled = true; mv.textContent = "✓ +2 m granted"; };
+          out.appendChild(mv);
+        }
+      };
+      m.body.append(el(`<p class="stat-line">A reaction (parry/dodge) consumes your upcoming action — it flips your initiative card. You can't parry and dodge the same attack.</p>`), btn, out);
+    },
     view() {
       const s = this.load();
       const root = el(`<div></div>`);
@@ -3007,6 +3045,15 @@
               });
               hDiv.appendChild(sGrid);
             }
+            // Reactions (Phase 16) — parry / dodge consume the upcoming action.
+            const reactRow = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
+            reactRow.appendChild(el(`<p class="stat-line" style="margin:0;width:100%"><b>Reactions:</b></p>`));
+            const parryB = el(`<button class="btn ghost" style="flex:1">🛡 Parry</button>`);
+            parryB.onclick = () => this.reaction(cb.id, "parry");
+            const dodgeB = el(`<button class="btn ghost" style="flex:1">🤸 Dodge</button>`);
+            dodgeB.onclick = () => this.reaction(cb.id, "dodge");
+            reactRow.append(parryB, dodgeB);
+            hDiv.appendChild(reactRow);
             if (hDiv.children.length) body.appendChild(hDiv);
           }
         } else if (cb.kind === "npc") {

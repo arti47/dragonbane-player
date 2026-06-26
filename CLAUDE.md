@@ -457,25 +457,25 @@ data-solo.js: failForward[]
   - Acceptance: Mage with max WP 10 can move up to 5 WP into the familiar; pools update independently and respect the cap.
 
 ### Phase 16 — Movement & Reactions (Priority: MEDIUM)
-- [ ] **Change position (prone / stand).**
+- [x] **Change position (prone / stand).** ✅ A 🧍/🛌 free-action toggle in the movement panel sets `state.prone` (no movement cost).
   - Rule: Dropping prone or standing up is a free action (affects being targeted/attacking).
   - Target: `app.js` · `Sheet.render` movement panel and/or `Combat.view` row.
   - Behavior/UI: A "Prone/Stand" toggle (free action, no movement cost) showing current posture.
   - Schema: `state.prone: boolean` (default false).
   - Acceptance: Toggle prone on/off; state persists and shows on the sheet/combat row.
-- [ ] **Door interaction (dock half movement).**
+- [x] **Door interaction (dock half movement).** ✅ A "🚪 Door (−½)" button spends ⌈pool/2⌉ of the movement pool (verified 14→7).
   - Rule: Passing through a closed door costs half your movement for the turn.
   - Target: `app.js` · movement panel (`moveBtns`).
   - Behavior/UI: Add a "Through door (−½ pool)" button that subtracts half of `calcMaxMove()` from the remaining pool (distinct from the generic +4m difficult-terrain button).
   - Schema: none (uses `state.moveSpent`).
   - Acceptance: With pool 10, pressing the door button spends 5m.
-- [ ] **Leaping (Acrobatics if > ¼ move).**
+- [x] **Leaping (Acrobatics if > ¼ move).** ✅ A "🤸 Leap" button prompts for distance; > movement/4 opens an Acrobatics `Roller.skill` check, otherwise auto-success with the threshold shown.
   - Rule: Leaping a gap longer than ¼ of your movement rate requires an Acrobatics roll.
   - Target: `app.js` · movement panel.
   - Behavior/UI: A "Leap" control: enter distance; if distance > movement/4, open an Acrobatics `Roller.skill` check; else auto-succeed. Show the threshold.
   - Schema: none.
   - Acceptance: Movement 10, leap 3m → Acrobatics prompt (threshold 2.5m); leap 2m → auto-success.
-- [ ] **Parry / Dodge reaction.**
+- [x] **Parry / Dodge reaction.** ✅ `Combat.reaction` adds 🛡 Parry (weapon/shield skill) and 🤸 Dodge (Evade) buttons on hero combat cards that roll the skill and consume the turn (acted+done = card flip); a successful dodge offers a +2 m free move.
   - Rule: Parrying or dodging is a reaction that consumes your upcoming action (flips your initiative card). A successful dodge grants a free 2m move. You can't parry and dodge the same attack.
   - Target: `app.js` · `Combat.view` row actions and/or `Sheet`.
   - Behavior/UI: "Parry" (weapon/shield skill roll) and "Dodge" (Evade roll) buttons that mark the combatant's turn used (`acted/done`, flip card), and on a successful dodge offer a "+2m free move". Respect that a combatant can react only once per attack.
@@ -561,6 +561,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Phase 16 (Movement & Reactions) COMPLETE.** Movement panel gains a prone/stand free-action toggle (`state.prone`), a "🚪 Door (−½)" button (spends ⌈pool/2⌉), and a "🤸 Leap" button (Acrobatics roll when distance > movement/4, else auto). Added `Combat.reaction` with 🛡 Parry / 🤸 Dodge buttons on hero combat cards: rolls the skill, consumes the turn (acted+done → card flip), and offers a +2 m free move on a successful dodge. Verified headless (Door 14→7, prone toggle, dodge success marks Acted, 0 errors). SW cache v34. |
 | 2026-06-26 | **Phase 15 (Vitals & Magic Extras) COMPLETE.** Robust/Focused now auto-adjust max HP/WP: added `abilityCount` + `effHpMax` and updated `effWpMax` (+2 per pick), wired through the HP/WP steppers, rest, and combat-add (`derived.hpMax`→`effHpMax`). Added a caster-only **Familiar** panel (`state.familiar`): bind a familiar (cap ⌊maxWP/2⌋), transfer WP between the mage and familiar pools with independent steppers, and release to return its WP. Verified headless (Focused 18→20, Robust 11→13, familiar transfer drains mage pool, 0 errors). SW cache v33. |
 | 2026-06-26 | **Phase 14 (Advancement & Identity) COMPLETE.** Added the 5 official `advancementQuestions` to `data.js`. Rewrote `Sheet.endSession` into a questionnaire-first flow (each Yes → mark one unmarked skill) that calls a new `rollAdvancement`; skills reaching 18 prompt a free heroic ability. Added `Sheet.overcomeWeakness` (+2 marks, clear weakness, `state.weaknessCooldown`), `Sheet.trainTeacher` (one capped advancement roll via `state.teacherTrained`), and `Sheet.gainHeroicAbility` with requirement locking via a new `heroicReqMet` parser. UI: Train-with-teacher + Gain-heroic-ability buttons in the Skills panel; Overcome-Weakness / set-new-weakness controls in the Character panel. Verified headless (overcome → 2 marks + cooldown, questionnaire → advancement, picker 22/43 locked, 0 errors). SW cache v32. |
 | 2026-06-26 | **Phase 13 (Encumbrance & Inventory) COMPLETE + unblocks Phase 10/11.** Rebuilt inventory on a rules-accurate slot model (`encUsed`): limit ⌈STR/2⌉, ceil(weight) per item, coins +1 slot/100, rations 4-per-slot, quiver = 1 slot, slingstones = 0. Added Equip/Unequip with an "Equipped (no encumbrance)" section (1 armor + 1 helmet + ≤3 weapons, via `inventory.items[].equipped`), weapon/shield durability steppers (💥 at 0), and an over-encumbered "Roll STR to move" prompt. Added `banes[]`/`metal`/`rangedBane` to `DB.armor`/`DB.helmets`. This unblocked: **Phase 11 heavy-armor/helmet skill banes** (Roller.skill + ranged Great Helm bane), **Phase 10 metal-magic restriction** (now data-driven via equipped armor/helmet + weapon heuristic), and **Phase 10 hero-armor** (combat cards read `equippedArmor().rating`). Also fixed a latent `el()` bug that dropped the encumbrance slot-count line. Verified in headless browser (slots 6/8→2/8 on equip, Evade shows "worn armor → bane", combat card "Armor 6", 0 page errors). SW cache v31. |
