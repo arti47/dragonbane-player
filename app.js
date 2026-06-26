@@ -1168,6 +1168,345 @@
   ];
   const CONDITION_BY_MISHAP = ["dazed","exhausted","sickly","angry","scared","disheartened"];
 
+  const SUMMON_STATS = {
+    "rat": { hp: 3, armor: 0, movement: 10, attack: "Bite (skill 8, D2 dmg)" },
+    "cat": { hp: 4, armor: 0, movement: 12, attack: "Claw (skill 8, D3 dmg)" },
+    "dog": { hp: 8, armor: 0, movement: 14, attack: "Bite (skill 12, D8 dmg)" },
+    "fox": { hp: 6, armor: 0, movement: 10, attack: "Bite (skill 12, D6 dmg)" },
+    "snake": { hp: 3, armor: 0, movement: 8, attack: "Bite (skill 12, D3 dmg + poison)" },
+    "raven": { hp: 4, armor: 0, movement: 18, attack: "Beak (skill 10, D4 dmg)" },
+    "skeleton": { hp: 10, armor: 2, movement: 10, attack: "Rusty Sword (skill 10, D6 dmg)" },
+    "ghost": { hp: 12, armor: 99, movement: 16, attack: "Death Chill (skill 12, D6 WIL drain)" },
+    "undine": { hp: 14, armor: 4, movement: 12, attack: "Water Whip (skill 12, 2D6 dmg)" },
+    "gnome": { hp: 18, armor: 6, movement: 8, attack: "Stone Fist (skill 10, 2D8 dmg)" },
+    "sylph": { hp: 12, armor: 0, movement: 20, attack: "Wind Blade (skill 14, D8 dmg)" },
+    "salamander": { hp: 16, armor: 4, movement: 12, attack: "Fire Spit (skill 12, 2D6 fire dmg)" },
+    "carbuncle": { hp: 6, armor: 0, movement: 10, attack: "Acid Bite (skill 10, D4 acid dmg)" },
+    "familiar": { hp: 6, armor: 0, movement: 12, attack: "Magic Bolt (skill 10, D4 dmg)" }
+  };
+
+  const SpellAutomation = {
+    categorize(spell) {
+      if (!spell || !spell.name) return "utility";
+      const n = spell.name.toLowerCase();
+      if (n.match(/cure|treat wound|recovery|healing radiance|restoration|rejuvenation/)) return "heal";
+      if (n.match(/firestorm|frost gale|shockwave|meteor swarm|rock tornado|hailstorm|scalding shower|demonic gust|chaos swamp|thorn field|mass purge/)) return "damage_aoe";
+      if (n.match(/fireball|lightning bolt|fire blast|thunderbolt|mental strike|boneshaker|death touch|abyssal stench|beetle boil|blood strike|gust of wind|water jet|acid splash|flame wall/)) return "damage_single";
+      if (n.match(/familiar|skeleton|undine|gnome|sylph|salamander|carbuncle|animate dead|conjure|summon|demon/)) return "summon";
+      if (n.match(/rune of/)) return "rune";
+      if (n.match(/curse|evil eye|plague|puppet/)) return "curse";
+      if (n.match(/phantom|disguise|illusion|mirror image/)) return "illusion";
+      if (n.match(/haste|speed/)) return "haste";
+      if (n.match(/slow|daze|exhaust|paralyze|terror|command|dominate|sleep/)) return "slow";
+      return "utility";
+    },
+    getRangeLimit(spell) {
+      if (!spell || !spell.range) return 999;
+      const r = spell.range.toLowerCase();
+      if (r.includes("touch")) return 2;
+      const m = r.match(/(\d+)\s*m/);
+      if (m) return Number(m[1]);
+      if (r.includes("personal") || r.includes("self")) return 0;
+      return 999;
+    },
+    renderCard(charId, spell, pl, isTrick, dragon, cost, out) {
+      const char = Store.get(charId) || {};
+      const cat = this.categorize(spell);
+      const card = el(`<div class="magic-auto-card" style="margin-top:12px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:rgba(255,255,255,0.03)"></div>`);
+      const hdr = el(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"></div>`);
+      hdr.innerHTML = `<b style="color:var(--accent)">✨ VTT Spell Resolution: ${esc(spell.name)} (PL ${pl})</b>`;
+      const skipBtn = el(`<button class="btn ghost step" style="font-size:11px;padding:2px 6px">Skip Auto</button>`);
+      skipBtn.onclick = () => { card.innerHTML = `<p class="stat-line">Automation skipped. Resolve effects manually.</p>`; };
+      hdr.appendChild(skipBtn);
+      card.appendChild(hdr);
+
+      let plMult = 1;
+      if (dragon) {
+        const dWrap = el(`<div style="margin-bottom:10px;padding:8px;background:rgba(255,215,0,0.1);border:1px dashed #ffd700;border-radius:6px"></div>`);
+        dWrap.innerHTML = `<b style="color:#ffd700;display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
+        const bRow = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
+        
+        const bDbl = el(`<button class="btn step" style="font-size:11px;border-color:#ffd700">💥 Double Effect</button>`);
+        bDbl.onclick = () => { plMult = 2; bDbl.style.background = "#ffd700"; bDbl.style.color = "#000"; alert("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
+        
+        const bRef = el(`<button class="btn step" style="font-size:11px;border-color:#ffd700">✨ Refund WP (+${cost})</button>`);
+        bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min((ch.derived?.wpMax||20), (ch.state.wp||0) + cost); }); Roller.refresh(charId); bRef.disabled = true; alert(`Refunded ${cost} WP!`); };
+        
+        const bFree = el(`<button class="btn step" style="font-size:11px;border-color:#ffd700">⚡ Free Spell Cast</button>`);
+        bFree.onclick = () => { alert("Free Follow-Up Spell unlocked! You may immediately cast another spell without spending an action."); };
+        
+        bRow.append(bDbl, bRef, bFree);
+        dWrap.appendChild(bRow);
+        card.appendChild(dWrap);
+      }
+
+      const combatData = Combat.load() || { combatants: [] };
+      const opps = combatData.combatants.filter(x => x && x.type !== "hero");
+      const heroes = combatData.combatants.filter(x => x && x.type === "hero");
+      const allRoster = Object.values(Store.getAll() || {}).filter(x => x && x.name);
+
+      if (cat === "heal") {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>`);
+        row.innerHTML = `<span class="stat-line">Target:</span>`;
+        const tSel = el(`<select class="input" style="width:160px"></select>`);
+        allRoster.forEach(h => tSel.appendChild(el(`<option value="${h.id}">${esc(h.name)} (${h.state?.hp||0}/${h.derived?.hpMax||10} HP)</option>`)));
+        const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice formula">`);
+        const btn = el(`<button class="btn solid step" style="background:var(--ok);color:#000">💚 Heal</button>`);
+        btn.onclick = () => {
+          const tid = tSel.value;
+          const formula = dIn.value.trim() || `${pl}D6`;
+          let baseHeal = Dice.roll(formula);
+          if (plMult === 2) baseHeal *= 2;
+          Store.update(tid, tgt => {
+            tgt.state.hp = Math.min((tgt.derived?.hpMax||10), (tgt.state.hp||0) + baseHeal);
+            if (tgt.state.dying || tgt.state.hp > 0) {
+              tgt.state.dying = false;
+              tgt.state.deathRolls = { successes: 0, failures: 0 };
+            }
+          });
+          Combat.rerender(); Roller.refresh(tid); Roller.refresh(charId);
+          card.innerHTML = `<p class="outcome ok">💚 Healed <b>${baseHeal} HP</b> on target! Cleared DYING status.</p>`;
+        };
+        row.append(tSel, dIn, btn);
+        card.appendChild(row);
+      } else if (cat === "damage_single") {
+        const row = el(`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px"></div>`);
+        const rTop = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        rTop.innerHTML = `<span class="stat-line">Enemy:</span>`;
+        const tSel = el(`<select class="input" style="width:140px"></select>`);
+        opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)} (HP ${o.hp})</option>`)));
+        const cstIn = el(`<input type="text" class="input" style="width:90px" placeholder="Custom enemy">`);
+        rTop.append(tSel, cstIn);
+        
+        const rMid = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        rMid.innerHTML = `<span class="stat-line">Dist:</span>`;
+        const distIn = el(`<input type="number" class="input" style="width:60px" value="5" min="0">`);
+        rMid.append(distIn, el(`<span class="stat-line">m (Max ${this.getRangeLimit(spell)}m)</span>`));
+        
+        const isPsychic = spell.name.match(/mental|death|stench|psychic|soul|boneshaker/i);
+        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text)"><input type="checkbox" ${isPsychic ? "" : "checked"}> Worn Armor Mitigates Damage</label>`);
+        
+        const rBot = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
+        const btn = el(`<button class="btn solid step" style="background:var(--bad);color:#fff">💥 Strike</button>`);
+        btn.onclick = () => {
+          const dist = Number(distIn.value)||0;
+          const maxR = this.getRangeLimit(spell);
+          if (dist > maxR && !confirm(`Target distance (${dist}m) exceeds spell range (${maxR}m)! Strike anyway?`)) return;
+          
+          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`);
+          if (plMult === 2) dmg *= 2;
+          
+          const targetId = tSel.value;
+          const customName = cstIn.value.trim();
+          let tgtOpp = opps.find(x => x.id === targetId);
+          let armRating = 0;
+          if (armLbl.querySelector("input").checked && tgtOpp) armRating = Number(tgtOpp.armor)||0;
+          
+          const netDmg = Math.max(0, dmg - armRating);
+          if (tgtOpp) {
+            tgtOpp.hp = Math.max(0, (tgtOpp.hp||0) - netDmg);
+            if (tgtOpp.hp === 0) tgtOpp.defeated = true;
+            Combat.save(combatData);
+          }
+          card.innerHTML = `<p class="outcome bad">💥 Dealt <b>${netDmg} damage</b> (${dmg} roll − ${armRating} armor) to ${customName || (tgtOpp ? tgtOpp.name : "target")}!</p>`;
+        };
+        rBot.append(fIn, btn);
+        row.append(rTop, rMid, armLbl, rBot);
+        card.appendChild(row);
+      } else if (cat === "damage_aoe") {
+        const row = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+        row.innerHTML = `<span class="stat-line">Select AoE Blast Targets:</span>`;
+        const chkWrap = el(`<div style="max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px"></div>`);
+        combatData.combatants.forEach(cb => {
+          if (!cb) return;
+          const lbl = el(`<label style="font-size:12px;display:flex;gap:6px"><input type="checkbox" value="${cb.id}" ${cb.type !== "hero" ? "checked" : ""}> ${esc(cb.name)} (${cb.hp} HP)</label>`);
+          chkWrap.appendChild(lbl);
+        });
+        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Worn Armor Mitigates</label>`);
+        const rBot = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
+        const btn = el(`<button class="btn solid step" style="background:var(--bad);color:#fff">💥 Blast AoE</button>`);
+        btn.onclick = () => {
+          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`);
+          if (plMult === 2) dmg *= 2;
+          const checkedIds = Array.from(chkWrap.querySelectorAll("input:checked")).map(x => x.value);
+          let names = [];
+          checkedIds.forEach(cid => {
+            let cb = combatData.combatants.find(x => x && x.id === cid);
+            if (cb) {
+              const arm = armLbl.querySelector("input").checked ? (Number(cb.armor)||0) : 0;
+              const nd = Math.max(0, dmg - arm);
+              cb.hp = Math.max(0, (cb.hp||0) - nd);
+              if (cb.hp === 0) cb.defeated = true;
+              names.push(`${cb.name} (-${nd})`);
+            }
+          });
+          Combat.save(combatData);
+          card.innerHTML = `<p class="outcome bad">💥 Blast dealt <b>${dmg} raw dmg</b> to: ${names.join(", ") || "none"}!</p>`;
+        };
+        rBot.append(fIn, btn);
+        row.append(chkWrap, armLbl, rBot);
+        card.appendChild(row);
+      } else if (cat === "summon") {
+        const sKey = Object.keys(SUMMON_STATS).find(k => spell.name.toLowerCase().includes(k)) || "familiar";
+        const st = SUMMON_STATS[sKey];
+        const row = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
+        row.innerHTML = `<p class="notice" style="font-size:12px"><b>Summon Stats (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
+        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Spawn Entity</button>`);
+        btn.onclick = () => {
+          const sName = `${spell.name} (${char.name || "Caster"})`;
+          Store.update(charId, ch => {
+            ch.companions = ch.companions || [];
+            ch.companions.push({ name: sName, notes: `HP ${st.hp}, Arm ${st.armor}. ${st.attack}` });
+          });
+          const combatData2 = Combat.load() || { combatants: [] };
+          if (combatData2.combatants) {
+            combatData2.combatants.push({
+              id: "sum_" + Date.now(),
+              name: sName,
+              type: "npc",
+              hp: st.hp,
+              maxHp: st.hp,
+              armor: st.armor,
+              notes: st.attack,
+              initCard: null,
+              acted: false
+            });
+            Combat.save(combatData2);
+          }
+          Roller.refresh(charId);
+          card.innerHTML = `<p class="outcome ok">✨ Spawned <b>${esc(sName)}</b> to Companion roster and Combat Tracker!</p>`;
+        };
+        row.appendChild(btn);
+        card.appendChild(row);
+      } else if (cat === "rune") {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        row.innerHTML = `<span class="stat-line">Inscribed dormant Rune:</span>`;
+        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Inscribe Rune</button>`);
+        btn.onclick = () => {
+          Store.update(charId, ch => {
+            ch.effects = ch.effects || [];
+            ch.effects.push({ id: "rn_"+Date.now(), name: `Dormant Rune (${spell.name})`, isRune: true, pl, text: spell.text });
+          });
+          Roller.refresh(charId);
+          card.innerHTML = `<p class="outcome ok">⚡ Inscribed dormant Rune on sheet!</p>`;
+        };
+        row.appendChild(btn);
+        card.appendChild(row);
+      } else if (cat === "curse") {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        row.innerHTML = `<span class="stat-line">Curse Target:</span>`;
+        const tSel = el(`<select class="input" style="width:140px"></select>`);
+        opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)}</option>`)));
+        const btn = el(`<button class="btn solid step" style="background:#9370db;color:#fff">🧿 Hex Target</button>`);
+        btn.onclick = () => {
+          const tid = tSel.value;
+          let o = opps.find(x => x.id === tid);
+          if (o) {
+            o.name = `🧿 ${o.name.replace(/🧿\s*/,"")}`;
+            o.notes = `${o.notes ? o.notes + " · " : ""}CURSED (${spell.name} PL${pl})`;
+            Combat.save(combatData);
+          }
+          card.innerHTML = `<p class="outcome" style="border-color:#9370db;color:#9370db">🧿 Cursed target ${o ? o.name : ""}!</p>`;
+        };
+        row.append(tSel, btn);
+        card.appendChild(row);
+      } else if (cat === "illusion") {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        row.innerHTML = `<span class="stat-line">Active Illusion (DC ${10+pl}):</span>`;
+        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Create Illusion</button>`);
+        btn.onclick = () => {
+          Store.update(charId, ch => {
+            ch.effects = ch.effects || [];
+            ch.effects.push({ id: "ill_"+Date.now(), name: `Illusion: ${spell.name} (DC ${10+pl})`, isIllusion: true, pl });
+          });
+          Roller.refresh(charId);
+          card.innerHTML = `<p class="outcome ok">👁️ Illusion active on sheet!</p>`;
+        };
+        row.appendChild(btn);
+        card.appendChild(row);
+      } else if (cat === "haste") {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        row.innerHTML = `<span class="stat-line">Haste Hero:</span>`;
+        const tSel = el(`<select class="input" style="width:140px"></select>`);
+        heroes.forEach(h => tSel.appendChild(el(`<option value="${h.id}">${esc(h.name)}</option>`)));
+        const btn = el(`<button class="btn step" style="border-color:#00ffff;color:#00ffff">⚡ Grant 2nd Initiative</button>`);
+        btn.onclick = () => {
+          const hid = tSel.value;
+          let h = heroes.find(x => x.id === hid);
+          if (h) {
+            const copy = { ...h, id: h.id + "_turn2", name: `${h.name} (Hasted 2nd Turn)`, initCard: null, acted: false };
+            combatData.combatants.push(copy);
+            Combat.save(combatData);
+          }
+          card.innerHTML = `<p class="outcome" style="color:#00ffff;border-color:#00ffff">⚡ Hasted! Granted second combat turn in tracker.</p>`;
+        };
+        row.append(tSel, btn);
+        card.appendChild(row);
+      } else if (cat === "slow") {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        row.innerHTML = `<span class="stat-line">Slow/Debuff Enemy:</span>`;
+        const tSel = el(`<select class="input" style="width:140px"></select>`);
+        opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)}</option>`)));
+        const btn = el(`<button class="btn step" style="border-color:var(--bad)">⏳ Auto Resist & Debuff</button>`);
+        btn.onclick = () => {
+          const tid = tSel.value;
+          let o = opps.find(x => x.id === tid);
+          const saveRoll = Dice.d(20);
+          const penalty = pl;
+          const saveDC = 12 - penalty;
+          if (saveRoll <= saveDC) {
+            card.innerHTML = `<p class="outcome ok">🛡️ Target resisted! (Rolled ${saveRoll} vs DC ${saveDC})</p>`;
+          } else {
+            if (o) {
+              o.notes = `${o.notes ? o.notes + " · " : ""}${spell.name.toUpperCase()} (Slowed/Dazed)`;
+              if (spell.name.match(/slow/i)) o.initCard = 10;
+              Combat.save(combatData);
+            }
+            card.innerHTML = `<p class="outcome bad">⏳ Target failed save (Rolled ${saveRoll} vs DC ${saveDC})! Debuffed.</p>`;
+          }
+        };
+        row.append(tSel, btn);
+        card.appendChild(row);
+      } else {
+        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const isConc = (spell.duration || "").toLowerCase().includes("concentration");
+        row.innerHTML = `<span class="stat-line">Utility / Buff (${spell.duration || "Instant"}):</span>`;
+        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Apply Effect</button>`);
+        btn.onclick = () => {
+          Store.update(charId, ch => {
+            ch.effects = ch.effects || [];
+            if (isConc) {
+              const old = ch.effects.filter(x => x.concentration || (x.duration||"").toLowerCase().includes("concentration"));
+              if (old.length) alert(`Ending older Concentration spell: ${old[0].name}`);
+              ch.effects = ch.effects.filter(x => !x.concentration && !(x.duration||"").toLowerCase().includes("concentration"));
+            }
+            ch.effects.push({ id: "fx_"+Date.now(), name: `${spell.name} (PL${pl})`, duration: spell.duration || "Shift", concentration: isConc });
+          });
+          Roller.refresh(charId);
+          card.innerHTML = `<p class="outcome ok">✨ Applied effect to character sheet!</p>`;
+        };
+        row.appendChild(btn);
+        card.appendChild(row);
+      }
+
+      out.appendChild(card);
+    },
+    usePotion(charId, item, itemIdx) {
+      const pl = 1;
+      const fakeSpell = { name: item.name.replace(/\s*\(dose\)/i,""), range: "Touch", text: "Alchemical brew" };
+      const m = Modal.open(`🧪 Alchemical Brew: ${item.name}`, el(`<div id="pot_wrap"></div>`));
+      this.renderCard(charId, fakeSpell, pl, false, false, 0, m.body.querySelector("#pot_wrap"));
+      Store.update(charId, ch => {
+        if (ch.inventory?.items?.[itemIdx]) {
+          ch.inventory.items.splice(itemIdx, 1);
+        }
+      });
+      Roller.refresh(charId);
+    }
+  };
+
   const Roller = {
     // Roll a d20 honoring a net boon/bane (+ = boon → take lowest; − = bane → take highest).
     d20net(net) {
@@ -1727,6 +2066,12 @@
       if (hasMetal) {
         sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Metal Restriction:</b> Wearing metal armor or holding metal weapons penalizes or blocks spellcasting.</div>`));
       }
+      if (spell.school === "necromancy" && (spell.name.match(/animate|skeleton|ghost|corpse/i) || spell.text?.match(/corpse|body|skeleton/i))) {
+        const hasCorpse = (c.inventory?.items || []).some(x => x.name.match(/corpse|body|skeleton|bone/i));
+        if (!hasCorpse) {
+          sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Ingredient Warning:</b> No Corpse/Bones found in inventory. You may cast anyway assuming ambient battlefield corpses.</div>`));
+        }
+      }
 
       const isHeal = spell.name?.toLowerCase().match(/heal|cure|treat|resurrect/);
       if (c.state.wp <= 1) {
@@ -1763,6 +2108,7 @@
           if (c.state.wp < 1) { out.innerHTML = `<p class="outcome bad">Not enough WP.</p>`; return; }
           Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - 1); }); this.refresh(charId);
           out.innerHTML = `<p class="outcome ok">Cast! −1 WP.</p>`;
+          SpellAutomation.renderCard(charId, spell, 1, true, false, 1, out);
         };
         m.body.append(sDetail, el(`<p class="stat-line">Magic tricks succeed automatically and cost 1 WP.</p>`), btn, out);
         return;
@@ -1802,7 +2148,7 @@
         const cost = pl * perLevel;
         const cur = Store.get(charId);
         if (cur.state.wp < cost && !pushedCondition) { out.innerHTML = `<p class="outcome bad">Not enough WP (need ${cost}, have ${cur.state.wp}).</p>`; return; }
-        if (!pushedCondition) Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - cost); }); // WP spent regardless of result
+        if (!pushedCondition) Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - cost); });
         const net = (condBane ? -1 : 0);
         const r = this.d20net(net);
         const dragon = r.used === 1, demon = r.used === 20, success = r.used <= level;
@@ -1817,9 +2163,20 @@
           if (roll <= 6) Store.update(charId, (ch) => { ch.state.conditions[CONDITION_BY_MISHAP[roll - 1]] = true; });
           else if (roll === 7) { const dmg = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); }); html += `<p class="stat-line">Took ${dmg} damage.</p>`; }
           else if (roll === 8) { const wl = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - wl); }); html += `<p class="stat-line">Lost a further ${wl} WP.</p>`; }
+          if (spell.school === "demonology") {
+            Store.update(charId, ch => { ch.state.corruption = (ch.state.corruption || 0) + 1; });
+            alert("🧿 Demonology Mishap! Gained 1 Corruption point. You must roll for Insanity.");
+          }
         }
         if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
+        if (success) {
+          if (isUnprepared && document.querySelector(".combat-tracker")) {
+            alert("⏳ Unprepared spell cast in combat: Casting takes 2 rounds! Effect delayed until next turn.");
+          } else {
+            SpellAutomation.renderCard(charId, spell, pl, false, dragon, cost, out);
+          }
+        }
         const cur2 = Store.get(charId) || c;
         const curConds2 = cur2?.state?.conditions || {};
         const remaining = (DB.conditions || []).filter((cn) => !curConds2[cn.key]);
@@ -1884,8 +2241,9 @@
   const abilityCount = (c, name) => (c.abilities || []).filter((a) => a.name === name).length;
   // Effective max HP/WP: Robust adds +2 HP per pick, Focused +2 WP per pick;
   // WP is further reduced by permanent loss (rituals/corruption).
-  const effHpMax = (c) => (c.derived.hpMax || 0) + 2 * abilityCount(c, "Robust");
-  const effWpMax = (c) => Math.max(0, (c.derived.wpMax || 0) + 2 * abilityCount(c, "Focused") - (c.state.wpPenalty || 0));
+  const eqEnchantBonus = (c, stat) => (c.inventory?.items || []).filter(x => x && x.equipped && x.name.match(new RegExp(stat,"i"))).length * 2;
+  const effHpMax = (c) => (c.derived.hpMax || 0) + 2 * abilityCount(c, "Robust") + eqEnchantBonus(c, "Health|Vitality");
+  const effWpMax = (c) => Math.max(0, (c.derived.wpMax || 0) + 2 * abilityCount(c, "Focused") + eqEnchantBonus(c, "Willpower|Focus|Mind") - (c.state.wpPenalty || 0));
   // Does a spell summon/raise a creature (gets its own roster entry)?
   function isSummonSpell(sp) {
     const t = ((sp.name || "") + " " + (sp.text || "")).toLowerCase();
@@ -2396,7 +2754,7 @@
         const pool = Magic.poolFor(sel.value);
         const cw = el(`<div class="chip-wrap"></div>`);
         (pool.tricks || []).filter((t) => !known.has(t.name)).forEach((t) => { const chip = el(`<button class="skill-chip">${esc(t.name)} <span class="stat-line">trick</span></button>`); chip.onclick = () => { this.mutate((ch) => ch.spells.tricks.push({ name: t.name, rank: 0, school: sel.value, text: t.text })); renderList(); this.toast(`Learned trick: ${t.name}.`); }; cw.appendChild(chip); });
-        (pool.spells || []).filter((s) => !known.has(s.name)).forEach((s) => { const chip = el(`<button class="skill-chip">${esc(s.name)} <span class="stat-line">R${s.rank}</span></button>`); chip.onclick = () => { this.mutate((ch) => ch.spells.known.push({ name: s.name, rank: s.rank, school: sel.value, text: s.text })); renderList(); this.toast(`Learned: ${s.name}.`); }; cw.appendChild(chip); });
+        (pool.spells || []).filter((s) => !known.has(s.name)).forEach((s) => { const chip = el(`<button class="skill-chip">${esc(s.name)} <span class="stat-line">R${s.rank}</span></button>`); chip.onclick = () => { if (sel.value.toLowerCase() === "dracomancy" && !confirm("🐉 Dracomancy Spell Learning: Has the GM awarded you the required ancient Draconic Relic or Lore study to learn this spell?")) return; this.mutate((ch) => ch.spells.known.push({ name: s.name, rank: s.rank, school: sel.value, text: s.text })); renderList(); this.toast(`Learned: ${s.name}.`); }; cw.appendChild(chip); });
         if (!cw.children.length) cw.appendChild(el(`<span class="stat-line">All spells in this school are known.</span>`));
         listWrap.appendChild(cw);
       };
@@ -2962,6 +3320,11 @@
           const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}">`);
           wt.onchange = () => this.mutate((ch) => { ch.inventory.items[i].weight = Math.max(0, Number(wt.value)||0); });
           row.append(el(`<span class="stat-line">wt</span>`), wt);
+        }
+        if (it.name.match(/\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i)) {
+          const useBtn = el(`<button class="step" style="width:auto;padding:0 6px;border-color:#50c878;color:#50c878" title="consume potion/brew">🧪 Use</button>`);
+          useBtn.onclick = () => SpellAutomation.usePotion(this.id, it, i);
+          row.append(useBtn);
         }
         const rm = el(`<button class="step rm">✕</button>`);
         rm.onclick = () => this.mutate((ch) => { ch.inventory.items.splice(i, 1); });
