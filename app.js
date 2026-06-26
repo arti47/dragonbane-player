@@ -1682,12 +1682,11 @@
       </div>`);
 
       const _am = equippedArmor(c), _hm = equippedHelmet(c);
-      // Equipped weapon counts as metal unless it's clearly wood/stone/unarmed
-      // (heuristic pending per-weapon `metal` flags in data.js).
+      // An equipped weapon flagged metal in DB.weapons interferes with casting.
       const _metalWpn = (c.inventory?.items || []).some((x) => {
         if (!x.equipped) return false;
         const w = resolveEquippedWeapons([x.name])[0];
-        return w && !/staff|club|sling|unarmed|short bow|longbow|blunt object/i.test(w.name);
+        return w && w.metal;
       });
       const hasMetal = (_am && _am.metal) || (_hm && _hm.metal) || _metalWpn;
       if (hasMetal) {
