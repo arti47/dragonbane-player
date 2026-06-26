@@ -3864,7 +3864,7 @@
           const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
           cb.attacks.forEach((atk, i) => {
             const rangeStr = (cb.attacks.length === 6) ? `${i+1}` : (cb.attacks.length === 3 ? `${i*2+1}-${i*2+2}` : `${i+1}`);
-            const b = el(`<button class="btn secondary block" style="text-align:left;font-size:1.1rem;padding:8px;background:var(--card-bg);color:var(--text);border:1px solid var(--border)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small style="color:var(--muted)">(${atk.damage})</small>` : ""}</button>`);
+            const b = el(`<button class="btn secondary block combat-action" style="font-size:1.1rem;background:var(--card-bg);color:var(--text)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small style="color:var(--muted)">(${atk.damage})</small>` : ""}</button>`);
             b.onclick = () => Roller.monsterAttack(cb.name, atk, null, cb.id);
             grid.appendChild(b);
           });
@@ -3888,7 +3888,7 @@
               hDiv.appendChild(el(`<p class="stat-line" style="margin:0"><b>Equipped Weapons:</b></p>`));
               const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
               hWeapons.forEach(w => {
-                const b = el(`<button class="btn secondary block" style="text-align:left;font-size:1.15rem;padding:8px">${esc(w.name)} <br><small>${esc(w.skill)} (${w.damage})</small></button>`);
+                const b = el(`<button class="btn secondary block combat-action" style="font-size:1.15rem">${esc(w.name)} <br><small>${esc(w.skill)} (${w.damage})</small></button>`);
                 b.onclick = () => Roller.heroWeaponAttack(cb.charId, w, cb.id);
                 grid.appendChild(b);
               });
@@ -3900,7 +3900,7 @@
               const sGrid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
               allSpells.forEach(sp => {
                 const isT = (h.spells.tricks || []).includes(sp);
-                const b = el(`<button class="btn ghost block" style="text-align:left;font-size:1.1rem;padding:6px;border:1px solid var(--border)">★ ${esc(sp.name)} <br><small style="color:var(--muted)">${isT ? "Trick (1 WP)" : `Rank ${sp.rank||1} Spell`}</small></button>`);
+                const b = el(`<button class="btn ghost block combat-action" style="font-size:1.1rem;border-color:var(--accent)">★ ${esc(sp.name)} <br><small style="color:var(--muted)">${isT ? "Trick (1 WP)" : `Rank ${sp.rank||1} Spell`}</small></button>`);
                 b.onclick = () => Roller.cast(cb.charId, sp, isT);
                 sGrid.appendChild(b);
               });
@@ -3923,7 +3923,7 @@
           if (cb.weapons && cb.weapons.length) {
             const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
             cb.weapons.forEach(w => {
-              const b = el(`<button class="btn secondary block" style="text-align:left;font-size:1.15rem;padding:8px">${esc(w.name)} <br><small>Skill ${w.skill}${w.damage ? ` (${w.damage}${w.bonus ? "+"+w.bonus : ""})` : ""}</small></button>`);
+              const b = el(`<button class="btn secondary block combat-action" style="font-size:1.15rem">${esc(w.name)} <br><small>Skill ${w.skill}${w.damage ? ` (${w.damage}${w.bonus ? "+"+w.bonus : ""})` : ""}</small></button>`);
               b.onclick = () => Roller.npcAttack(cb.name, w, cb.id);
               grid.appendChild(b);
             });
@@ -3935,7 +3935,7 @@
             npcDiv.appendChild(el(`<p class="stat-line" style="margin:4px 0 0 0"><b>Known Spells:</b></p>`));
             const sGrid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
             cb.spells.forEach(sp => {
-              const b = el(`<button class="btn ghost block" style="text-align:left;font-size:1.1rem;padding:6px;border:1px solid var(--accent)">🪄 ${esc(sp.name)} <br><small style="color:var(--muted)">Rank ${sp.rank||1} Spell</small></button>`);
+              const b = el(`<button class="btn ghost block combat-action" style="font-size:1.1rem;border-color:var(--accent)">🪄 ${esc(sp.name)} <br><small style="color:var(--muted)">Rank ${sp.rank||1} Spell</small></button>`);
               b.onclick = () => Roller.npcCast(cb.name, sp, cb.id);
               sGrid.appendChild(b);
             });
