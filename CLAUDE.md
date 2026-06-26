@@ -72,6 +72,20 @@ The full Dragonbane core game data organized into searchable accordion categorie
 - Name, kin, profession, age, **appearance**, **weakness**, **memento**, freeform **notes/journal**.
 - **Portrait image** upload (synced via Firebase Storage).
 
+### 2.9 Planned — Rules-Accuracy Completion (see §7B roadmap)
+> These features are **specified but not yet built**. Full implementation specs (rule,
+> target file/function, behavior, schema, acceptance) live in **§7B**, ordered by
+> rules-impact. Summary by theme:
+- **Combat roll accuracy:** STR-requirement bane, two-handed grip (−3 STR req), heavy-armor/helmet skill banes, working metal-magic restriction, *Lightning Fast* / *Veteran* initiative, turn swap/wait.
+- **Conditions:** condition-overflow penalty (all six held → lose D6 WP, or D6 HP if WP 0).
+- **Inventory (full slot-system rebuild):** ½STR slot limit, equipped exemptions (armor/helmet/3 weapons-at-hand), coin-weight slots, ration/ammo grouping, over-encumbered STR-roll prompt, weapon/shield durability.
+- **Advancement & identity:** Overcome Weakness (2 marks + cooldown), end-of-session 5-question questionnaire, teacher training (+1 cap), heroic-ability requirement locking + free ability at skill 18.
+- **Vitals & magic:** *Robust*/*Focused* auto-adjust max HP/WP, familiar WP splitting.
+- **Movement & reactions:** prone/stand, door half-move, leaping (Acrobatics), parry/dodge reaction (flips card, +2m on dodge).
+- **Solo completion:** +5 mission marks, extra free heroic ability at creation, fail-forward.
+- **Advanced GM automation (one optional toggle):** global time clock, round-rest once-per-shift, light-source burn-out, sleep deprivation, cold & disease, fear attacks/table, concentration interruption.
+- **Bug fixes:** dead `DB.solo` references, missing `Store.clear()`, dead metal-magic check, hero-armor-always-0.
+
 ---
 
 ## 3. Derived Stats & Tables (reference)
@@ -153,13 +167,43 @@ characters/{characterId}
   identity: { name, kin, profession, age, appearance, weakness, memento, portraitUrl }
   attributes: { STR, CON, AGL, INT, WIL, CHA }
   derived:    { movement, hpMax, wpMax, dmgBonusSTR, dmgBonusAGL }
-  state:      { hp, wp, conditions{...}, deathRolls{...} }
+  state:      { hp, wp, conditions{...}, deathRolls{...}, wpPenalty, rallied,
+                moveSpent, isDashing, isMounted, combatAmmo }
   skills:     { <skillName>: { level, trained, mark } }
   abilities:  [ ... ]   // heroic + innate kin abilities
-  spells:     { tricks[], known[] }
+  spells:     { tricks[], known[], castSkill?, castSchool? }
   inventory:  { items[], tiny[], mementos[], money:{ gold, silver, copper } }
+  companions: [ { id, name, hp, hpMax, notes } ]   // summons/familiars/companions
+  effects:    [ { id, name, concentration, notes } ]
   notes:      string
   advancementLog: [ ... ]
+```
+
+### 6.1 Planned schema additions (§7B Rules-Accuracy roadmap)
+
+These fields are introduced by the planned phases in §7B. Defaults shown; all are
+optional and back-filled by `normalizeInventory`-style migration when absent.
+
+```
+state.weaknessCooldown : boolean = false        // Phase 14 Overcome Weakness
+state.teacherTrained   : { [skill]: true } = {}  // Phase 14 Teacher training
+state.familiar         : { name, wp, wpMax } | null = null   // Phase 15
+state.prone            : boolean = false          // Phase 16 change position
+state.time             : { round:0, stretch:0, shift:0 }     // Phase 18 clock
+state.roundRestUsed    : boolean = false          // Phase 18 once-per-shift
+state.awakeShifts      : number = 0               // Phase 18 sleep deprivation
+state.afflictions      : { cold:false, disease:null } // Phase 18 cold/disease
+inventory.equipped     : { armor:null, helmet:null, weapons:[] (max 3) } // Phase 13
+inventory.items[].durability : number             // Phase 13 durability
+inventory.items[].qty        : number = 1         // Phase 13 stackables (rations/ammo)
+inventory.items[].lit        : boolean            // Phase 18 light sources
+combatant.prevInit     : number | null = null     // Phase 11 Veteran retention
+settings.gmAutomation  : boolean = false          // Phase 18 shared toggle
+
+// New data-library tables (single source of truth — never hardcode in app.js):
+data.js: armor[].banes[], helmets[].banes[], armor/weapons[].metal,
+         gear[].lightDie, advancementQuestions[], fearTable[]
+data-solo.js: failForward[]
 ```
 
 ---
@@ -245,10 +289,277 @@ characters/{characterId}
 
 ---
 
+## 7B. Rules-Accuracy Completion Roadmap (planned)
+
+> These themed phases close the gap between the current app and a fully
+> rules-accurate *Dragonbane* player tracker (see the feature audit, 2026-06-26).
+> **Ordering is by rules-impact** (highest-accuracy wins first); each phase has a
+> **Priority** label. **None are started yet** (`- [ ]`).
+>
+> **How to read each item (full implementation spec):** every feature lists
+> **Rule** (the canonical Dragonbane mechanic + exact numbers), **Target** (the
+> file · module · function to edit), **Behavior/UI** (what to build and where it
+> appears), **Schema** (new data fields: name · type · default · location), and
+> **Acceptance** (how to confirm it works in the browser). Implement one item at
+> a time, tick its box, update §6 if you add schema fields, and add a §8
+> changelog row — in the same change (per §9 sync discipline). Bump
+> `CACHE_VERSION` in `service-worker.js` whenever cached files change.
+>
+> **Single source of truth:** all rules numbers belong in `data.js` /
+> `data-magic.js` / `data-solo.js`. Do not hardcode rules values in `app.js` —
+> read them from the data libraries (add a table there if one is missing).
+
+### Phase 10 — Bug Fixes (Priority: CRITICAL — these are broken behaviors)
+- [ ] **Fix dead `DB.solo` references (solo NPC attack table never shows in combat).**
+  - Rule: N/A (code bug). The solo NPC Attack Table lives in `DRAGONBANE_SOLO.npcAttackTable`, not `DRAGONBANE.solo`.
+  - Target: `app.js` · `Roller.rollNpcAttackTable` (~line 1482) and `Combat.view` (~line 2626). Both guard on `DB.solo && DB.solo.npcAttacks`, which is always `undefined`.
+  - Behavior/UI: Replace the guard/data source with `DRAGONBANE_SOLO.npcAttackTable` (and its `.rows` / `.roles`). The "🎲 Roll NPC Attack Table (AI Action)" button on NPC combat cards must render and roll correctly. Only show it when Solo Mode is enabled (`Settings.soloMode()`), to match the Solo-tab gating.
+  - Schema: none.
+  - Acceptance: With Solo Mode on, add a custom NPC in Combat, open its card → the AI-action button appears and rolling a role returns a row from `data-solo.js`.
+- [ ] **Add missing `Store.clear()` (the "Clear all storage" button throws).**
+  - Rule: N/A (code bug).
+  - Target: `app.js` · `Store` object (~line 22). `Screens.about` (~line 3108) calls `Store.clear()` which does not exist.
+  - Behavior/UI: Implement `clear()` to remove the characters key, combat key, campaign key, and settings as appropriate (at minimum `localStorage.removeItem(this.KEY)` + `localStorage.removeItem("dragonbane.combat")`), then let the existing `Router.go("home")` run. Do not wipe theme unless intended.
+  - Schema: none.
+  - Acceptance: Settings → "Clear all storage" → confirm → heroes list empties with no console error.
+- [ ] **Make the metal-armor / metal-weapon spell restriction actually fire.**
+  - Rule: A mage casting while wearing metal armor or wielding a metal weapon is penalized/blocked (see §6.Phase-11 metal rule). Reuse the same equip data introduced in Phase 13.
+  - Target: `app.js` · `Roller.cast` (~line 1570). The current check reads `c.gear?.armor?.name` (no such field) and `item.equipped` (never set), so it never triggers.
+  - Behavior/UI: Detect metal via the equipped-armor slot and equipped weapons added in Phase 13 (`c.inventory.equipped`), matching armor names against `DB.armor` `metal:true` flags and weapon names against a `metal` feature. Until Phase 13 lands, gate this fix behind that dependency (do not ship a half-check).
+  - Schema: depends on Phase 13 equip slots; add `metal: true|false` to relevant `DB.armor` / `DB.weapons` entries in `data.js`.
+  - Acceptance: Equip chainmail (or a sword) → opening a spell cast shows the metal warning; equip leather/no weapon → no warning.
+- [ ] **Fix hero combatant armor always 0 in the damage applier.**
+  - Rule: A defender's armor rating subtracts from incoming damage.
+  - Target: `app.js` · `Combat.view` hero-add (~line 2350): `armor: (h.gear && h.gear.armor ? h.gear.armor.rating : 0)` — heroes have no `gear.armor`.
+  - Behavior/UI: Resolve the hero's equipped armor (Phase 13 equip slot, or by matching inventory items to `DB.armor`) and store its rating on the combatant so `Roller.renderDamageApplier` auto-subtracts it. Until Phase 13, derive from the equipped-armor item name → `DB.armor` rating.
+  - Schema: reads Phase 13 `inventory.equipped.armor`.
+  - Acceptance: Add a hero wearing leather (rating 1) to Combat → applying 5 damage with "Ignore Armor" off removes 4 HP.
+
+### Phase 11 — Combat Roll Accuracy (Priority: HIGH)
+- [ ] **STR-requirement bane on attacks.**
+  - Rule: If the wielder's STR is below a weapon's STR requirement, attack rolls with it get a bane.
+  - Target: `app.js` · `Roller.heroWeaponAttack` (~line 1208). Weapons carry `str` in `DB.weapons`.
+  - Behavior/UI: When `c.attributes.STR < weapon.str`, start the attack with net −1 (bane) and show a labeled note ("STR ${STR} < requirement ${weapon.str} → bane"). Stack with the existing condition bane.
+  - Schema: none (uses `DB.weapons[].str`).
+  - Acceptance: A STR 8 hero attacking with a Longsword (STR 13) opens the attack roll already at Bane ×1 with the explanatory note.
+- [ ] **Two-handed grip reduces STR requirement by 3.**
+  - Rule: Wielding a one-handed melee weapon in two hands lowers its STR requirement by 3 (cannot also use a shield/off-hand).
+  - Target: `app.js` · `Roller.heroWeaponAttack`. Use `weapon.grip` from `DB.weapons`.
+  - Behavior/UI: For `grip === "1H"` melee weapons, show a "Two-handed grip (−3 STR req)" checkbox in the attack modal; when checked, compare STR against `weapon.str - 3` for the bane calc above.
+  - Schema: none.
+  - Acceptance: STR 7 hero + Broadsword (STR 10): unchecked → bane; "Two-handed grip" checked → no STR bane (10−3=7).
+- [ ] **Heavy-armor / helmet skill banes.**
+  - Rule: Equipped armor imposes banes — Studded Leather → Sneaking; Chainmail → Evade & Sneaking; Plate → Acrobatics, Evade & Sneaking. Open Helmet → Awareness; Great Helm → Awareness & all ranged attacks. (Text already in `DB.armor[].effect` / `DB.helmets[].effect`.)
+  - Target: `data.js` (add structured `banes: ["Sneaking", ...]` arrays to each armor/helmet entry); `app.js` · `Roller.skill` and `Roller.heroWeaponAttack` apply them.
+  - Behavior/UI: When the relevant skill (or a ranged attack) is rolled and the matching armor/helmet is equipped (Phase 13 equip slot), start at bane −1 with a note. Great Helm's "all ranged attacks" applies in `heroWeaponAttack` when `isRanged`.
+  - Schema: add `banes: string[]` to `DB.armor` and `DB.helmets`; reads `inventory.equipped` (Phase 13).
+  - Acceptance: Hero in Plate rolling Evade opens at Bane ×1; in leather, no bane.
+- [ ] **Initiative: Lightning Fast & Veteran.**
+  - Rule: *Lightning Fast* — when drawing initiative, draw two cards and keep one (once per round). *Veteran* — at round start, keep your previous round's card instead of drawing.
+  - Target: `app.js` · `Combat.draw` (~line 2307). Currently only *Army of One* is handled.
+  - Behavior/UI: In `draw`, for each hero combatant, look up `Store.get(charId).abilities`. *Veteran*: if the combatant has a stored `init` from last round and the ability, keep it (skip a new card). *Lightning Fast*: deal two cards and keep the lower (better) one, marking it used for the round. Document interaction order (Veteran resolves before dealing new cards).
+  - Schema: combatant gains `prevInit: number|null` (default null) so Veteran can retain across rounds.
+  - Acceptance: Add a Veteran hero, draw, Next Round → same card retained. Add a Lightning Fast hero → two cards considered, best kept (observe via repeated draws trending low).
+- [ ] **Turn swap / wait.**
+  - Rule: A combatant may voluntarily act later, swapping turn order with a willing other combatant (initiative-card swap).
+  - Target: `app.js` · `Combat.view` combatant row actions; `Combat.mutate`.
+  - Behavior/UI: Add a "Wait / Swap" control on a combatant row that lets the GM pick another combatant to swap `init` values with (re-sorts the order). GM-guarded via `Combat.guardGm`.
+  - Schema: none.
+  - Acceptance: Two combatants; swap → their initiative numbers and ordering exchange.
+
+### Phase 12 — Conditions & Status Accuracy (Priority: HIGH)
+- [ ] **Condition overflow (all six held).**
+  - Rule: You cannot hold the same condition twice. If you already have all six conditions and would gain another, instead lose D6 WP (or D6 HP if WP is already 0).
+  - Target: `app.js` · the push flows in `Roller.skill`, `Roller.heroWeaponAttack`, `Roller.cast`; and the Conditions toggles in `Sheet.render` (~line 2060).
+  - Behavior/UI: When a push/effect would add a condition but all six are set, skip the picker and instead roll D6: if `wp > 0` subtract from WP, else subtract from HP; show the result ("All conditions held → −${n} WP"). Pushing remains allowed in this state (it currently blocks once all six are held — change to apply the D6 penalty instead).
+  - Schema: none.
+  - Acceptance: Set all six conditions, push a failed roll → no picker, D6 WP deducted; with WP 0, D6 HP deducted instead.
+
+### Phase 13 — Encumbrance & Inventory Rebuild (Priority: HIGH)
+> **Full rules-accurate rebuild** of the inventory/encumbrance model (replaces the current "sum of item weights vs ½STR" approach).
+- [ ] **Slot-based encumbrance core.**
+  - Rule: Carrying capacity = STR ÷ 2, rounded up. Each normal item = 1 slot; items of Weight 2/3/… consume that many slots. Tiny items (Weight 0) are unlimited and tracked separately.
+  - Target: `app.js` · new `encUsed`/`encLimit` logic (~line 1723) + `Sheet.render` inventory panel. `data.js` weights already present.
+  - Behavior/UI: Compute used slots = Σ ceil(weight) over carried (non-equipped, non-tiny) items + coin slots + grouped ration/ammo slots (below). Keep the encumbrance bar; show "X / limit slots".
+  - Schema: none beyond existing `inventory.items[].weight`.
+  - Acceptance: STR 11 → limit 6; three Weight-1 items + one Weight-2 item = 5 slots.
+- [ ] **Equipped exemptions: armor, helmet, 3 weapons-at-hand.**
+  - Rule: Worn armor, worn helmet, and up to three "weapons at hand" (shields count) do not consume inventory slots.
+  - Target: `app.js` · `Sheet.render` inventory; new equip UI.
+  - Behavior/UI: Add equip controls — an Armor slot, a Helmet slot, and up to 3 Weapon/Shield slots. Equipped items render in their own "Equipped (no encumbrance)" section and are excluded from slot totals. Enforce the 3-weapon cap. Equipped armor/helmet/weapons feed Phase 11 banes & metal check and Phase 10 hero-armor.
+  - Schema: `inventory.equipped: { armor: itemRef|null, helmet: itemRef|null, weapons: itemRef[] (max 3) }` (default `{armor:null, helmet:null, weapons:[]}`). Store either the item object or an index/id into `inventory.items`.
+  - Acceptance: Equip leather + helmet + 2 weapons → none count toward slots; a 4th weapon-at-hand is rejected.
+- [ ] **Coin-weight slots.**
+  - Rule: <100 coins = 0 slots; 100–199 = 1 slot; 200–299 = 2; etc. (per 100 total coins). Uses `DB.currency.coinsPerItem = 100`.
+  - Target: `app.js` · encumbrance calc + money panel in `Sheet.render`.
+  - Behavior/UI: Sum gold+silver+copper counts, slots = floor(total / 100), add to used slots; show "(coins: N → M slots)".
+  - Schema: none.
+  - Acceptance: 150 total coins → +1 slot; 240 → +2 slots.
+- [ ] **Ration & ammunition grouping.**
+  - Rule: Every 4 food rations = 1 slot. A quiver of arrows = 1 slot regardless of arrows remaining. Slingstones = 0 slots.
+  - Target: `app.js` · encumbrance calc; recognize items by name/category (`data.js` gear `category`).
+  - Behavior/UI: When counting slots, group field rations in stacks of 4 (ceil(count/4)), force quiver items to 1 slot, force slingstones to 0. Tie into the ammo counter used by `heroWeaponAttack`.
+  - Schema: optional `inventory.items[].qty` for stackables (default 1); else parse the existing "(×N)" suffix.
+  - Acceptance: 8 rations = 2 slots; a quiver with 12 arrows = 1 slot; slingstones = 0.
+- [ ] **Over-encumbered → STR roll prompt.**
+  - Rule: While over the limit, you must succeed a STR roll to move in combat or travel a shift (failure = you don't move / progress).
+  - Target: `app.js` · `Sheet.render` (movement panel) + `Combat.view`.
+  - Behavior/UI: When `used > limit`, the move panel and combat row show an "Over-encumbered — roll STR to move" button that opens `Roller.skill`-style STR check; surface the result. Keep the existing red warning.
+  - Schema: none.
+  - Acceptance: Exceed the limit → STR-roll prompt appears on the sheet and the combat row.
+- [ ] **Weapon & shield durability tracking.**
+  - Rule: Weapons/shields have a durability rating (`DB.weapons[].durability`); parrying heavy blows or using fragile gear ticks it down; at 0 the item breaks.
+  - Target: `app.js` · inventory rows + parry actions; `data.js` durability already present.
+  - Behavior/UI: Show a durability counter (current/max) on equipped weapons/shields with −/+ steppers and a "broken" state at 0 (disables attack/parry until repaired). Optionally auto-prompt on parry actions.
+  - Schema: `inventory.items[].durability: number` (default = `DB.weapons` value when equipped/first used).
+  - Acceptance: Tick a shield's durability to 0 → marked broken; cannot parry until repaired.
+
+### Phase 14 — Advancement & Identity (Priority: MEDIUM)
+- [ ] **Overcome Weakness flow.**
+  - Rule: Acting against your Weakness can let you overcome it — award 2 advancement marks (instead of 1), delete the weakness, and a 1-session cooldown before a new weakness may be chosen.
+  - Target: `app.js` · `Sheet.render` Character/flavor panel.
+  - Behavior/UI: Add an "Overcome Weakness" button by the Weakness field. On click: grant 2 marks (apply to chosen unmarked skills, reuse the advancement-marking UI), clear `identity.weakness`, set a cooldown flag. While on cooldown, show "New weakness available next session" and block setting a new one; clear the flag in `endSession`.
+  - Schema: `state.weaknessCooldown: boolean` (default false); reuses skill `mark`.
+  - Acceptance: Click Overcome → 2 marks awarded, weakness cleared, cooldown shown; after End Session, a new weakness can be entered.
+- [ ] **End-of-session questionnaire (5 questions).**
+  - Rule: At session end, answer the five advancement questions; each "yes" lets you place one advancement mark on an unmarked skill of your choice (in addition to marks earned from Dragons/Demons).
+  - Target: `app.js` · `Sheet.endSession` (~line 1889) — currently only rolls existing marks.
+  - Behavior/UI: Before the advancement roll, show a modal listing the five canonical questions (store the text in `data.js`, e.g. `DB.advancementQuestions`). For each "yes", let the player tick one unmarked skill to mark. Then proceed to the existing per-mark D20 advancement roll.
+  - Schema: add `advancementQuestions: string[]` to `data.js` (the 5 official questions).
+  - Acceptance: End Session → questionnaire appears; answering 3 "yes" lets you mark 3 skills, which then roll for advancement.
+- [ ] **Teacher training.**
+  - Rule: Spend a shift training a skill with an NPC teacher (skill 15+) to get one immediate advancement roll for that skill; a given teacher can only raise you by +1.
+  - Target: `app.js` · `Sheet` (new action near skills/advancement).
+  - Behavior/UI: A "Train with teacher" control: pick a skill, confirm teacher skill ≥15, roll one advancement D20 (improve if > level, max 18). Track that you've benefited from this teacher for this skill (+1 cap).
+  - Schema: `state.teacherTrained: { [skillName]: true }` (default {}).
+  - Acceptance: Train a skill → one advancement roll occurs; repeating with the same teacher/skill is blocked.
+- [ ] **Heroic-ability requirement locking + skill-18 free ability.**
+  - Rule: A heroic ability can't be taken unless its skill requirement is met (e.g. Catlike needs Acrobatics 12). When a skill first reaches 18, the character immediately gains a new heroic ability for free.
+  - Target: `app.js` · `Sheet.learnMagic`/a new "Gain heroic ability" picker; advancement in `endSession`/`deathRoll`/training where levels change.
+  - Behavior/UI: Add a heroic-ability picker (sheet) that lists `DB.heroicAbilities` and **disables** those whose `req` isn't met by current skills. When any skill advances to 18, prompt "Choose a free heroic ability" using the same picker (requirement still enforced unless rules say otherwise — keep the requirement check).
+  - Schema: none (uses `abilities[]`).
+  - Acceptance: With Acrobatics 11, Catlike is locked; raise to 12 → selectable; advancing a skill to 18 pops the free-ability picker.
+
+### Phase 15 — Vitals & Magic Extras (Priority: MEDIUM)
+- [ ] **Robust / Focused auto-adjust max HP/WP.**
+  - Rule: *Robust* permanently raises max HP by 2 per pick; *Focused* raises max WP by 2 per pick (both stackable).
+  - Target: `app.js` · derived-stat usage; wherever `derived.hpMax`/`wpMax` are read (`effWpMax`, sheet, combat).
+  - Behavior/UI: Compute effective max HP = `attributes.CON + 2×(count of Robust in abilities)`; effective max WP = `attributes.WIL + 2×(Focused count) − wpPenalty`. Use everywhere HP/WP max is shown/clamped. Acquiring/removing the ability updates the max live.
+  - Schema: none (derive from `abilities[]`); optionally cache in `derived` on change.
+  - Acceptance: Add Robust → max HP +2 and the HP stepper allows the new max; add two Focused → max WP +4.
+- [ ] **Familiar WP splitting.**
+  - Rule: A mage may assign up to half their max WP to a familiar; the familiar's pool and the mage's pool are tracked separately.
+  - Target: `app.js` · `Sheet.render` (Summons/Companions or a dedicated Familiar panel).
+  - Behavior/UI: A "Familiar" control to allocate WP (0…⌊maxWP/2⌋) from the mage to the familiar; show two pools with independent steppers; enforce the cap; returning WP adds back to the mage (never exceeding mage max).
+  - Schema: `state.familiar: { name: string, wp: number, wpMax: number } | null` (default null).
+  - Acceptance: Mage with max WP 10 can move up to 5 WP into the familiar; pools update independently and respect the cap.
+
+### Phase 16 — Movement & Reactions (Priority: MEDIUM)
+- [ ] **Change position (prone / stand).**
+  - Rule: Dropping prone or standing up is a free action (affects being targeted/attacking).
+  - Target: `app.js` · `Sheet.render` movement panel and/or `Combat.view` row.
+  - Behavior/UI: A "Prone/Stand" toggle (free action, no movement cost) showing current posture.
+  - Schema: `state.prone: boolean` (default false).
+  - Acceptance: Toggle prone on/off; state persists and shows on the sheet/combat row.
+- [ ] **Door interaction (dock half movement).**
+  - Rule: Passing through a closed door costs half your movement for the turn.
+  - Target: `app.js` · movement panel (`moveBtns`).
+  - Behavior/UI: Add a "Through door (−½ pool)" button that subtracts half of `calcMaxMove()` from the remaining pool (distinct from the generic +4m difficult-terrain button).
+  - Schema: none (uses `state.moveSpent`).
+  - Acceptance: With pool 10, pressing the door button spends 5m.
+- [ ] **Leaping (Acrobatics if > ¼ move).**
+  - Rule: Leaping a gap longer than ¼ of your movement rate requires an Acrobatics roll.
+  - Target: `app.js` · movement panel.
+  - Behavior/UI: A "Leap" control: enter distance; if distance > movement/4, open an Acrobatics `Roller.skill` check; else auto-succeed. Show the threshold.
+  - Schema: none.
+  - Acceptance: Movement 10, leap 3m → Acrobatics prompt (threshold 2.5m); leap 2m → auto-success.
+- [ ] **Parry / Dodge reaction.**
+  - Rule: Parrying or dodging is a reaction that consumes your upcoming action (flips your initiative card). A successful dodge grants a free 2m move. You can't parry and dodge the same attack.
+  - Target: `app.js` · `Combat.view` row actions and/or `Sheet`.
+  - Behavior/UI: "Parry" (weapon/shield skill roll) and "Dodge" (Evade roll) buttons that mark the combatant's turn used (`acted/done`, flip card), and on a successful dodge offer a "+2m free move". Respect that a combatant can react only once per attack.
+  - Schema: none (uses combatant `acted`/`done`).
+  - Acceptance: Use Dodge in combat → the combatant's turn is consumed; on success a +2m option appears.
+
+### Phase 17 — Solo Completion (Priority: MEDIUM)
+- [ ] **Solo "+5 Advancement Marks" mission button.**
+  - Rule (solo): On completing a mission, gain 5 advancement marks to assign to skills of your choice (replaces the group end-of-session marking). See `DRAGONBANE_SOLO.advancement`.
+  - Target: `app.js` · `SoloMode.view` and/or `Sheet` (visible when `Settings.soloMode()`).
+  - Behavior/UI: A "Mission complete: +5 marks" button that lets the player tick 5 unmarked skills, then optionally run the advancement roll. Hidden when Solo Mode is off.
+  - Schema: none (reuses skill `mark`).
+  - Acceptance: With Solo Mode on, press the button → assign 5 marks → advancement roll uses them.
+- [ ] **Solo: one extra free Heroic Ability at creation.**
+  - Rule (solo): A solo character gets one additional free heroic ability at creation.
+  - Target: `app.js` · `Wizard.step_heroic` / `Wizard.build` (and Pregens if relevant). Currently solo abilities are merely added to the choice pool (still one pick).
+  - Behavior/UI: When `Settings.soloMode()`, allow selecting **two** heroic abilities at creation (one normal + one extra), both added to `abilities[]`. Update validation to require the correct count.
+  - Schema: none.
+  - Acceptance: With Solo Mode on, the wizard heroic step accepts two abilities; both appear on the created sheet.
+- [ ] **Solo "failing forward".**
+  - Rule (solo): Instead of hard failure, solo play converts failed skill checks into mishaps/complications (e.g. lose an item rather than fall to your death).
+  - Target: `app.js` · `Roller.skill` (and optionally cast/attack) when `Settings.soloMode()`.
+  - Behavior/UI: On a failed (non-demon) solo roll, after the push option, offer a "Fail forward" suggestion that rolls a complication (reuse `DRAGONBANE_SOLO.dragonDemonEffects` demon column or a new solo complication table in `data-solo.js`).
+  - Schema: optional new `failForward: string[]` table in `data-solo.js`.
+  - Acceptance: With Solo Mode on, a failed skill roll offers a "Fail forward" complication.
+
+### Phase 18 — Advanced GM Automation (Priority: LOW) *(gated behind one shared toggle)*
+> All features below are **optional**, hidden by default, and revealed together by a
+> single **"Advanced / GM Automation"** toggle in **Settings & About** (same
+> pattern as Book of Magic / Solo Mode). Add `Settings.gmAutomation()` →
+> `!!get("gmAutomation")`. Keep the default player UI uncluttered.
+- [ ] **Add the shared toggle.**
+  - Target: `app.js` · `Settings` (add `gmAutomation()`); `Screens.about` settings panel (new toggle row).
+  - Behavior/UI: A toggle row "Advanced / GM Automation" with a one-line description listing what it enables. All Phase-18 UI checks `Settings.gmAutomation()` before rendering.
+  - Schema: `settings.gmAutomation: boolean` (default false) in `dragonbane.settings`.
+  - Acceptance: Toggling it on reveals all Phase-18 panels; off hides them.
+- [ ] **Global time dashboard (Rounds / Stretches / Shifts).**
+  - Rule: Time scales — Round ≈ 10s, Stretch (several minutes), Shift ≈ 6h (Morning/Day/Evening/Night).
+  - Target: `app.js` · new panel (Sheet or a small header widget) gated by the toggle.
+  - Behavior/UI: Counters/steppers for rounds, stretches, and shift-of-day; advancing a shift can trigger dependent systems (light, sleep, round-rest reset).
+  - Schema: `state.time: { round: 0, stretch: 0, shift: 0 }` (default zeros) or a campaign-level clock.
+  - Acceptance: Advancing the clock updates counters and (when present) drives the systems below.
+- [ ] **Round rest "once per shift" enforcement.**
+  - Rule: Round rest (+D6 WP) can be used only once per shift.
+  - Target: `app.js` · `Sheet.rest("round")`.
+  - Behavior/UI: After a round rest, disable it until a Shift rest or the time dashboard advances a shift; show "used this shift".
+  - Schema: `state.roundRestUsed: boolean` (default false), cleared on shift rest / shift advance.
+  - Acceptance: Two round rests in a row → second is blocked until a shift passes.
+- [ ] **Light-source burn-out.**
+  - Rule: Each stretch, roll the light's die (Torch D6, Oil Lamp D6, Lantern D8, Candle D4); on a 1 it goes out (`data.js` gear effects).
+  - Target: `app.js` · light items in inventory + the time dashboard.
+  - Behavior/UI: For carried/lit light sources, each elapsed stretch prompts the correct die; on a 1 mark it extinguished. Add structured `lightDie` to `DB.gear` light entries.
+  - Schema: add `lightDie: 4|6|8` to light gear in `data.js`; `inventory.items[].lit: boolean`.
+  - Acceptance: A lit torch prompts a D6 each stretch; rolling 1 marks it out.
+- [ ] **Sleep deprivation.**
+  - Rule: Missing sleep for 3 shifts blocks WP and condition healing and drains D6 WP per awake shift; reaching 0 WP forces an un-wakeable sleep.
+  - Target: `app.js` · time dashboard + `Sheet`.
+  - Behavior/UI: Track awake-shifts; at ≥3, block WP/condition recovery in `rest()` and deduct D6 WP per shift advance; at WP 0 show "forced sleep". Sleeping (a shift rest) resets the counter.
+  - Schema: `state.awakeShifts: number` (default 0).
+  - Acceptance: Advance 3 awake shifts → healing blocked + D6 WP drained per shift; sleeping resets it.
+- [ ] **Cold & disease trackers.**
+  - Rule: Cold/disease prompt recurring CON rolls; failure deals D6 damage and/or applies *Sickly*. (Disease has a virulence/duration.)
+  - Target: `app.js` · `Sheet` (status section) + time dashboard.
+  - Behavior/UI: "Cold" and "Disease" toggles; while active, each relevant interval prompts a CON `Roller.skill`-style check; on failure apply D6 damage and the *Sickly* condition. Disease tracks a virulence value.
+  - Schema: `state.afflictions: { cold: boolean, disease: { virulence: number }|null }` (default `{cold:false, disease:null}`).
+  - Acceptance: Enable Cold → CON-roll prompt; failing deals D6 and sets Sickly.
+- [ ] **Fear attacks + fear table.**
+  - Rule: A fear attack forces a WIL roll; failure applies *Scared* and a result on the fear table (Paralysis / Fleeing / Rage).
+  - Target: `app.js` · `Sheet`/`Combat`; add a `fearTable` to `data.js`.
+  - Behavior/UI: A "Fear attack" button → WIL `Roller.skill` check; on failure set *Scared* and roll/show the fear-table outcome.
+  - Schema: add `fearTable: [...]` to `data.js`.
+  - Acceptance: Trigger a fear attack → WIL roll; failure sets Scared and shows a fear-table result.
+- [ ] **Concentration interruption.**
+  - Rule: A concentration spell is broken (WIL roll to maintain) if the caster takes damage or suffers fear while concentrating.
+  - Target: `app.js` · HP-decrement paths (`Sheet` stepper ~line 1943, `Combat` `doHp`, damage applier) check active concentration effects (`c.effects[].concentration`).
+  - Behavior/UI: When a concentrating character takes damage/fear, prompt a WIL roll; on failure end the matching concentration effect.
+  - Schema: none (uses `effects[].concentration`).
+  - Acceptance: With a tracked concentration effect, taking damage prompts a WIL roll; failing removes the effect.
+
+---
+
 ## 8. Changelog
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Rules-Accuracy Completion roadmap added (§7B).** From a full feature audit against the *Dragonbane* core/expansion rules, documented every missing/partial feature as nine themed phases (Phase 10 Bug Fixes → Phase 18 Advanced GM Automation), ordered by rules-impact with Priority labels and full implementation specs (rule · target file/function · behavior/UI · schema · acceptance). Added §2.9 (planned-features summary) and §6.1 (planned schema additions). Docs only — no code changes yet. GM-side automations gated behind one shared "Advanced / GM Automation" toggle; encumbrance specced as a full slot-system rebuild. |
 | 2026-06-24 | Extracted canonical scope (§1, §3) from raw conversation logs. Initial `CLAUDE.md`. |
 | 2026-06-24 | Created `data.js` rules library (Attributes, conditions, 6 kin, 30 skills, 10 professions, 44 heroic abilities, 4 schools of spells, full equipment). **Phase 0 COMPLETE.** |
 | 2026-06-24 | Created `data-magic.js` (254 magic entries) and `data-solo.js` (oracle/solo rules). Data extraction DONE. |
