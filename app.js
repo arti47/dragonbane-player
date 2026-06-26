@@ -1135,7 +1135,19 @@
     card.appendChild(body);
     back.appendChild(card);
     document.body.appendChild(back);
-    const close = () => back.remove();
+    // Size the overlay to the *visible* viewport (excludes the mobile browser
+    // toolbar), so the bottom-anchored sheet never slips off-screen. Falls back
+    // to the CSS dvh/vh rules when visualViewport is unavailable.
+    const vv = window.visualViewport;
+    const fit = () => {
+      const h = (vv && vv.height) || window.innerHeight;
+      back.style.height = h + "px";
+      back.style.top = (vv ? vv.offsetTop : 0) + "px";
+      card.style.maxHeight = Math.round(h * 0.92) + "px";
+    };
+    fit();
+    if (vv) { vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); }
+    const close = () => { if (vv) { vv.removeEventListener("resize", fit); vv.removeEventListener("scroll", fit); } back.remove(); };
     back.onclick = (e) => { if (e.target === back) close(); };
     x.onclick = close;
     return { body, close };
