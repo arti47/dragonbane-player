@@ -37,8 +37,7 @@
       this.save(list);
       if (typeof Sync !== "undefined" && Sync.enabled) {
         if (!c.owner && Sync.uid) c.owner = Sync.uid;
-        if (Sync.campaign && !c.campaignId) c.campaignId = Sync.campaign.id;
-        Sync.pushChar(c);
+        if (c.campaignId) Sync.pushChar(c);
       }
       return c;
     },
@@ -46,14 +45,35 @@
     // Apply a mutator to one character and persist. Returns the updated char.
     update(id, fn) {
       const list = this.list(); const c = list.find((x) => x.id === id); if (!c) return null; fn(c); this.save(list);
-      if (typeof Sync !== "undefined" && Sync.enabled && (c.owner === Sync.uid || (Sync.campaign && Sync.campaign.role === "gm"))) {
+      if (typeof Sync !== "undefined" && Sync.enabled && c.campaignId && (c.owner === Sync.uid || (Sync.campaign && Sync.campaign.role === "gm"))) {
+        Sync.pushChar(c);
+      }
+      return c;
+    },
+    toggleParty(id) {
+      const list = this.list();
+      const c = list.find((x) => x.id === id);
+      if (!c) return null;
+      if (typeof Sync === "undefined" || !Sync.enabled || !Sync.campaign) {
+        alert("You must join or create a party campaign first.");
+        return null;
+      }
+      if (c.campaignId === Sync.campaign.id) {
+        c.campaignId = null;
+        this.save(list);
+        Sync.removeChar(c.id);
+      } else {
+        c.campaignId = Sync.campaign.id;
+        if (!c.owner && Sync.uid) c.owner = Sync.uid;
+        this.save(list);
         Sync.pushChar(c);
       }
       return c;
     },
     remove(id) {
+      const c = this.get(id);
       this.save(this.list().filter((x) => x.id !== id));
-      if (typeof Sync !== "undefined" && Sync.enabled) Sync.removeChar(id);
+      if (typeof Sync !== "undefined" && Sync.enabled && c?.campaignId) Sync.removeChar(id);
     },
     // Wipe locally-stored heroes and the local combat tracker (keeps theme,
     // settings, and any active campaign connection). Used by Settings → Clear.
@@ -336,9 +356,8 @@
     },
 
     pushChar(charObj) {
-      if (!this.enabled || !this.uid || !this.db) return;
+      if (!this.enabled || !this.uid || !this.db || !charObj.campaignId) return;
       const payload = { ...charObj, owner: charObj.owner || this.uid };
-      if (this.campaign && !payload.campaignId) payload.campaignId = this.campaign.id;
       this.db.ref(`characters/${charObj.id}`).set(payload).catch(() => {});
     },
 
@@ -1903,7 +1922,14 @@
       normalizeInventory(c); Store.update(id, normalizeInventory);
       this.id = id; window.activeCharacterId = id; this.render();
     },
-    mutate(fn) { Store.update(this.id, fn); this.render(); },
+    mutate(fn) {
+      const c = Store.get(this.id);
+      const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+      const canEdit = !inPartyCamp || !c?.owner || c.owner === Sync.uid || Sync.campaign.role === "gm";
+      if (!canEdit) return;
+      Store.update(this.id, fn);
+      this.render();
+    },
     uploadPortrait() {
       const inp = document.createElement("input");
       inp.type = "file"; inp.accept = "image/*";
@@ -2283,12 +2309,20 @@
     render() {
       const c = Store.get(this.id);
       if (!c) { Router.go("home"); return; }
+      const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+      const canEdit = !inPartyCamp || !c.owner || c.owner === Sync.uid || Sync.campaign.role === "gm";
       const a = c.attributes;
       const condByAttr = {}; (DB.conditions || []).forEach((cn) => { if (c.state.conditions[cn.key]) condByAttr[cn.attribute] = true; });
       const root = el(`<div></div>`);
 
       // Header
       root.appendChild(el(`<div class="wiz-head"><button class="btn ghost" id="sheet-back">← Heroes</button><div class="wiz-progress">${esc(c.identity.name)}</div></div>`));
+      if (!canEdit) {
+        root.appendChild(el(`<div class="panel" style="border-color:var(--bad);background:rgba(180,50,50,0.1);padding:10px 14px;margin-bottom:12px">
+          <b style="color:var(--bad)">🔒 Read-Only View</b><br>
+          <span class="stat-line" style="font-size:0.85rem">You are viewing another player's hero. Rolling dice and editing stats are disabled.</span>
+        </div>`));
+      }
 
       // Identity + derived + HP/WP
       const top = el(`<div class="panel"></div>`);
@@ -2304,7 +2338,7 @@
           <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
         </div>
       </div>`);
-      idWrap.querySelector("#portrait-wrap").onclick = () => this.uploadPortrait();
+      idWrap.querySelector("#portrait-wrap").onclick = () => { if (canEdit) this.uploadPortrait(); };
       top.appendChild(idWrap);
       const attrRow = el(`<div class="rolled-row" style="margin-top:8px">${(DB.attributes||[]).map((at)=>`<span class="tag ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":""}">${at.key} ${a[at.key]}${condByAttr[at.key]?" ⚠":""}</span>`).join("")}</div>`);
       top.appendChild(attrRow);
@@ -2770,13 +2804,30 @@
       const notesField = el(`<div class="form-field"><label>Notes / Journal</label></div>`);
       const notes = el(`<textarea rows="4" placeholder="Session notes, threads, loot…"></textarea>`);
       notes.value = c.notes || "";
-      notes.oninput = () => { Store.update(this.id, (ch) => { ch.notes = notes.value; }); }; // save without re-render
+      notes.oninput = () => { if (canEdit) Store.update(this.id, (ch) => { ch.notes = notes.value; }); }; // save without re-render
       notesField.appendChild(notes); flav.appendChild(notesField); root.appendChild(flav);
 
-      // Delete
-      const del = el(`<button class="btn ghost block" style="margin-top:6px">Delete hero</button>`);
-      del.onclick = () => { if (confirm("Delete " + c.identity.name + "?")) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
-      root.appendChild(del);
+      if (canEdit) {
+        if (inPartyCamp) {
+          const inParty = c.campaignId === Sync.campaign.id;
+          const partyBtn = el(`<button class="btn secondary block" style="margin-top:14px">${inParty ? "🛡️ Remove from Party Campaign" : "⚡ Add to Party Campaign"}</button>`);
+          partyBtn.onclick = () => { Store.toggleParty(this.id); this.render(); };
+          root.appendChild(partyBtn);
+        }
+        // Delete
+        const del = el(`<button class="btn ghost block" style="margin-top:6px">Delete hero</button>`);
+        del.onclick = () => { if (confirm("Delete " + c.identity.name + "?")) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
+        root.appendChild(del);
+      } else {
+        notes.readOnly = true;
+        root.querySelectorAll("input").forEach(inp => inp.disabled = true);
+        root.addEventListener("click", (e) => {
+          if (e.target.id === "sheet-back" || e.target.closest("#sheet-back")) return;
+          e.stopPropagation();
+          e.preventDefault();
+          this.toast("🔒 Read-Only: You cannot roll or edit another player's hero.");
+        }, true);
+      }
 
       // Mount, preserving scroll across re-renders
       const y = window.scrollY;
@@ -3571,14 +3622,37 @@
             <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
           </div>`;
       } else {
-        const cards = chars.map((c) => `
-          <button class="card" data-id="${esc(c.id)}">
-            <h3>${esc(c.identity?.name || "Unnamed")}</h3>
-            <div class="meta">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
-          </button>`).join("");
+        const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+        const myChars = inPartyCamp
+          ? chars.filter(c => !c.owner || c.owner === Sync.uid || !c.campaignId)
+          : chars;
+        const partyChars = inPartyCamp
+          ? chars.filter(c => c.campaignId === Sync.campaign.id && c.owner && c.owner !== Sync.uid)
+          : [];
+
+        const renderCard = (c, isMine) => {
+          const inParty = inPartyCamp && c.campaignId === Sync.campaign.id;
+          const badge = inPartyCamp && isMine
+            ? `<div style="margin-top:10px"><button class="btn secondary step btn-toggle-party" data-id="${esc(c.id)}" style="font-size:0.75rem;padding:3px 10px;border-radius:4px" type="button">${inParty ? "🛡️ In Party (Shared)" : "⚡ Private (Click to share)"}</button></div>`
+            : (!isMine ? `<div style="margin-top:10px"><span class="tag" style="font-size:0.75rem">🔒 Read-Only</span></div>` : "");
+          return `
+            <div class="card" data-id="${esc(c.id)}" style="cursor:pointer;display:flex;flex-direction:column;align-items:flex-start">
+              <h3 style="margin:0">${esc(c.identity?.name || "Unnamed")}</h3>
+              <div class="meta" style="margin-top:2px">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
+              ${badge}
+            </div>`;
+        };
+
+        const myCards = myChars.map(c => renderCard(c, true)).join("");
+        const partyCards = partyChars.map(c => renderCard(c, false)).join("");
+
         body = `
           ${sectionTitle("Your heroes")}
-          <div class="card-grid">${cards}</div>
+          <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
+          ${partyChars.length ? `
+            <div style="margin-top:20px">${sectionTitle("Party members' heroes")}</div>
+            <div class="card-grid">${partyCards}</div>
+          ` : ""}
           <p></p>
           <button class="btn block" id="new-hero">Forge a new hero</button>
           <p></p>
@@ -3589,7 +3663,17 @@
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
       root.querySelectorAll(".card[data-id]").forEach((card) =>
-        card.addEventListener("click", () => Sheet.open(card.dataset.id)));
+        card.addEventListener("click", (e) => {
+          if (e.target.closest(".btn-toggle-party")) return;
+          Sheet.open(card.dataset.id);
+        }));
+      root.querySelectorAll(".btn-toggle-party").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          Store.toggleParty(btn.dataset.id);
+          Router.go("home");
+        });
+      });
       return root;
     },
 

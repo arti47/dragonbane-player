@@ -131,18 +131,19 @@ The full Dragonbane core game data organized into searchable accordion categorie
 
 | File | Purpose | Status |
 |---|---|---|
-| `index.html` | App shell / markup | 🟨 shell done (header, nav, screen mount, script loads); wizard/tracker markup added in later phases |
-| `app.js` | Application logic (wizard, tracker, dice, sync) | ✅ ALL PHASES COMPLETE (Phases 1–6, 3B, 4B, 5, 5B): wizard, sheet, roller, combat tracker, solo assistant, cloud sync, accordions/compendiums. |
+| `index.html` | App shell / markup | ✅ COMPLETE — shell done (header, nav, screen mount, script loads); wizard/tracker markup fully wired. |
+| `app.js` | Application logic (wizard, tracker, dice, sync) | ✅ ALL PHASES COMPLETE (Phases 1–9): wizard, sheet, roller, combat tracker, solo assistant, cloud sync, accordions/compendiums, tabletop automation & GM guards. |
 | `styles.css` | Theming (Dragonbane look + light/dark) | ✅ Dragonbane theme (light + dark) + wizard/sheet styles (chips, attr grid, forms, steps) — verified in browser |
 | `data.js` | Dragonbane rules library (kin, professions, skills, abilities, spells, equipment) | ✅ COMPLETE — kin, conditions, derived tables, ages, 30 skills + 3 magic schools, 10 professions (+ full gear tables), 44 heroic abilities, all spells (4 schools), weapons/shields/armor/helmets, general gear, instruments, currency |
-| `data-magic.js` | Book of Magic library (revised spells, new spells for existing schools, 9 new schools) | ✅ DATA COMPLETE — 6 revised spells + 39 new spells for existing schools (+familiar table) + all 9 new schools (Demonology, Harmonism, Illusionism, Necromancy, Symbolism, Witchcraft, Alchemy, Enchanting, Dracomancy); **254 magic entries total**, validated via node. NOT yet wired into `index.html` or the wizard (Phase 3B feature work remains) |
-| `data-solo.js` | Solo rules: oracle, likelihoods, random tables, solo heroic abilities | ✅ COMPLETE & WIRED — Fortune Chart oracle, Inspiration Table (3D20), Dragon/Demon twists, Solo NPC generator + quick combat add, D6 NPC Attack Table AI roller, and Solo Heroic Abilities (*Army of One, Sole Survivor*) wired into wizard and initiative. |
-| `data-monsters.js` | Dragonbane Bestiary library (12 true monsters + Rothgar Wolfsbane Robber Knight) | ✅ COMPLETE & WIRED — Demon, Dragon, Ghost, Giant, Giant Spider, Griffon, Harpy, Manticore, Minotaur, Troll, Wight, Vampiric Bats Swarm, Robber Knight. Auto-hit attacks roll damage via `Roller.monsterAttack`. |
-| `data-npcs.js` | Dragonbane Humanoid NPCs, Bosses, Undead & Animals library | ✅ COMPLETE & WIRED — Guard, Cultist, Thief, Villager, Hunter, Bandit, Adventurer, Scholar, Bosses (Bandit Chief, Knight Champion, Archmage), Goblins (Scout, Warrior, Chief), Orcs (Warrior, Shaman, Chieftain, Grunta & Merle), Skeletons (Warrior, Archer, Champion), 11 common animals. Rolls d20 attacks via `Roller.npcAttack`. |
-| `data-pregens.js` | The 5 Dragonbane Core Set pre-generated characters | ✅ done & wired — Aodhan, Orla, Makander, Krisanna, Bastonn (attributes, trained skills, abilities, spells, gear, flavor). "Use a pre-gen" on the Heroes screen instantiates one (derives stats/skills) — verified in browser |
+| `data-magic.js` | Book of Magic library (revised spells, new spells for existing schools, 9 new schools) | ✅ COMPLETE & WIRED — 6 revised spells + 39 new spells for existing schools (+familiar table) + all 9 new schools; 254 magic entries total, fully wired into wizard and casting. |
+| `data-solo.js` | Solo rules: oracle, likelihoods, random tables, solo heroic abilities | ✅ COMPLETE & WIRED — Fortune Chart oracle, Inspiration Table (3D20), Dragon/Demon twists, Solo NPC generator + quick combat add, D6 NPC Attack Table AI roller, and Solo Heroic Abilities wired into wizard and initiative. |
+| `data-monsters.js` | Dragonbane Bestiary library (53 true monsters) | ✅ COMPLETE & WIRED — 12 core monsters + Robber Knight + 40 compendium additions. Auto-hit attacks roll damage via `Roller.monsterAttack`. |
+| `data-npcs.js` | Dragonbane Humanoid NPCs, Bosses, Undead & Animals library | ✅ COMPLETE & WIRED — Guard, Cultist, Thief, Villager, Hunter, Bandit, Adventurer, Scholar, Bosses, Goblins, Orcs, Skeletons, animals + 17 playable kin archetypes. Rolls d20 attacks via `Roller.npcAttack`. |
+| `data-pregens.js` | The 5 Dragonbane Core Set pre-generated characters | ✅ COMPLETE & WIRED — Aodhan, Orla, Makander, Krisanna, Bastonn. Instantiated via "Use a pre-gen" on Heroes screen. |
+| `database.rules.json` | Firebase Realtime Database security rules | ✅ COMPLETE — enforces player read/write own sheet + shared combat state; GM read/write all sheets. |
 | `manifest.json` | PWA manifest (installable) | ✅ done |
-| `service-worker.js` | Offline caching | ✅ done — **network-first** for same-origin (always picks up fresh code online; cache fallback offline), caches `data-magic.js`/`data-solo.js` too. (Changed from cache-first, which served stale code.) |
-| `firebase-config.js` | Placeholder Firebase config (user fills in keys) | ✅ done — placeholder + `FIREBASE_ENABLED` flag; app runs in local mode until filled |
+| `service-worker.js` | Offline caching | ✅ done — network-first for same-origin, caches all data files. |
+| `firebase-config.js` | Firebase config & flags | ✅ done — configured for regional RTDB (`asia-southeast1.firebasedatabase.app`) + `FIREBASE_ENABLED` flag. |
 | `icon.svg` | PWA app icon | ✅ done |
 | `README.md` | GitHub readme + Firebase setup steps | ✅ done |
 | `CLAUDE.md` | This file — canonical spec, kept in sync with code | ✅ active |
@@ -275,7 +276,7 @@ data-solo.js: failForward[]
 - [x] Active-effects tracker — **Active Spells & Effects** panel (`c.effects[]`) with a **+ Track** quick-add on lasting spells.
 - [x] Dracomancy learn-in-play — a **"Learn a spell or school"** modal (`Sheet.learnMagic`) in the Magic panel.
 
-### Phase 5 — Multiplayer & Sync
+### Phase 5 — Multiplayer & Sync ✅ COMPLETE (verified in browser)
 - [x] Firebase Realtime Database (RTDB) setup & schema initialization.
 - [x] Security Rules: enforce player read/write own sheet + shared combat state; GM read/write all sheets.
 - [x] Instant Local/Anonymous auth flow + "Link Google Account" button in Settings.
@@ -283,11 +284,31 @@ data-solo.js: failForward[]
 - [x] Shared combat tracker sync (`dragonbane.combat` RTDB node).
 - [x] Portrait image upload (client-side canvas compression) & PWA reload toast.
 
-### Phase 5B — Solo Mode Wiring *(depends on Phase 5)*
+### Phase 5B — Solo Mode Wiring ✅ COMPLETE (verified in browser)
 - [x] Fortune Chart oracle widget (6 columns, 3 likelihoods).
 - [x] Inspiration Table widget (D20×3 prompt generator).
 - [x] Solo NPC templates (Minion/Boss generator) & NPC Attack Table widget (4 roles).
 - [x] Solo Heroic Abilities (Army of One, Sole Survivor) wiring into wizard/sheet.
+
+### Phase 6 — Navigation & Rules Neatening ✅ COMPLETE (verified in browser)
+- [x] Reorganized Rules Library into searchable accordion categories with live text filter.
+- [x] Wilderness Journeys & Travel Reference compendium (Shifts, camp/rest Bushcraft rules, foraging, mishap table).
+- [x] Core Gameplay Loop & Stages walkthrough compendium.
+- [x] Dynamic Solo tab hiding when disabled in Settings.
+
+### Phase 8 — Combat Ergonomics & Caster NPCs ✅ COMPLETE (verified in browser)
+- [x] Repositioned combat row Open Sheet and Delete icons.
+- [x] Wired explicit known spells arrays into canonical caster NPCs.
+- [x] Implemented `Roller.npcCast` pop-up modal with d20 magic skill checks.
+- [x] Clickable sync status pill & Heroes screen prompt banner.
+- [x] Desperate healing restrictions, metal armor/weapon warnings, and grimoire unprepared checkboxes.
+
+### Phase 9 — Tabletop Automation & GM Guards ✅ COMPLETE (verified in browser)
+- [x] Two-way HP/WP live sync between Combat Tracker rows and Hero character sheets.
+- [x] Bestiary Monster random attack buttons auto-roll damage dice and open Target Applier.
+- [x] GM-only controls locking (`Combat.isGm`) for Initiative, Next Turn/Round, and Reset.
+- [x] Automatic ammunition deduction (`combatAmmo`) and out-of-ammo roll blocking.
+- [x] Automatic Prepare Grimoire Spells pop-up modal upon Shift Rest.
 
 ---
 

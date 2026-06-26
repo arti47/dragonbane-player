@@ -8,7 +8,7 @@ A character creator and tracker for the **Dragonbane** tabletop RPG, with a real
 
 ## Status
 
-Early development. The full Dragonbane core **rules library** (`data.js`) is complete, and the **app shell** (theme, navigation, offline PWA, local storage, rules browser) is in place. The character creation wizard, tracker, dice engine, and cloud sync are being built phase by phase — see [`CLAUDE.md`](CLAUDE.md) for the spec and roadmap.
+Active development — **Phases 1 through 9 Complete**. All core systems are built and verified: character creation wizard, interactive character sheet, full dice roller (boons/banes/pushing/conditions), real-time Firebase multiplayer sync, GM tabletop automation, Book of Magic expansion, and Solo GM assistant mode. See [`CLAUDE.md`](CLAUDE.md) for the full specification and changelog.
 
 ## Run it locally
 
@@ -46,13 +46,19 @@ Any static host works (Firebase Hosting, Netlify, GitHub Pages, Cloudflare Pages
 
 | File | Purpose |
 |------|---------|
-| `index.html` | App shell |
-| `app.js` | Application logic (shell, storage, routing, rules browser) |
+| `index.html` | App shell and markup |
+| `app.js` | Application logic (wizard, character sheet, dice roller, combat tracker, solo mode, sync) |
 | `styles.css` | Dragonbane theme (light/dark) |
 | `data.js` | Dragonbane core rules library |
-| `firebase-config.js` | Firebase config (placeholder; local fallback) |
-| `manifest.json`, `service-worker.js`, `icon.svg` | PWA: installable + offline |
-| `CLAUDE.md` | Full spec, data model, and roadmap |
+| `data-magic.js` | Book of Magic expansion library (revised spells, new spells, 9 new schools) |
+| `data-solo.js` | Solo mode oracle, tables, and AI attack routines |
+| `data-monsters.js` | Bestiary library (53 true monsters with D6 attack tables) |
+| `data-npcs.js` | Humanoids, bosses, undead, animals, and playable kin archetypes |
+| `data-pregens.js` | The 5 Core Set pre-generated heroes |
+| `firebase-config.js` | Firebase regional RTDB config and storage flags |
+| `database.rules.json` | Firebase Realtime Database security rules |
+| `manifest.json`, `service-worker.js`, `icon.svg` | PWA: installable + offline caching |
+| `CLAUDE.md` | Full spec, data model, roadmap, and changelog |
 
 ## License / content
 
