@@ -193,8 +193,10 @@ state.time             : { round:0, stretch:0, shift:0 }     // Phase 18 clock
 state.roundRestUsed    : boolean = false          // Phase 18 once-per-shift
 state.awakeShifts      : number = 0               // Phase 18 sleep deprivation
 state.afflictions      : { cold:false, disease:null } // Phase 18 cold/disease
-inventory.equipped     : { armor:null, helmet:null, weapons:[] (max 3) } // Phase 13
-inventory.items[].durability : number             // Phase 13 durability
+inventory.items[].equipped   : boolean = false    // Phase 13 — DONE. Implemented as a
+                                                  // per-item flag (not a separate equipped{} object):
+                                                  // 1 armor + 1 helmet + ≤3 weapons are slot-exempt.
+inventory.items[].durability : number             // Phase 13 durability — DONE
 inventory.items[].qty        : number = 1         // Phase 13 stackables (rations/ammo)
 inventory.items[].lit        : boolean            // Phase 18 light sources
 combatant.prevInit     : number | null = null     // Phase 11 Veteran retention
@@ -322,13 +324,13 @@ data-solo.js: failForward[]
   - Behavior/UI: Implement `clear()` to remove the characters key, combat key, campaign key, and settings as appropriate (at minimum `localStorage.removeItem(this.KEY)` + `localStorage.removeItem("dragonbane.combat")`), then let the existing `Router.go("home")` run. Do not wipe theme unless intended.
   - Schema: none.
   - Acceptance: Settings → "Clear all storage" → confirm → heroes list empties with no console error.
-- [ ] **Make the metal-armor / metal-weapon spell restriction actually fire.**
+- [x] **Make the metal-armor / metal-weapon spell restriction actually fire.** ✅ `Roller.cast` now detects metal via `equippedArmor`/`equippedHelmet` `.metal` flags (data-driven) plus an equipped-weapon name heuristic; the metal warning fires for real.
   - Rule: A mage casting while wearing metal armor or wielding a metal weapon is penalized/blocked (see §6.Phase-11 metal rule). Reuse the same equip data introduced in Phase 13.
   - Target: `app.js` · `Roller.cast` (~line 1570). The current check reads `c.gear?.armor?.name` (no such field) and `item.equipped` (never set), so it never triggers.
   - Behavior/UI: Detect metal via the equipped-armor slot and equipped weapons added in Phase 13 (`c.inventory.equipped`), matching armor names against `DB.armor` `metal:true` flags and weapon names against a `metal` feature. Until Phase 13 lands, gate this fix behind that dependency (do not ship a half-check).
   - Schema: depends on Phase 13 equip slots; add `metal: true|false` to relevant `DB.armor` / `DB.weapons` entries in `data.js`.
   - Acceptance: Equip chainmail (or a sword) → opening a spell cast shows the metal warning; equip leather/no weapon → no warning.
-- [ ] **Fix hero combatant armor always 0 in the damage applier.**
+- [x] **Fix hero combatant armor always 0 in the damage applier.** ✅ `Combat.view` hero-add now reads `equippedArmor(h).rating` so the damage applier auto-subtracts a hero's worn armor (verified: Plate → Armor 6 on the card).
   - Rule: A defender's armor rating subtracts from incoming damage.
   - Target: `app.js` · `Combat.view` hero-add (~line 2350): `armor: (h.gear && h.gear.armor ? h.gear.armor.rating : 0)` — heroes have no `gear.armor`.
   - Behavior/UI: Resolve the hero's equipped armor (Phase 13 equip slot, or by matching inventory items to `DB.armor`) and store its rating on the combatant so `Roller.renderDamageApplier` auto-subtracts it. Until Phase 13, derive from the equipped-armor item name → `DB.armor` rating.
@@ -348,7 +350,7 @@ data-solo.js: failForward[]
   - Behavior/UI: For `grip === "1H"` melee weapons, show a "Two-handed grip (−3 STR req)" checkbox in the attack modal; when checked, compare STR against `weapon.str - 3` for the bane calc above.
   - Schema: none.
   - Acceptance: STR 7 hero + Broadsword (STR 10): unchecked → bane; "Two-handed grip" checked → no STR bane (10−3=7).
-- [ ] **Heavy-armor / helmet skill banes.**
+- [x] **Heavy-armor / helmet skill banes.** ✅ Added structured `banes[]`/`metal`/`rangedBane` to `DB.armor`/`DB.helmets`; `Roller.skill` banes worn-armor skills (Plate → Acrobatics/Evade/Sneaking, etc.) and `heroWeaponAttack` banes ranged attacks under a Great Helm.
   - Rule: Equipped armor imposes banes — Studded Leather → Sneaking; Chainmail → Evade & Sneaking; Plate → Acrobatics, Evade & Sneaking. Open Helmet → Awareness; Great Helm → Awareness & all ranged attacks. (Text already in `DB.armor[].effect` / `DB.helmets[].effect`.)
   - Target: `data.js` (add structured `banes: ["Sneaking", ...]` arrays to each armor/helmet entry); `app.js` · `Roller.skill` and `Roller.heroWeaponAttack` apply them.
   - Behavior/UI: When the relevant skill (or a ranged attack) is rolled and the matching armor/helmet is equipped (Phase 13 equip slot), start at bane −1 with a note. Great Helm's "all ranged attacks" applies in `heroWeaponAttack` when `isRanged`.
@@ -377,37 +379,37 @@ data-solo.js: failForward[]
 
 ### Phase 13 — Encumbrance & Inventory Rebuild (Priority: HIGH)
 > **Full rules-accurate rebuild** of the inventory/encumbrance model (replaces the current "sum of item weights vs ½STR" approach).
-- [ ] **Slot-based encumbrance core.**
+- [x] **Slot-based encumbrance core.** ✅ `encUsed` rewritten as a slot model (limit = ⌈STR/2⌉, ceil(weight) per item, equipped/tiny excluded); the slot-count line now renders (fixed a latent `el()` two-node-template drop).
   - Rule: Carrying capacity = STR ÷ 2, rounded up. Each normal item = 1 slot; items of Weight 2/3/… consume that many slots. Tiny items (Weight 0) are unlimited and tracked separately.
   - Target: `app.js` · new `encUsed`/`encLimit` logic (~line 1723) + `Sheet.render` inventory panel. `data.js` weights already present.
   - Behavior/UI: Compute used slots = Σ ceil(weight) over carried (non-equipped, non-tiny) items + coin slots + grouped ration/ammo slots (below). Keep the encumbrance bar; show "X / limit slots".
   - Schema: none beyond existing `inventory.items[].weight`.
   - Acceptance: STR 11 → limit 6; three Weight-1 items + one Weight-2 item = 5 slots.
-- [ ] **Equipped exemptions: armor, helmet, 3 weapons-at-hand.**
+- [x] **Equipped exemptions: armor, helmet, 3 weapons-at-hand.** ✅ Items carry `equipped` + an Equip/Unequip control; an "Equipped (no encumbrance)" section excludes them from slots; caps enforced (1 armor, 1 helmet, ≤3 weapons). `equippedArmor`/`equippedHelmet` derive worn gear.
   - Rule: Worn armor, worn helmet, and up to three "weapons at hand" (shields count) do not consume inventory slots.
   - Target: `app.js` · `Sheet.render` inventory; new equip UI.
   - Behavior/UI: Add equip controls — an Armor slot, a Helmet slot, and up to 3 Weapon/Shield slots. Equipped items render in their own "Equipped (no encumbrance)" section and are excluded from slot totals. Enforce the 3-weapon cap. Equipped armor/helmet/weapons feed Phase 11 banes & metal check and Phase 10 hero-armor.
   - Schema: `inventory.equipped: { armor: itemRef|null, helmet: itemRef|null, weapons: itemRef[] (max 3) }` (default `{armor:null, helmet:null, weapons:[]}`). Store either the item object or an index/id into `inventory.items`.
   - Acceptance: Equip leather + helmet + 2 weapons → none count toward slots; a 4th weapon-at-hand is rejected.
-- [ ] **Coin-weight slots.**
+- [x] **Coin-weight slots.** ✅ `encUsed` adds 1 slot per 100 total coins (`DB.currency.coinsPerItem`); shown in the slot line.
   - Rule: <100 coins = 0 slots; 100–199 = 1 slot; 200–299 = 2; etc. (per 100 total coins). Uses `DB.currency.coinsPerItem = 100`.
   - Target: `app.js` · encumbrance calc + money panel in `Sheet.render`.
   - Behavior/UI: Sum gold+silver+copper counts, slots = floor(total / 100), add to used slots; show "(coins: N → M slots)".
   - Schema: none.
   - Acceptance: 150 total coins → +1 slot; 240 → +2 slots.
-- [ ] **Ration & ammunition grouping.**
+- [x] **Ration & ammunition grouping.** ✅ Rations group 4-per-slot, quivers = 1 slot regardless of arrows, slingstones = 0 (name-based in `encUsed`, qty parsed from "(×N)").
   - Rule: Every 4 food rations = 1 slot. A quiver of arrows = 1 slot regardless of arrows remaining. Slingstones = 0 slots.
   - Target: `app.js` · encumbrance calc; recognize items by name/category (`data.js` gear `category`).
   - Behavior/UI: When counting slots, group field rations in stacks of 4 (ceil(count/4)), force quiver items to 1 slot, force slingstones to 0. Tie into the ammo counter used by `heroWeaponAttack`.
   - Schema: optional `inventory.items[].qty` for stackables (default 1); else parse the existing "(×N)" suffix.
   - Acceptance: 8 rations = 2 slots; a quiver with 12 arrows = 1 slot; slingstones = 0.
-- [ ] **Over-encumbered → STR roll prompt.**
+- [x] **Over-encumbered → STR roll prompt.** ✅ When over the limit, a "⚖ Roll STR to move" button opens a d20-≤-STR check on the sheet.
   - Rule: While over the limit, you must succeed a STR roll to move in combat or travel a shift (failure = you don't move / progress).
   - Target: `app.js` · `Sheet.render` (movement panel) + `Combat.view`.
   - Behavior/UI: When `used > limit`, the move panel and combat row show an "Over-encumbered — roll STR to move" button that opens `Roller.skill`-style STR check; surface the result. Keep the existing red warning.
   - Schema: none.
   - Acceptance: Exceed the limit → STR-roll prompt appears on the sheet and the combat row.
-- [ ] **Weapon & shield durability tracking.**
+- [x] **Weapon & shield durability tracking.** ✅ Equipped weapons/shields with a `DB.weapons.durability` show a current/max stepper; 0 → 💥 broken. Stored as `inventory.items[].durability`.
   - Rule: Weapons/shields have a durability rating (`DB.weapons[].durability`); parrying heavy blows or using fragile gear ticks it down; at 0 the item breaks.
   - Target: `app.js` · inventory rows + parry actions; `data.js` durability already present.
   - Behavior/UI: Show a durability counter (current/max) on equipped weapons/shields with −/+ steppers and a "broken" state at 0 (disables attack/parry until repaired). Optionally auto-prompt on parry actions.
@@ -559,6 +561,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Phase 13 (Encumbrance & Inventory) COMPLETE + unblocks Phase 10/11.** Rebuilt inventory on a rules-accurate slot model (`encUsed`): limit ⌈STR/2⌉, ceil(weight) per item, coins +1 slot/100, rations 4-per-slot, quiver = 1 slot, slingstones = 0. Added Equip/Unequip with an "Equipped (no encumbrance)" section (1 armor + 1 helmet + ≤3 weapons, via `inventory.items[].equipped`), weapon/shield durability steppers (💥 at 0), and an over-encumbered "Roll STR to move" prompt. Added `banes[]`/`metal`/`rangedBane` to `DB.armor`/`DB.helmets`. This unblocked: **Phase 11 heavy-armor/helmet skill banes** (Roller.skill + ranged Great Helm bane), **Phase 10 metal-magic restriction** (now data-driven via equipped armor/helmet + weapon heuristic), and **Phase 10 hero-armor** (combat cards read `equippedArmor().rating`). Also fixed a latent `el()` bug that dropped the encumbrance slot-count line. Verified in headless browser (slots 6/8→2/8 on equip, Evade shows "worn armor → bane", combat card "Armor 6", 0 page errors). SW cache v31. |
 | 2026-06-26 | **Phase 10 (Bug Fixes) started — 2 of 4 done.** Fixed dead `DB.solo` references (the solo NPC Attack Table AI roller now resolves `DRAGONBANE_SOLO.npcAttackTable`; the combat-card button is gated by Solo Mode). Added the missing `Store.clear()` so Settings → "Clear all storage" works instead of throwing. The remaining two Phase 10 fixes (metal-magic check, hero-armor-always-0) are deferred — they depend on the Phase 13 equipped-item slots. SW cache v27. |
 | 2026-06-26 | **Rules-Accuracy Completion roadmap added (§7B).** From a full feature audit against the *Dragonbane* core/expansion rules, documented every missing/partial feature as nine themed phases (Phase 10 Bug Fixes → Phase 18 Advanced GM Automation), ordered by rules-impact with Priority labels and full implementation specs (rule · target file/function · behavior/UI · schema · acceptance). Added §2.9 (planned-features summary) and §6.1 (planned schema additions). Docs only — no code changes yet. GM-side automations gated behind one shared "Advanced / GM Automation" toggle; encumbrance specced as a full slot-system rebuild. |
 | 2026-06-24 | Extracted canonical scope (§1, §3) from raw conversation logs. Initial `CLAUDE.md`. |

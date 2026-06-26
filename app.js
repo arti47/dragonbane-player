@@ -444,6 +444,26 @@
     return found;
   }
 
+  // Loose name normaliser shared by equipment matchers.
+  const normName = (s) => String(s || "").toLowerCase().replace(/\(×?\s*\d+\)/g, "").replace(/[\s\-_(),]/g, "");
+  // Match an inventory item name to a DB.armor / DB.helmets entry (null if none).
+  function resolveArmorItem(name) {
+    const clean = normName(name); if (!clean) return null;
+    return (DB.armor || []).find((a) => { const c = normName(a.name); return c === clean || (clean.length >= 4 && c.includes(clean)) || (c.length >= 4 && clean.includes(c)); }) || null;
+  }
+  function resolveHelmetItem(name) {
+    const clean = normName(name); if (!clean) return null;
+    return (DB.helmets || []).find((h) => { const c = normName(h.name); return c === clean || (clean.length >= 4 && c.includes(clean)) || (c.length >= 4 && clean.includes(c)); }) || null;
+  }
+  // Classify an item into an equip slot: "helmet" | "armor" | "weapon" | null.
+  // Helmet is checked before armor so "Great Helm" doesn't match armor.
+  function classifyItem(name) {
+    if (resolveHelmetItem(name)) return "helmet";
+    if (resolveArmorItem(name)) return "armor";
+    if (resolveEquippedWeapons([name]).length) return "weapon";
+    return null;
+  }
+
   /* =================================================================
    * App settings (local)
    * ================================================================= */
@@ -1110,9 +1130,10 @@
       const c = Store.get(charId); if (!c) return;
       const sk = c.skills[name];
       const condBane = !!(DB.conditions || []).find((cn) => cn.attribute === sk.attribute && c.state.conditions[cn.key]);
-      let net = condBane ? -1 : 0;
+      const armorBane = armorBanedSkills(c).has(name);
+      let net = (condBane ? -1 : 0) + (armorBane ? -1 : 0);
       const m = modal(`Roll: ${name}`);
-      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span style="color:var(--bad)">${sk.attribute} condition → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
+      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span style="color:var(--bad)">${sk.attribute} condition → bane</span>` : ""}${armorBane ? ` · <span style="color:var(--bad)">worn armor → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
       const ctl = el(`<div class="roll-ctl"></div>`);
       const lbl = el(`<span class="net-lbl">${this.netLabel(net)}</span>`);
       const minus = el(`<button class="step">−</button>`), plus = el(`<button class="step">+</button>`);
@@ -1289,6 +1310,9 @@
       }
 
       if (isRanged) {
+        if (equippedHelmet(c) && equippedHelmet(c).rangedBane) {
+          atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ Great Helm → bane on all ranged attacks</p>`));
+        }
         if (typeof c.state.combatAmmo !== "number") c.state.combatAmmo = 12;
         const pbRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
         pbRow.querySelector("input").onchange = (e) => { net += e.target.checked ? -1 : 1; upd(); };
@@ -1353,6 +1377,7 @@
         let effNet = net;
         if (c.state.conditions && c.state.conditions[attr]) effNet--;
         if (strShortfall()) effNet--;
+        if (isRanged && equippedHelmet(c) && equippedHelmet(c).rangedBane) effNet--;
         const r = this.d20net(effNet);
         const crit = r.used === 1, fumble = r.used === 20;
         const success = r.used <= target;
@@ -1616,8 +1641,15 @@
         ${spell.range ? `<p class="stat-line" style="margin:4px 0 0 0;font-size:0.85rem"><b>Range:</b> ${esc(spell.range)} · <b>Time:</b> ${esc(spell.time || "Action")}</p>` : ""}
       </div>`);
 
-      const hasMetal = (c.gear?.armor?.name?.toLowerCase().match(/chain|plate|scale|ring|metal/)) ||
-                       (c.inventory?.items?.some(x => x.equipped && x.name?.toLowerCase().match(/sword|dagger|knife|axe|spear|mace|halberd|warhammer|scimitar|chain|plate|metal/)));
+      const _am = equippedArmor(c), _hm = equippedHelmet(c);
+      // Equipped weapon counts as metal unless it's clearly wood/stone/unarmed
+      // (heuristic pending per-weapon `metal` flags in data.js).
+      const _metalWpn = (c.inventory?.items || []).some((x) => {
+        if (!x.equipped) return false;
+        const w = resolveEquippedWeapons([x.name])[0];
+        return w && !/staff|club|sling|unarmed|short bow|longbow|blunt object/i.test(w.name);
+      });
+      const hasMetal = (_am && _am.metal) || (_hm && _hm.metal) || _metalWpn;
       if (hasMetal) {
         sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Metal Restriction:</b> Wearing metal armor or holding metal weapons penalizes or blocks spellcasting.</div>`));
       }
@@ -1754,7 +1786,9 @@
     if (!c.skills) c.skills = {};
     if (!c.spells) c.spells = { tricks: [], known: [] };
     const inv = c.inventory || (c.inventory = {});
-    inv.items = (inv.items || []).map((it) => typeof it === "string" ? { name: it, weight: 1 } : { name: it?.name || "Item", weight: it?.weight == null ? 1 : it.weight });
+    inv.items = (inv.items || []).map((it) => typeof it === "string"
+      ? { name: it, weight: 1, equipped: false }
+      : { name: it?.name || "Item", weight: it?.weight == null ? 1 : it.weight, equipped: !!it?.equipped, ...(it?.durability != null ? { durability: it.durability } : {}) });
     inv.tiny = (inv.tiny || []).map((it) => typeof it === "string" ? { name: it } : it || { name: "Tiny" });
     inv.mementos = (inv.mementos || []).map((m) => typeof m === "string" ? m : m?.name || "");
     inv.money = Object.assign({ gold: 0, silver: 0, copper: 0 }, inv.money || {});
@@ -1774,8 +1808,39 @@
   // A spell worth tracking as an ongoing effect (lasting, non-instant duration).
   function isTrackableSpell(sp) { return sp.duration && !/instant/i.test(sp.duration); }
   function isConcentration(sp) { return sp.duration && /concentration/i.test(sp.duration); }
-  const encLimit = (c) => Math.ceil(c.attributes.STR / 2);
-  const encUsed = (c) => (c.inventory.items || []).reduce((t, it) => t + (Number(it.weight) || 0), 0);
+  const encLimit = (c) => Math.ceil((c.attributes.STR || 0) / 2);
+  // Read a quantity from an item ("Field Ration (×6)" → 6, or it.qty, else 1).
+  const itemQty = (it) => { const m = /\(×?\s*(\d+)\)/.exec(it.name || ""); return m ? parseInt(m[1], 10) : (Number(it.qty) || 1); };
+  // Slot-based encumbrance (rules-accurate): equipped items are exempt; rations
+  // group 4-per-slot; a quiver = 1 slot regardless of arrows; slingstones = 0;
+  // coins add 1 slot per 100 total. Heavier items consume ceil(weight) slots.
+  const encUsed = (c) => {
+    let slots = 0, rations = 0;
+    (c.inventory.items || []).forEach((it) => {
+      if (it.equipped) return; // worn armor/helmet + weapons-at-hand are exempt
+      const n = (it.name || "").toLowerCase();
+      if (/ration/.test(n)) { rations += itemQty(it); return; }
+      if (/sling.?stone|slingstone/.test(n)) return; // 0 slots
+      if (/quiver|arrows|bolts/.test(n)) { slots += 1; return; } // a quiver = 1 slot
+      slots += Math.max(0, Math.ceil(Number(it.weight) || 0));
+    });
+    slots += Math.ceil(rations / 4);
+    const money = c.inventory.money || {};
+    const coins = (money.gold || 0) + (money.silver || 0) + (money.copper || 0);
+    slots += Math.floor(coins / ((DB.currency && DB.currency.coinsPerItem) || 100));
+    return slots;
+  };
+  // The character's currently-equipped armor / helmet DB entries (for banes,
+  // metal-magic restriction, and combat armor), derived from equipped items.
+  function equippedArmor(c) { const it = (c.inventory.items || []).find((x) => x.equipped && classifyItem(x.name) === "armor"); return it ? resolveArmorItem(it.name) : null; }
+  function equippedHelmet(c) { const it = (c.inventory.items || []).find((x) => x.equipped && classifyItem(x.name) === "helmet"); return it ? resolveHelmetItem(it.name) : null; }
+  // Skills currently baned by worn armor + helmet (e.g. Plate → Acrobatics/Evade/Sneaking).
+  function armorBanedSkills(c) {
+    const set = new Set();
+    const a = equippedArmor(c); if (a) (a.banes || []).forEach((s) => set.add(s));
+    const h = equippedHelmet(c); if (h) (h.banes || []).forEach((s) => set.add(s));
+    return set;
+  }
 
   const Sheet = {
     id: null,
@@ -2222,34 +2287,93 @@
       addComp.append(compName, compHp, compBtn); compPanel.appendChild(addComp);
       root.appendChild(compPanel);
 
-      // Inventory + encumbrance
+      // Inventory + encumbrance (slot-based, rules-accurate)
       const used = encUsed(c), limit = encLimit(c), over = used > limit;
       const invPanel = el(`<div class="panel"><h3>Inventory</h3></div>`);
-      invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":""}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>
-        <p class="stat-line">${used} / ${limit} item slots used${over?` · <b style="color:var(--bad)">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
-      const itemList = el(`<div></div>`);
-      (c.inventory.items||[]).forEach((it, i) => {
+      const coinTot = (c.inventory.money.gold||0)+(c.inventory.money.silver||0)+(c.inventory.money.copper||0);
+      const coinSlots = Math.floor(coinTot / ((DB.currency && DB.currency.coinsPerItem) || 100));
+      invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":""}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>`));
+      invPanel.appendChild(el(`<p class="stat-line">${used} / ${limit} item slots used${coinSlots?` · ${coinTot} coins → ${coinSlots} slot${coinSlots>1?"s":""}`:""}${over?` · <b style="color:var(--bad)">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
+      if (over) {
+        const strBtn = el(`<button class="btn ghost block" style="border-color:var(--bad);color:var(--bad);margin-bottom:10px">⚖ Roll STR to move (over-encumbered)</button>`);
+        strBtn.onclick = () => {
+          const m = modal("Over-encumbered — STR roll to move");
+          const out = el(`<div class="roll-result"></div>`);
+          const b = el(`<button class="btn block">Roll d20 ≤ STR ${c.attributes.STR}</button>`);
+          b.onclick = () => { b.disabled = true; b.style.opacity = "0.4"; const r = Dice.d(20); const ok = r <= c.attributes.STR; out.innerHTML = `<p class="outcome ${ok?"ok":"bad"}">${r} vs STR ${c.attributes.STR} — ${ok?"You can move this turn / travel the shift.":"You fail to move (no movement this turn / no progress this shift)."}</p>`; };
+          m.body.append(el(`<p class="stat-line">While over the encumbrance limit you must succeed a STR roll to move in combat or travel a shift.</p>`), b, out);
+        };
+        invPanel.appendChild(strBtn);
+      }
+
+      const items = c.inventory.items || [];
+      // Equip caps: 1 armor + 1 helmet + up to 3 weapons-at-hand (shields count).
+      const counts = { armor: 0, helmet: 0, weapon: 0 };
+      items.forEach((x) => { if (x.equipped) { const k = classifyItem(x.name); if (counts[k] != null) counts[k]++; } });
+      const itemRow = (it, i, isEquipped) => {
         const row = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)}</span></div>`);
+        const slot = classifyItem(it.name);
         const wpns = resolveEquippedWeapons([it]);
         wpns.forEach((wpn) => {
           const dmg = el(`<button class="step dmg" title="roll attack / damage (${esc(wpn.name)})">⚔ ${wpns.length > 1 ? esc(wpn.name) : ""}</button>`);
           dmg.onclick = () => Roller.damage(this.id, wpn);
           row.appendChild(dmg);
         });
-        const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}">`);
-        wt.onchange = () => this.mutate((ch) => { ch.inventory.items[i].weight = Math.max(0, Number(wt.value)||0); });
+        // Durability for equipped weapons/shields that have a rating.
+        if (isEquipped && slot === "weapon" && wpns[0] && wpns[0].durability != null) {
+          const max = wpns[0].durability;
+          const cur = it.durability == null ? max : it.durability;
+          const broken = cur <= 0;
+          const dctrl = el(`<span class="stepper" title="durability"></span>`);
+          const dm = el(`<button class="step">−</button>`), dv = el(`<span class="vital-val" style="min-width:52px;${broken?"color:var(--bad)":""}">${cur}/${max}${broken?" 💥":""}</span>`), dp = el(`<button class="step">+</button>`);
+          dm.onclick = () => this.mutate((ch) => { const x = ch.inventory.items[i]; x.durability = Math.max(0, (x.durability == null ? max : x.durability) - 1); });
+          dp.onclick = () => this.mutate((ch) => { const x = ch.inventory.items[i]; x.durability = Math.min(max, (x.durability == null ? max : x.durability) + 1); });
+          dctrl.append(dm, dv, dp); row.append(el(`<span class="stat-line">dur</span>`), dctrl);
+        }
+        // Equip / unequip control (only for equippable items).
+        if (slot) {
+          if (isEquipped) {
+            const un = el(`<button class="step" style="width:auto;padding:0 8px" title="unequip">Unequip</button>`);
+            un.onclick = () => this.mutate((ch) => { ch.inventory.items[i].equipped = false; });
+            row.append(el(`<span class="tag">${slot}</span>`), un);
+          } else {
+            const eq = el(`<button class="step" style="width:auto;padding:0 8px" title="equip (exempt from encumbrance)">Equip</button>`);
+            eq.onclick = () => {
+              if (slot === "armor" && counts.armor >= 1) { alert("You're already wearing armor. Unequip it first."); return; }
+              if (slot === "helmet" && counts.helmet >= 1) { alert("You're already wearing a helmet."); return; }
+              if (slot === "weapon" && counts.weapon >= 3) { alert("You can keep at most 3 weapons at hand."); return; }
+              this.mutate((ch) => { const x = ch.inventory.items[i]; x.equipped = true; if (slot === "weapon") { const w = resolveEquippedWeapons([x.name])[0]; if (w && w.durability != null && x.durability == null) x.durability = w.durability; } });
+            };
+            row.append(el(`<span class="tag" style="opacity:0.55">${slot}</span>`), eq);
+          }
+        }
+        if (!isEquipped) {
+          const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}">`);
+          wt.onchange = () => this.mutate((ch) => { ch.inventory.items[i].weight = Math.max(0, Number(wt.value)||0); });
+          row.append(el(`<span class="stat-line">wt</span>`), wt);
+        }
         const rm = el(`<button class="step rm">✕</button>`);
         rm.onclick = () => this.mutate((ch) => { ch.inventory.items.splice(i, 1); });
-        row.append(el(`<span class="stat-line">wt</span>`), wt, rm);
-        itemList.appendChild(row);
-      });
-      if (!(c.inventory.items||[]).length) itemList.appendChild(el(`<p class="stat-line">No items.</p>`));
+        row.append(rm);
+        return row;
+      };
+
+      const equippedIdx = items.map((it, i) => ({ it, i })).filter((x) => x.it.equipped);
+      const carriedIdx = items.map((it, i) => ({ it, i })).filter((x) => !x.it.equipped);
+      if (equippedIdx.length) {
+        invPanel.appendChild(el(`<p class="stat-line" style="margin:6px 0 2px"><b>Equipped</b> <span class="stat-line">(armor · helmet · up to 3 weapons-at-hand — no encumbrance)</span></p>`));
+        equippedIdx.forEach(({ it, i }) => invPanel.appendChild(itemRow(it, i, true)));
+      }
+      invPanel.appendChild(el(`<p class="stat-line" style="margin:8px 0 2px"><b>Carried</b></p>`));
+      const itemList = el(`<div></div>`);
+      carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
+      if (!carriedIdx.length) itemList.appendChild(el(`<p class="stat-line">No carried items.</p>`));
       invPanel.appendChild(itemList);
       const addRow = el(`<div class="inv-add"></div>`);
       const addName = el(`<input type="text" placeholder="Add an item…">`);
       const addWt = el(`<input type="number" class="wt" min="0" step="1" value="1" title="weight">`);
       const addBtn = el(`<button class="btn secondary">Add</button>`);
-      const doAdd = () => { const name = addName.value.trim(); if (!name) return; this.mutate((ch) => ch.inventory.items.push({ name, weight: Math.max(0, Number(addWt.value)||0) })); };
+      const doAdd = () => { const name = addName.value.trim(); if (!name) return; this.mutate((ch) => ch.inventory.items.push({ name, weight: Math.max(0, Number(addWt.value)||0), equipped: false })); };
       addBtn.onclick = doAdd; addName.onkeydown = (e) => { if (e.key === "Enter") doAdd(); };
       addRow.append(addName, addWt, addBtn); invPanel.appendChild(addRow);
 
@@ -2432,10 +2556,11 @@
         add.onclick = () => {
           if (!sel.value) return; const h = Store.get(sel.value);
           window._combatAddSelections.hero = "";
+          const hArmor = equippedArmor(h);
           this.mutate((st) => st.combatants.push({
             id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false,
             hp: h.state.hp, maxHp: h.derived.hpMax, wp: h.state.wp, maxWp: h.derived.wpMax,
-            armor: (h.gear && h.gear.armor ? h.gear.armor.rating : 0)
+            armor: hArmor ? hArmor.rating : 0
           }));
         };
         heroRow.append(sel, add); addPanel.appendChild(heroRow);

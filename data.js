@@ -596,16 +596,19 @@ const DRAGONBANE = {
   // increase durability by 3.
   mastercrafted: { costMultiplier: 10, strRequirementMod: -3, durabilityMod: +3 },
 
+  // `banes`: skills that take a bane while this armor is worn (structured for
+  // the dice engine). `metal`: true if it interferes with spellcasting.
   armor: [
-    { name: "Leather",         rating: 1, cost: "2 gold",   supply: "Common",   effect: null },
-    { name: "Studded Leather", rating: 2, cost: "10 gold",  supply: "Uncommon", effect: "Bane on SNEAKING rolls." },
-    { name: "Chainmail",       rating: 4, cost: "50 gold",  supply: "Uncommon", effect: "Bane on EVADE and SNEAKING rolls." },
-    { name: "Plate Armor",     rating: 6, cost: "500 gold", supply: "Rare",     effect: "Bane on ACROBATICS, EVADE, and SNEAKING rolls." }
+    { name: "Leather",         rating: 1, cost: "2 gold",   supply: "Common",   effect: null, banes: [], metal: false },
+    { name: "Studded Leather", rating: 2, cost: "10 gold",  supply: "Uncommon", effect: "Bane on SNEAKING rolls.", banes: ["Sneaking"], metal: false },
+    { name: "Chainmail",       rating: 4, cost: "50 gold",  supply: "Uncommon", effect: "Bane on EVADE and SNEAKING rolls.", banes: ["Evade","Sneaking"], metal: true },
+    { name: "Plate Armor",     rating: 6, cost: "500 gold", supply: "Rare",     effect: "Bane on ACROBATICS, EVADE, and SNEAKING rolls.", banes: ["Acrobatics","Evade","Sneaking"], metal: true }
   ],
 
+  // `rangedBane`: a worn helmet that banes all ranged attacks (applied in the dice engine).
   helmets: [
-    { name: "Open Helmet", rating: 1, cost: "12 gold",  supply: "Uncommon", effect: "Bane on AWARENESS rolls." },
-    { name: "Great Helm",  rating: 2, cost: "100 gold", supply: "Rare",     effect: "Bane on AWARENESS rolls and all ranged attacks." }
+    { name: "Open Helmet", rating: 1, cost: "12 gold",  supply: "Uncommon", effect: "Bane on AWARENESS rolls.", banes: ["Awareness"], metal: true, rangedBane: false },
+    { name: "Great Helm",  rating: 2, cost: "100 gold", supply: "Rare",     effect: "Bane on AWARENESS rolls and all ranged attacks.", banes: ["Awareness"], metal: true, rangedBane: true }
   ],
 
   /* General adventuring gear.
