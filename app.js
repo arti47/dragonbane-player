@@ -1243,7 +1243,7 @@
       const combatData = Combat.load() || { combatants: [] };
       const opps = combatData.combatants.filter(x => x && x.type !== "hero");
       const heroes = combatData.combatants.filter(x => x && x.type === "hero");
-      const allRoster = Object.values(Store.getAll() || {}).filter(x => x && x.name);
+      const allRoster = Store.list().filter(x => x && x.name);
 
       if (cat === "heal") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>`);
@@ -1496,8 +1496,10 @@
     usePotion(charId, item, itemIdx) {
       const pl = 1;
       const fakeSpell = { name: item.name.replace(/\s*\(dose\)/i,""), range: "Touch", text: "Alchemical brew" };
-      const m = Modal.open(`🧪 Alchemical Brew: ${item.name}`, el(`<div id="pot_wrap"></div>`));
-      this.renderCard(charId, fakeSpell, pl, false, false, 0, m.body.querySelector("#pot_wrap"));
+      const m = modal(`🧪 Alchemical Brew: ${item.name}`);
+      const pw = el(`<div id="pot_wrap"></div>`);
+      m.body.appendChild(pw);
+      this.renderCard(charId, fakeSpell, pl, false, false, 0, pw);
       Store.update(charId, ch => {
         if (ch.inventory?.items?.[itemIdx]) {
           ch.inventory.items.splice(itemIdx, 1);
