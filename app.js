@@ -1248,6 +1248,12 @@
         card.appendChild(dWrap);
       }
 
+      // Always show the spell's effect text on the resolution card, so every
+      // spell type (not just utility) opens with its description.
+      if (spell.text || spell.desc) {
+        card.appendChild(el(`<p class="stat-line" style="margin:0 0 8px 0">${esc(spell.text || spell.desc)}</p>`));
+      }
+
       // ---- Unified target lists: combat tracker + party roster + self ----
       const cd = Combat.load() || { combatants: [] };
       const combs = (cd.combatants || []).filter(Boolean);
@@ -1427,7 +1433,6 @@
         // Utility / buff — show the effect text and offer to track it on the sheet.
         const isConc = (spell.duration || "").toLowerCase().includes("concentration");
         const wrap = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
-        wrap.appendChild(el(`<p class="stat-line" style="margin:0">${esc(spell.text || spell.desc || "Apply this spell's effect.")}</p>`));
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.append(el(`<span class="stat-line">Utility / Buff (${esc(spell.duration || "Instant")}):</span>`));
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Track this effect on the character sheet">+ Track effect</button>`);
@@ -2039,7 +2044,7 @@
         sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Metal Restriction:</b> Wearing metal armor or holding metal weapons penalizes or blocks spellcasting.</div>`));
       }
       if (spell.school === "necromancy" && ((spell.name || "").match(/animate|skeleton|ghost|corpse/i) || (spell.text || "").match(/corpse|body|skeleton/i))) {
-        const hasCorpse = (c.inventory?.items || []).some(x => x.name.match(/corpse|body|skeleton|bone/i));
+        const hasCorpse = (c.inventory?.items || []).some(x => (x.name || "").match(/corpse|body|skeleton|bone/i));
         if (!hasCorpse) {
           sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Ingredient Warning:</b> No Corpse/Bones found in inventory. You may cast anyway assuming ambient battlefield corpses.</div>`));
         }
