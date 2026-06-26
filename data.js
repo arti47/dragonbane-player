@@ -802,6 +802,16 @@ const DRAGONBANE = {
     ]
   },
 
+  /* End-of-session advancement questions. Each "yes" lets a player mark one
+   * skill of their choice for advancement (in addition to Dragon/Demon marks). */
+  advancementQuestions: [
+    "Did you take part in the game session?",
+    "Did you explore a new, dangerous location?",
+    "Did you defeat one or more dangerous opponents?",
+    "Did you overcome an obstacle or solve a problem without using force?",
+    "Did you do something heroic, foolhardy, or in line with your weakness?"
+  ],
+
   /* Currency: 1 gold = 10 silver = 100 copper. Coins are tiny items;
    * 100+ coins count as 1 item per 100. */
   currency: { goldToSilver: 10, silverToCopper: 10, coinsPerItem: 100 }

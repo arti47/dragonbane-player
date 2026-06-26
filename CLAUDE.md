@@ -417,25 +417,25 @@ data-solo.js: failForward[]
   - Acceptance: Tick a shield's durability to 0 → marked broken; cannot parry until repaired.
 
 ### Phase 14 — Advancement & Identity (Priority: MEDIUM)
-- [ ] **Overcome Weakness flow.**
+- [x] **Overcome Weakness flow.** ✅ `Sheet.overcomeWeakness` — an "⚡ Overcome Weakness" button awards 2 marks (pick 2 unmarked skills), clears the weakness, sets `state.weaknessCooldown`; a new weakness can be set only after the cooldown clears at session end.
   - Rule: Acting against your Weakness can let you overcome it — award 2 advancement marks (instead of 1), delete the weakness, and a 1-session cooldown before a new weakness may be chosen.
   - Target: `app.js` · `Sheet.render` Character/flavor panel.
   - Behavior/UI: Add an "Overcome Weakness" button by the Weakness field. On click: grant 2 marks (apply to chosen unmarked skills, reuse the advancement-marking UI), clear `identity.weakness`, set a cooldown flag. While on cooldown, show "New weakness available next session" and block setting a new one; clear the flag in `endSession`.
   - Schema: `state.weaknessCooldown: boolean` (default false); reuses skill `mark`.
   - Acceptance: Click Overcome → 2 marks awarded, weakness cleared, cooldown shown; after End Session, a new weakness can be entered.
-- [ ] **End-of-session questionnaire (5 questions).**
+- [x] **End-of-session questionnaire (5 questions).** ✅ `Sheet.endSession` now shows the 5 `DB.advancementQuestions`; each Yes lets you mark one unmarked skill, then `rollAdvancement` rolls all marks. Skills reaching 18 prompt a free heroic ability.
   - Rule: At session end, answer the five advancement questions; each "yes" lets you place one advancement mark on an unmarked skill of your choice (in addition to marks earned from Dragons/Demons).
   - Target: `app.js` · `Sheet.endSession` (~line 1889) — currently only rolls existing marks.
   - Behavior/UI: Before the advancement roll, show a modal listing the five canonical questions (store the text in `data.js`, e.g. `DB.advancementQuestions`). For each "yes", let the player tick one unmarked skill to mark. Then proceed to the existing per-mark D20 advancement roll.
   - Schema: add `advancementQuestions: string[]` to `data.js` (the 5 official questions).
   - Acceptance: End Session → questionnaire appears; answering 3 "yes" lets you mark 3 skills, which then roll for advancement.
-- [ ] **Teacher training.**
+- [x] **Teacher training.** ✅ `Sheet.trainTeacher` — pick a skill, one advancement D20, capped via `state.teacherTrained[skill]` (a skill can be teacher-trained once).
   - Rule: Spend a shift training a skill with an NPC teacher (skill 15+) to get one immediate advancement roll for that skill; a given teacher can only raise you by +1.
   - Target: `app.js` · `Sheet` (new action near skills/advancement).
   - Behavior/UI: A "Train with teacher" control: pick a skill, confirm teacher skill ≥15, roll one advancement D20 (improve if > level, max 18). Track that you've benefited from this teacher for this skill (+1 cap).
   - Schema: `state.teacherTrained: { [skillName]: true }` (default {}).
   - Acceptance: Train a skill → one advancement roll occurs; repeating with the same teacher/skill is blocked.
-- [ ] **Heroic-ability requirement locking + skill-18 free ability.**
+- [x] **Heroic-ability requirement locking + skill-18 free ability.** ✅ `heroicReqMet` parses the rulebook req phrasings; `Sheet.gainHeroicAbility` locks unmet abilities (verified: 22/43 locked). Skill-18 advancement (session or teacher) prompts the free-ability picker.
   - Rule: A heroic ability can't be taken unless its skill requirement is met (e.g. Catlike needs Acrobatics 12). When a skill first reaches 18, the character immediately gains a new heroic ability for free.
   - Target: `app.js` · `Sheet.learnMagic`/a new "Gain heroic ability" picker; advancement in `endSession`/`deathRoll`/training where levels change.
   - Behavior/UI: Add a heroic-ability picker (sheet) that lists `DB.heroicAbilities` and **disables** those whose `req` isn't met by current skills. When any skill advances to 18, prompt "Choose a free heroic ability" using the same picker (requirement still enforced unless rules say otherwise — keep the requirement check).
@@ -561,6 +561,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Phase 14 (Advancement & Identity) COMPLETE.** Added the 5 official `advancementQuestions` to `data.js`. Rewrote `Sheet.endSession` into a questionnaire-first flow (each Yes → mark one unmarked skill) that calls a new `rollAdvancement`; skills reaching 18 prompt a free heroic ability. Added `Sheet.overcomeWeakness` (+2 marks, clear weakness, `state.weaknessCooldown`), `Sheet.trainTeacher` (one capped advancement roll via `state.teacherTrained`), and `Sheet.gainHeroicAbility` with requirement locking via a new `heroicReqMet` parser. UI: Train-with-teacher + Gain-heroic-ability buttons in the Skills panel; Overcome-Weakness / set-new-weakness controls in the Character panel. Verified headless (overcome → 2 marks + cooldown, questionnaire → advancement, picker 22/43 locked, 0 errors). SW cache v32. |
 | 2026-06-26 | **Phase 13 (Encumbrance & Inventory) COMPLETE + unblocks Phase 10/11.** Rebuilt inventory on a rules-accurate slot model (`encUsed`): limit ⌈STR/2⌉, ceil(weight) per item, coins +1 slot/100, rations 4-per-slot, quiver = 1 slot, slingstones = 0. Added Equip/Unequip with an "Equipped (no encumbrance)" section (1 armor + 1 helmet + ≤3 weapons, via `inventory.items[].equipped`), weapon/shield durability steppers (💥 at 0), and an over-encumbered "Roll STR to move" prompt. Added `banes[]`/`metal`/`rangedBane` to `DB.armor`/`DB.helmets`. This unblocked: **Phase 11 heavy-armor/helmet skill banes** (Roller.skill + ranged Great Helm bane), **Phase 10 metal-magic restriction** (now data-driven via equipped armor/helmet + weapon heuristic), and **Phase 10 hero-armor** (combat cards read `equippedArmor().rating`). Also fixed a latent `el()` bug that dropped the encumbrance slot-count line. Verified in headless browser (slots 6/8→2/8 on equip, Evade shows "worn armor → bane", combat card "Armor 6", 0 page errors). SW cache v31. |
 | 2026-06-26 | **Phase 10 (Bug Fixes) started — 2 of 4 done.** Fixed dead `DB.solo` references (the solo NPC Attack Table AI roller now resolves `DRAGONBANE_SOLO.npcAttackTable`; the combat-card button is gated by Solo Mode). Added the missing `Store.clear()` so Settings → "Clear all storage" works instead of throwing. The remaining two Phase 10 fixes (metal-magic check, hero-armor-always-0) are deferred — they depend on the Phase 13 equipped-item slots. SW cache v27. |
 | 2026-06-26 | **Rules-Accuracy Completion roadmap added (§7B).** From a full feature audit against the *Dragonbane* core/expansion rules, documented every missing/partial feature as nine themed phases (Phase 10 Bug Fixes → Phase 18 Advanced GM Automation), ordered by rules-impact with Priority labels and full implementation specs (rule · target file/function · behavior/UI · schema · acceptance). Added §2.9 (planned-features summary) and §6.1 (planned schema additions). Docs only — no code changes yet. GM-side automations gated behind one shared "Advanced / GM Automation" toggle; encumbrance specced as a full slot-system rebuild. |

@@ -418,6 +418,27 @@
     return h || null;
   }
 
+  // Is a heroic ability's skill requirement met by the character's current
+  // skills? Handles the rulebook req phrasings ("Acrobatics 12", "Any melee
+  // weapon skill 12", "Axes, Hammers, or Swords 12", "Any magic school 12").
+  function heroicReqMet(c, req) {
+    if (!req) return true;
+    const m = /(\d+)\s*$/.exec(req); if (!m) return true;
+    const need = parseInt(m[1], 10);
+    const head = req.slice(0, m.index).trim().toLowerCase();
+    const entries = Object.entries(c.skills || {});
+    const RANGED = ["Bows", "Crossbows", "Slings"];
+    const has = (pred) => entries.some(([n, s]) => pred(n, s) && s.level >= need);
+    if (/^any str-based melee weapon skill/.test(head)) return has((n, s) => s.kind === "weapon" && s.attribute === "STR" && !RANGED.includes(n));
+    if (/^any melee weapon skill/.test(head)) return has((n, s) => s.kind === "weapon" && !RANGED.includes(n));
+    if (/^any weapon skill/.test(head)) return has((n, s) => s.kind === "weapon");
+    if (/^any magic school/.test(head)) return has((n, s) => s.kind === "magic");
+    const names = head.replace(/\bor\b/g, ",").split(",").map((x) => x.trim()).filter(Boolean);
+    const matched = names.map((x) => entries.find(([n]) => n.toLowerCase() === x)).filter(Boolean);
+    if (matched.length) return matched.some(([, s]) => s.level >= need);
+    return true; // unknown pattern → don't block
+  }
+
   function resolveEquippedWeapons(invItems) {
     if (!invItems || !Array.isArray(invItems)) return [];
     const dbWpns = DB.weapons || [];
@@ -1797,6 +1818,8 @@
     if (!Array.isArray(c.companions)) c.companions = [];
     if (!Array.isArray(c.effects)) c.effects = [];
     if (typeof c.state.wpPenalty !== "number") c.state.wpPenalty = 0;
+    if (typeof c.state.weaknessCooldown !== "boolean") c.state.weaknessCooldown = false;
+    if (!c.state.teacherTrained || typeof c.state.teacherTrained !== "object") c.state.teacherTrained = {};
   }
   // Effective max WP after permanent reductions (rituals, corruption); restorable via Focused.
   const effWpMax = (c) => Math.max(0, c.derived.wpMax - (c.state.wpPenalty || 0));
@@ -2005,23 +2028,130 @@
       };
       sel.onchange = renderList; m.body.append(sel, listWrap); renderList();
     },
+    // Marked-skill chooser shared by the questionnaire / overcome-weakness flows.
+    // `cap` = how many unmarked skills may be picked; `picked` mutated in place.
+    markSkillPicker(picked, capFn, onChange) {
+      const wrap = el(`<div class="chip-wrap"></div>`);
+      const refresh = () => {
+        while (picked.length > capFn()) picked.pop();
+        wrap.innerHTML = "";
+        const cur = Store.get(this.id);
+        Object.keys(cur.skills).sort().forEach((n) => {
+          if (cur.skills[n].mark && !picked.includes(n)) return; // already marked elsewhere
+          const on = picked.includes(n);
+          const chip = el(`<button class="skill-chip ${on ? "on" : ""}">${esc(n)} <span class="stat-line">${cur.skills[n].level}</span></button>`);
+          chip.onclick = () => {
+            const i = picked.indexOf(n);
+            if (i >= 0) picked.splice(i, 1);
+            else { if (picked.length >= capFn()) { alert(`You can mark at most ${capFn()} skill(s) here.`); return; } picked.push(n); }
+            refresh(); if (onChange) onChange();
+          };
+          wrap.appendChild(chip);
+        });
+      };
+      refresh();
+      return { wrap, refresh };
+    },
     endSession() {
+      const qs = DB.advancementQuestions || [];
+      const m = modal("Session end — advancement");
+      m.body.appendChild(el(`<p class="stat-line">Answer the advancement questions. Each <b>Yes</b> lets you mark one unmarked skill (in addition to Dragon/Demon marks). Then roll advancement.</p>`));
+      const yesState = qs.map(() => false);
+      const yesCount = () => yesState.filter(Boolean).length;
+      const picked = [];
+      const counter = el(`<p class="stat-line"></p>`);
+      const updCounter = () => { counter.innerHTML = `<b>Yes: ${yesCount()}</b> — mark up to ${yesCount()} skill(s); chosen ${picked.length}.`; };
+      const { wrap, refresh } = this.markSkillPicker(picked, yesCount, updCounter);
+      const qWrap = el(`<div style="margin:6px 0"></div>`);
+      qs.forEach((q, i) => {
+        const row = el(`<label style="display:flex;gap:8px;margin:4px 0;cursor:pointer"><input type="checkbox"><span>${esc(q)}</span></label>`);
+        row.querySelector("input").onchange = (e) => { yesState[i] = e.target.checked; refresh(); updCounter(); };
+        qWrap.appendChild(row);
+      });
+      updCounter();
+      const rollBtn = el(`<button class="btn block" style="margin-top:10px">Mark skills &amp; roll advancement</button>`);
+      rollBtn.onclick = () => {
+        Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); });
+        m.close(); this.rollAdvancement();
+      };
+      m.body.append(qWrap, counter, el(`<p class="section-title" style="margin-top:8px"><b>Mark skills (your choice)</b></p>`), wrap, rollBtn);
+    },
+    rollAdvancement() {
       const c = Store.get(this.id);
       const marked = Object.keys(c.skills).filter((n) => c.skills[n].mark);
-      if (!marked.length) { this.toast("No advancement marks to roll."); return; }
-      const results = [];
+      if (!marked.length) { this.toast("No advancement marks to roll."); this.mutate((ch) => { ch.state.weaknessCooldown = false; }); return; }
+      const results = [], reached18 = [];
       this.mutate((ch) => {
         marked.forEach((n) => {
-          const sk = ch.skills[n]; const roll = Dice.d(20);
+          const sk = ch.skills[n]; const before = sk.level; const roll = Dice.d(20);
           const improved = roll > sk.level && sk.level < 18;
           if (improved) sk.level = Math.min(18, sk.level + 1);
           sk.mark = false;
+          if (before < 18 && sk.level === 18) reached18.push(n);
           results.push({ name: n, roll, level: sk.level, improved });
         });
+        ch.state.weaknessCooldown = false; // new session — a new weakness may be chosen
       });
-      const m = modal("Session end — advancement");
-      m.body.appendChild(el(`<p class="stat-line">For each marked skill, roll D20; if it exceeds the skill's level, the skill improves by 1 (max 18). Marks are then cleared.</p>`));
-      results.forEach((r) => m.body.appendChild(el(`<p>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--good)">improved to ${r.level}</span>` : `no change (${r.level})`}</p>`)));
+      const m = modal("Advancement");
+      m.body.appendChild(el(`<p class="stat-line">For each marked skill, roll D20; if it exceeds the skill's level, it improves by 1 (max 18).</p>`));
+      results.forEach((r) => m.body.appendChild(el(`<p>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--ok)">improved to ${r.level}</span>` : `no change (${r.level})`}</p>`)));
+      if (reached18.length) {
+        m.body.appendChild(el(`<p class="notice" style="border-color:var(--ok)">★ ${reached18.map(esc).join(", ")} reached 18 — choose a free heroic ability.</p>`));
+        const cont = el(`<button class="btn block">Choose free heroic ability${reached18.length > 1 ? ` (×${reached18.length})` : ""}</button>`);
+        cont.onclick = () => { m.close(); this.gainHeroicAbility(reached18.length); };
+        m.body.appendChild(cont);
+      }
+    },
+    // Heroic-ability picker with requirement locking. `times` = how many to pick.
+    gainHeroicAbility(times = 1) {
+      const c = Store.get(this.id);
+      const owned = new Set((c.abilities || []).map((a) => a.name));
+      const m = modal("Choose a heroic ability" + (times > 1 ? ` (${times} left)` : ""));
+      m.body.appendChild(el(`<p class="stat-line">Abilities whose skill requirement you don't meet are locked.</p>`));
+      const grid = el(`<div class="card-grid"></div>`);
+      (DB.heroicAbilities || []).forEach((ab) => {
+        if (owned.has(ab.name)) return;
+        const met = heroicReqMet(c, ab.req);
+        const card = el(`<button class="card ${met ? "" : "locked"}" style="${met ? "" : "opacity:0.5;cursor:not-allowed"}"><h3>${esc(ab.name)} ${met ? "" : "🔒"}<span class="tag">${esc(ab.req || "No req")}</span> <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
+        if (met) card.onclick = () => { this.mutate((ch) => ch.abilities.push({ name: ab.name, source: "heroic", wp: ab.wp, text: ab.text })); m.close(); this.toast("Gained " + ab.name + "."); if (times > 1) this.gainHeroicAbility(times - 1); };
+        grid.appendChild(card);
+      });
+      m.body.appendChild(grid);
+    },
+    overcomeWeakness() {
+      const c = Store.get(this.id);
+      if (!c.identity.weakness) { this.toast("No weakness to overcome."); return; }
+      const m = modal("Overcome your weakness");
+      m.body.appendChild(el(`<p class="stat-line">Acting against your weakness: gain <b>2 advancement marks</b> (mark two unmarked skills), delete the weakness, and you can't take a new one until next session.</p>`));
+      m.body.appendChild(el(`<p class="stat-line"><i>${esc(c.identity.weakness)}</i></p>`));
+      const picked = [];
+      const { wrap } = this.markSkillPicker(picked, () => 2);
+      const btn = el(`<button class="btn block" style="margin-top:8px">Overcome (mark 2 skills)</button>`);
+      btn.onclick = () => {
+        if (picked.length !== 2) { alert("Pick exactly two skills to mark."); return; }
+        this.mutate((ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); ch.identity.weakness = ""; ch.state.weaknessCooldown = true; });
+        m.close(); this.toast("Weakness overcome — 2 marks gained.");
+      };
+      m.body.append(el(`<p class="section-title"><b>Mark two skills</b></p>`), wrap, btn);
+    },
+    trainTeacher() {
+      const c = Store.get(this.id);
+      const m = modal("Train with a teacher");
+      m.body.appendChild(el(`<p class="stat-line">Spend a shift training a skill with an NPC teacher (skill 15+). You get one advancement roll now; a teacher raises you by at most +1, so each skill can be teacher-trained once.</p>`));
+      const sel = el(`<select class="input" style="width:100%;margin-bottom:8px"></select>`);
+      Object.keys(c.skills).sort().forEach((n) => { const done = c.state.teacherTrained && c.state.teacherTrained[n]; sel.appendChild(el(`<option value="${esc(n)}" ${done ? "disabled" : ""}>${esc(n)} (${c.skills[n].level})${done ? " — already trained" : ""}</option>`)); });
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll advancement (teacher)</button>`);
+      btn.onclick = () => {
+        const n = sel.value; if (!n) return;
+        if (c.state.teacherTrained && c.state.teacherTrained[n]) { alert("This teacher has already raised that skill."); return; }
+        btn.disabled = true; btn.style.opacity = "0.4";
+        let roll, improved, reached18 = false, newLvl;
+        this.mutate((ch) => { const sk = ch.skills[n]; const before = sk.level; roll = Dice.d(20); improved = roll > sk.level && sk.level < 18; if (improved) sk.level = Math.min(18, sk.level + 1); newLvl = sk.level; ch.state.teacherTrained[n] = true; if (before < 18 && sk.level === 18) reached18 = true; });
+        out.innerHTML = `<p class="outcome ${improved ? "ok" : "bad"}">Rolled ${roll} → ${improved ? `improved to ${newLvl}` : `no change (${newLvl})`}</p>`;
+        if (reached18) { const cont = el(`<button class="btn block" style="margin-top:8px">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
+      };
+      m.body.append(sel, btn, out);
     },
     render() {
       const c = Store.get(this.id);
@@ -2187,9 +2317,15 @@
       // Skills
       const skPanel = el(`<div class="panel"><h3>Skills</h3><p class="stat-line">Tap a skill to roll it. Tap the ◦ to toggle an advancement mark (ticked on a Dragon/Demon). ⚠ = a condition banes this skill.</p></div>`);
       const markedCount = Object.values(c.skills).filter((v) => v.mark).length;
-      const advBtn = el(`<button class="btn ghost" style="margin:4px 0 10px">End session — roll advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
+      const advRow = el(`<div class="rest-row" style="margin:4px 0 10px"></div>`);
+      const advBtn = el(`<button class="btn ghost">End session — roll advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
       advBtn.onclick = () => this.endSession();
-      skPanel.appendChild(advBtn);
+      const teachBtn = el(`<button class="btn ghost" title="train a skill with an NPC teacher (skill 15+); +1 cap per teacher">Train with teacher</button>`);
+      teachBtn.onclick = () => this.trainTeacher();
+      const gainBtn = el(`<button class="btn ghost" title="gain a heroic ability (requirement-locked)">Gain heroic ability</button>`);
+      gainBtn.onclick = () => this.gainHeroicAbility(1);
+      advRow.append(advBtn, teachBtn, gainBtn);
+      skPanel.appendChild(advRow);
       const skList = el(`<div class="skill-list"></div>`);
       Object.entries(c.skills).sort((x,y)=>x[0].localeCompare(y[0])).forEach(([n,v]) => {
         const baned = condByAttr[v.attribute];
@@ -2398,6 +2534,21 @@
       const flav = el(`<div class="panel"><h3>Character</h3>
         ${c.identity.appearance?`<p class="stat-line"><b>Appearance:</b> ${esc(c.identity.appearance)}</p>`:""}
         ${c.identity.weakness?`<p class="stat-line"><b>Weakness:</b> ${esc(c.identity.weakness)}</p>`:""}</div>`);
+      // Overcome Weakness / re-choose after cooldown.
+      if (c.identity.weakness) {
+        const owBtn = el(`<button class="btn ghost" style="border-color:var(--accent)">⚡ Overcome Weakness (+2 marks)</button>`);
+        owBtn.onclick = () => this.overcomeWeakness();
+        flav.appendChild(owBtn);
+      } else if (c.state.weaknessCooldown) {
+        flav.appendChild(el(`<p class="stat-line"><i>Weakness overcome — a new weakness can be chosen next session.</i></p>`));
+      } else {
+        const wkRow = el(`<div class="inv-add"></div>`);
+        const wkIn = el(`<input type="text" placeholder="Choose a new weakness…">`);
+        const wkBtn = el(`<button class="btn secondary">Set</button>`);
+        const doWk = () => { const v = wkIn.value.trim(); if (!v) return; this.mutate((ch) => { ch.identity.weakness = v; }); };
+        wkBtn.onclick = doWk; wkIn.onkeydown = (e) => { if (e.key === "Enter") doWk(); };
+        wkRow.append(wkIn, wkBtn); flav.appendChild(wkRow);
+      }
       const notesField = el(`<div class="form-field"><label>Notes / Journal</label></div>`);
       const notes = el(`<textarea rows="4" placeholder="Session notes, threads, loot…"></textarea>`);
       notes.value = c.notes || "";
