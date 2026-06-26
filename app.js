@@ -1670,16 +1670,23 @@
    * ================================================================= */
   // Ensure a character's inventory uses the structured shape (migrates legacy data).
   function normalizeInventory(c) {
+    if (!c) return;
+    if (!c.identity) c.identity = { name: "Unnamed Hero", kin: "Human", profession: "Fighter" };
+    if (!c.state) c.state = {};
+    if (!c.derived) c.derived = { hpMax: 10, wpMax: 10 };
+    if (!c.attributes) c.attributes = {};
+    if (!c.skills) c.skills = {};
+    if (!c.spells) c.spells = { tricks: [], known: [] };
     const inv = c.inventory || (c.inventory = {});
-    inv.items = (inv.items || []).map((it) => typeof it === "string" ? { name: it, weight: 1 } : { name: it.name, weight: it.weight == null ? 1 : it.weight });
-    inv.tiny = (inv.tiny || []).map((it) => typeof it === "string" ? { name: it } : it);
-    inv.mementos = (inv.mementos || []).map((m) => typeof m === "string" ? m : m.name || "");
+    inv.items = (inv.items || []).map((it) => typeof it === "string" ? { name: it, weight: 1 } : { name: it?.name || "Item", weight: it?.weight == null ? 1 : it.weight });
+    inv.tiny = (inv.tiny || []).map((it) => typeof it === "string" ? { name: it } : it || { name: "Tiny" });
+    inv.mementos = (inv.mementos || []).map((m) => typeof m === "string" ? m : m?.name || "");
     inv.money = Object.assign({ gold: 0, silver: 0, copper: 0 }, inv.money || {});
     if (!c.state.conditions) c.state.conditions = {};
     if (!c.state.deathRolls) c.state.deathRolls = { successes: 0, failures: 0 };
-    if (!Array.isArray(c.companions)) c.companions = []; // summons / raised undead / familiars / animal companions
-    if (!Array.isArray(c.effects)) c.effects = []; // ongoing spells / runes / illusions
-    if (typeof c.state.wpPenalty !== "number") c.state.wpPenalty = 0; // permanent max-WP loss (rituals / corruption)
+    if (!Array.isArray(c.companions)) c.companions = [];
+    if (!Array.isArray(c.effects)) c.effects = [];
+    if (typeof c.state.wpPenalty !== "number") c.state.wpPenalty = 0;
   }
   // Effective max WP after permanent reductions (rituals, corruption); restorable via Focused.
   const effWpMax = (c) => Math.max(0, c.derived.wpMax - (c.state.wpPenalty || 0));
@@ -2026,17 +2033,17 @@
 
       // Magic
       if ((c.spells.tricks||[]).length || (c.spells.known||[]).length) {
-        const magicPanel = el(`<div class="panel"><h3>Magic</h3></div>`);
+        const magicPanel = el(`<details class="panel rule-accordion" open style="padding:10px"><summary style="font-size:1.2rem;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></summary><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"></div></details>`);
+        const inner = magicPanel.querySelector("div");
         const learnBtn = el(`<button class="btn ghost" style="margin-bottom:8px">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
-        magicPanel.appendChild(learnBtn);
+        inner.appendChild(learnBtn);
         const spellRow = (x, isTrick) => {
           const row = el(`<div class="cast-row"><div class="cast-info"><b>${esc(x.name)}</b> <span class="tag">${isTrick ? "Trick · 1 WP" : "Rank " + x.rank}</span><br><span class="stat-line">${esc(x.text||"")}</span></div></div>`);
           const btns = el(`<div class="cast-actions"></div>`);
           const cast = el(`<button class="btn secondary cast-btn">Cast</button>`);
           cast.onclick = () => Roller.cast(this.id, x, isTrick);
           btns.appendChild(cast);
-          // Phase 4B quick-adds:
           if (isSummonSpell(x)) { const b = el(`<button class="btn ghost cast-btn" title="add to your summons/companions">+ Summon</button>`); b.onclick = () => this.addCompanion(x.name, 0, x.text); btns.appendChild(b); }
           if (x.school === "enchanting") { const b = el(`<button class="btn ghost cast-btn" title="bind to a new item in your inventory">+ Craft</button>`); b.onclick = () => { this.mutate((ch) => ch.inventory.items.push({ name: "Enchanted item — " + x.name, weight: 1 })); this.toast(`Crafted: ${x.name}.`); }; btns.appendChild(b); }
           else if (x.school === "alchemy") { const b = el(`<button class="btn ghost cast-btn" title="add a brewed dose to your inventory">+ Brew</button>`); b.onclick = () => { this.mutate((ch) => ch.inventory.items.push({ name: x.name + " (dose)", weight: 1 })); this.toast(`Brewed: ${x.name}.`); }; btns.appendChild(b); }
@@ -2044,8 +2051,18 @@
           row.appendChild(btns);
           return row;
         };
-        (c.spells.tricks||[]).forEach((x) => magicPanel.appendChild(spellRow(x, true)));
-        (c.spells.known||[]).forEach((x) => magicPanel.appendChild(spellRow(x, false)));
+        if ((c.spells.tricks||[]).length) {
+          const tDet = el(`<details open style="margin-bottom:10px;background:var(--bg-raised);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">🎩 Magic Tricks (${c.spells.tricks.length})</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div></details>`);
+          const tDiv = tDet.querySelector("div");
+          c.spells.tricks.forEach((x) => tDiv.appendChild(spellRow(x, true)));
+          inner.appendChild(tDet);
+        }
+        if ((c.spells.known||[]).length) {
+          const sDet = el(`<details open style="margin-bottom:6px;background:var(--bg-raised);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">📜 Known Spells (${c.spells.known.length})</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div></details>`);
+          const sDiv = sDet.querySelector("div");
+          c.spells.known.forEach((x) => sDiv.appendChild(spellRow(x, false)));
+          inner.appendChild(sDet);
+        }
         root.appendChild(magicPanel);
       }
 
@@ -2168,7 +2185,14 @@
    * ================================================================= */
   const Combat = {
     KEY: "dragonbane.combat",
-    load() { try { return JSON.parse(localStorage.getItem(this.KEY)) || { round: 0, combatants: [] }; } catch (_) { return { round: 0, combatants: [] }; } },
+    load() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(this.KEY));
+        return { round: raw?.round || 0, combatants: Array.isArray(raw?.combatants) ? raw.combatants : [] };
+      } catch (_) {
+        return { round: 0, combatants: [] };
+      }
+    },
     save(s) {
       localStorage.setItem(this.KEY, JSON.stringify(s));
       if (typeof Sync !== "undefined" && Sync.enabled && Sync.campaign) {
@@ -2806,20 +2830,24 @@
     const items = chars.map(c => {
       const isMe = c.owner === Sync.uid;
       const conds = Object.entries(c.state?.conditions || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+      return `<div class="roster-row" data-id="${esc(c.id)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px;transition:background 0.15s">
         <div><b>${esc(c.identity?.name || "Hero")}</b> ${isMe ? '<span class="tag" style="background:var(--accent);color:#fff">YOU</span>' : ''}<br>
         <span class="stat-line" style="font-size:0.8rem">${esc(c.identity?.kin||"")} ${esc(c.identity?.profession||"")}</span></div>
         <div style="text-align:right"><b>❤️ ${c.state?.hp}/${c.derived?.hpMax} · ⚡ ${c.state?.wp}/${c.derived?.wpMax}</b>
         ${conds ? `<br><span style="color:var(--bad);font-size:0.8rem">⚠ ${esc(conds)}</span>` : ''}</div>
       </div>`;
     }).join("");
-    return el(`<div class="panel" style="border-color:var(--accent);background:rgba(122,46,29,0.05);margin-bottom:12px">
+    const bannerEl = el(`<div class="panel" style="border-color:var(--accent);background:rgba(122,46,29,0.05);margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <h3>🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
         <span class="tag code">${esc(Sync.campaign.joinCode)}</span>
       </div>
       <div style="margin-top:8px">${items}</div>
     </div>`);
+    bannerEl.querySelectorAll(".roster-row[data-id]").forEach(row => {
+      row.onclick = () => Sheet.open(row.dataset.id);
+    });
+    return bannerEl;
   }
 
   /* =================================================================
@@ -3058,9 +3086,9 @@
     } else if (key === "spells") {
       const labels = { general: "General Magic", animism: "Animism", elementalism: "Elementalism", mentalism: "Mentalism" };
       const renderSchool = (k, pool, isNew) => {
-        const tricks = (pool.tricks || []).map((t) => `<p><b>${esc(t.name)}</b> <span class="tag">Trick</span><br><span class="stat-line">${esc(t.text)}</span></p>`).join("");
-        const spells = (pool.spells || []).map((s) => `<p><b>${esc(s.name)}</b> <span class="tag">Rank ${s.rank}</span><br><span class="stat-line">${esc(s.range || s.ingredients || s.item || "")}${s.duration ? " · " + esc(s.duration) : ""} — ${esc(s.text)}</span></p>`).join("");
-        return `<div class="panel"><h3>${esc(pool.name || labels[k] || Magic.cap(k))}${isNew ? ' <span class="tag">Book of Magic</span>' : ""}</h3>${pool.entry ? `<p class="stat-line"><i>${esc(pool.entry)}</i></p>` : ""}${tricks}${spells}</div>`;
+        const tricks = (pool.tricks || []).map((t) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(t.name)}</b> <span class="tag">Trick</span><br><span class="stat-line">${esc(t.text)}</span></p>`).join("");
+        const spells = (pool.spells || []).map((s) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(s.name)}</b> <span class="tag">Rank ${s.rank}</span><br><span class="stat-line">${esc(s.range || s.ingredients || s.item || "")}${s.duration ? " · " + esc(s.duration) : ""} — ${esc(s.text)}</span></p>`).join("");
+        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary style="font-size:1.15rem;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span>${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line" style="margin-bottom:10px"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div style="margin-top:8px">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div style="margin-top:8px">${spells}</div></details>` : ""}</div></details>`;
       };
       const parts = [];
       if (Magic.enabled()) parts.push(`<p class="notice">Book of Magic content is ON (toggle it in Settings). Revised core spells are always applied.</p>`);
