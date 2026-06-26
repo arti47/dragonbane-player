@@ -250,6 +250,9 @@
       }).catch((err) => {
         if (err.code === "auth/credential-already-in-use") {
           alert("This Google account is already linked to another Dragonbane profile.");
+        } else if (err.code === "auth/unauthorized-domain") {
+          const domain = window.location.hostname || "your current domain";
+          alert(`Google linking blocked (Unauthorized Domain):\n\nFirebase does not recognize '${domain}' as an authorized website for Google Login.\n\nTo allow login on this domain:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Authentication > Settings tab > Authorized domains\n4. Click 'Add domain', paste:\n   ${domain}\n5. Save and try linking again.`);
         } else {
           alert("Google linking failed: " + err.message);
         }
