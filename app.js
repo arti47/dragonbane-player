@@ -276,6 +276,17 @@
         const val = snap.val();
         if (val) {
           localStorage.setItem("dragonbane.combat", JSON.stringify(val));
+          (val.combatants || []).forEach(cb => {
+            if (cb.kind === "hero" && cb.charId) {
+              const ch = Store.get(cb.charId);
+              if (ch) {
+                let changed = false;
+                if (cb.hp != null && ch.state.hp !== cb.hp) { ch.state.hp = cb.hp; changed = true; }
+                if (cb.wp != null && ch.state.wp !== cb.wp) { ch.state.wp = cb.wp; changed = true; }
+                if (changed) Store.put(ch);
+              }
+            }
+          });
           const partyBtn = $("#app-nav button[data-route='party']");
           if (partyBtn && partyBtn.classList.contains("active")) {
             Combat.rerender();
@@ -1257,6 +1268,10 @@
       dmgDiv.appendChild(rollDmgBtn);
 
       const doRoll = (isPush) => {
+        if (isRanged && !isPush && (c.state.combatAmmo || 0) <= 0) {
+          alert("🏹 Out of Ammunition: You have 0 Arrows/Bolts remaining.");
+          return;
+        }
         if (!isPush) {
           rollAtkBtn.disabled = true; rollAtkBtn.style.opacity = "0.4"; rollAtkBtn.style.cursor = "not-allowed";
         }
@@ -1272,11 +1287,16 @@
             }
           }
         }
-        if (isRanged && !isPush && c.state.combatAmmo <= 0) {
-          alert("Out of ammunition!");
-        }
-        if (isRanged && !isPush && c.state.combatAmmo > 0) {
-          c.state.combatAmmo--; Store.update(charId, ch => { ch.state.combatAmmo = c.state.combatAmmo; });
+        if (isRanged && !isPush) {
+          c.state.combatAmmo--;
+          const invItem = (c.inventory?.items || []).find(it => /quiver|arrow|bolt|stone|bullet/i.test(it.name));
+          if (invItem) {
+            invItem.name = invItem.name.replace(/\s*\(\d+\)$/, "") + ` (${c.state.combatAmmo})`;
+          }
+          Store.update(charId, ch => {
+            ch.state.combatAmmo = c.state.combatAmmo;
+            if (invItem && ch.inventory) ch.inventory.items = c.inventory.items;
+          });
           const aLbl = atkDiv.querySelector("span[style*='Arrows']");
           if (aLbl) aLbl.textContent = `Arrows / Bolts: ${c.state.combatAmmo}`;
         }
@@ -1386,14 +1406,10 @@
       }
       bodyElems.push(el(`<p class="stat-line" style="margin:0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
       if (atk.damage) {
-        const btn = el(`<button class="btn block" style="background:var(--ok);color:#fff;border-color:var(--ok);margin-top:10px">Roll Damage (${esc(atk.damage)})</button>`);
-        btn.onclick = () => {
-          const base = Dice.roll(atk.damage);
-          out.innerHTML = `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><p class="outcome ok" style="font-size:1.6rem;margin:0">${base} damage</p><p class="stat-line" style="margin:4px 0 0 0">${atk.damage} = <b>${base}</b></p></div>`;
-          const ignoreArm = /ignores armor/i.test(atk.desc || "");
-          out.appendChild(Roller.renderDamageApplier(combatantId, base, ignoreArm));
-        };
-        bodyElems.push(btn);
+        const base = Dice.roll(atk.damage);
+        out.innerHTML = `<div style="margin-top:12px;padding:10px;background:var(--bg-raised);border-radius:8px;border:1px solid var(--line)"><p class="outcome ok" style="font-size:1.6rem;margin:0">💥 ${base} damage</p><p class="stat-line" style="margin:4px 0 0 0">${atk.damage} = <b>${base}</b></p></div>`;
+        const ignoreArm = /ignores armor/i.test(atk.desc || "");
+        out.appendChild(Roller.renderDamageApplier(combatantId, base, ignoreArm));
       }
       bodyElems.push(out);
       m.body.append(...bodyElems);
@@ -1605,7 +1621,7 @@
       
       const isReaction = spell.time?.toLowerCase().includes("reaction") || spell.castingTime?.toLowerCase().includes("reaction");
       const grimWrap = el(`<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.95rem;cursor:pointer">
-        <input type="checkbox" id="cast-unprepared">
+        <input type="checkbox" id="cast-unprepared" ${spell.prepared === false ? "checked" : ""}>
         <span>📖 Cast Unprepared from Grimoire (Doubles time)</span>
       </label>`);
 
@@ -1761,6 +1777,25 @@
       } else if (kind === "shift") {
         this.mutate((ch) => { ch.state.hp = ch.derived.hpMax; ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; });
         this.toast("Shift rest: full HP & WP, all conditions cleared.");
+        const cur = Store.get(this.id);
+        if ((cur?.spells?.known || []).length > 0) {
+          const m = modal("🧙‍♂️ Shift Rest: Prepare Grimoire Spells");
+          m.body.appendChild(el(`<p class="stat-line">You completed a full Shift Rest. Review your Grimoire and check the spells you wish to keep <b>Prepared</b> (unprepared spells take double time to cast):</p>`));
+          const listDiv = el(`<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>`);
+          cur.spells.known.forEach((sp, i) => {
+            const isPrep = sp.prepared !== false;
+            const row = el(`<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg-raised);border-radius:6px;border:1px solid var(--line);cursor:pointer">
+              <input type="checkbox" ${isPrep ? "checked" : ""}>
+              <div><b>${esc(sp.name)}</b> <span class="tag">Rank ${sp.rank || 1}</span><br><small class="stat-line">${esc(sp.text||sp.desc||"")}</small></div>
+            </label>`);
+            row.querySelector("input").onchange = (e) => {
+              Store.update(this.id, ch => { ch.spells.known[i].prepared = e.target.checked; });
+              this.render();
+            };
+            listDiv.appendChild(row);
+          });
+          m.body.appendChild(listDiv);
+        }
       } else { // stretch
         const h = Dice.roll("D6"), w = Dice.roll("D6");
         this.mutate((ch) => { ch.state.hp = Math.min(ch.derived.hpMax, ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
@@ -2039,7 +2074,9 @@
         learnBtn.onclick = () => this.learnMagic();
         inner.appendChild(learnBtn);
         const spellRow = (x, isTrick) => {
-          const row = el(`<div class="cast-row"><div class="cast-info"><b>${esc(x.name)}</b> <span class="tag">${isTrick ? "Trick · 1 WP" : "Rank " + x.rank}</span><br><span class="stat-line">${esc(x.text||"")}</span></div></div>`);
+          const isPrep = isTrick || x.prepared !== false;
+          const tagStr = isTrick ? "Trick · 1 WP" : `Rank ${x.rank}` + (isPrep ? " · Prepared" : " · Grimoire");
+          const row = el(`<div class="cast-row"><div class="cast-info"><b>${esc(x.name)}</b> <span class="tag" style="${!isPrep ? 'background:var(--muted);color:#fff' : ''}">${tagStr}</span><br><span class="stat-line">${esc(x.text||"")}</span></div></div>`);
           const btns = el(`<div class="cast-actions"></div>`);
           const cast = el(`<button class="btn secondary cast-btn">Cast</button>`);
           cast.onclick = () => Roller.cast(this.id, x, isTrick);
@@ -2185,6 +2222,16 @@
    * ================================================================= */
   const Combat = {
     KEY: "dragonbane.combat",
+    isGm() {
+      return typeof Sync === "undefined" || !Sync.enabled || !Sync.campaign || Sync.campaign.role === "gm";
+    },
+    guardGm(fn) {
+      if (!this.isGm()) {
+        alert("🛡️ GM Locked: Only the Campaign Game Master can manage combat turns or advance rounds.");
+        return;
+      }
+      fn();
+    },
     load() {
       try {
         const raw = JSON.parse(localStorage.getItem(this.KEY));
@@ -2347,15 +2394,15 @@
       ctrl.appendChild(el(`<p><b>${s.round ? "Round " + s.round : "Not started"}</b></p>`));
       const btns = el(`<div class="rest-row"></div>`);
       const drawBtn = el(`<button class="btn">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
-      drawBtn.onclick = () => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; });
+      drawBtn.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; }));
       const nextTurn = el(`<button class="btn ghost">Next turn</button>`);
-      nextTurn.onclick = () => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } });
+      nextTurn.onclick = () => this.guardGm(() => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } }));
       const nextRound = el(`<button class="btn ghost">Next round</button>`);
-      nextRound.onclick = () => this.mutate((st) => { this.draw(st); st.round = (st.round || 0) + 1; st.combatants.forEach(c => { c.done = false; c.acted = false; }); });
+      nextRound.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); st.round = (st.round || 0) + 1; st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const resetTurns = el(`<button class="btn ghost">Reset Turns</button>`);
-      resetTurns.onclick = () => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); });
+      resetTurns.onclick = () => this.guardGm(() => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const end = el(`<button class="btn ghost">End combat</button>`);
-      end.onclick = () => { if (confirm("End combat and clear all combatants?")) this.mutate((st) => { st.round = 0; st.combatants = []; }); };
+      end.onclick = () => this.guardGm(() => { if (confirm("End combat and clear all combatants?")) this.mutate((st) => { st.round = 0; st.combatants = []; }); });
       const fleeBtn = el(`<button class="btn ghost" style="border:1px dashed var(--bad);color:var(--bad)">🏃 Flee Close Combat</button>`);
       fleeBtn.onclick = () => {
         const d = Dice.d(20);
@@ -2428,10 +2475,10 @@
           const actedBadge = el(`<button class="skill-chip ${cb.acted ? "picked" : ""}" style="font-size:0.85rem;padding:3px 8px">${cb.acted ? "Acted ✓" : "Turn [ ]"}</button>`);
           actedBadge.onclick = (e) => {
             e.stopPropagation();
-            this.mutate(st => {
+            this.guardGm(() => this.mutate(st => {
               const ref = st.combatants.find(c => c.id === cb.id);
               if (ref) ref.acted = !ref.acted;
-            });
+            }));
           };
           quickWrap.appendChild(actedBadge);
         }
