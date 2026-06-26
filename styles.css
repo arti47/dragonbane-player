@@ -88,11 +88,12 @@ a { color: var(--accent); }
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 10px 14px;
   background: var(--accent);
   color: #f7eed6;
   box-shadow: 0 2px 8px var(--shadow);
+  flex-wrap: wrap;
 }
 
 .app-header .brand {
@@ -107,7 +108,7 @@ a { color: var(--accent); }
 
 .app-header .brand img { width: 34px; height: 34px; }
 
-.app-header .spacer { flex: 1; }
+.app-header .spacer { flex: 1; min-width: 0; }
 
 .app-header .status-pill {
   font-size: 0.72rem;
@@ -117,6 +118,9 @@ a { color: var(--accent); }
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .status-pill.local  { background: rgba(0,0,0,0.18); }
 .status-pill.synced { background: var(--good); border-color: var(--good); }

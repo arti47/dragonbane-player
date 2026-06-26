@@ -2991,7 +2991,10 @@
       // Add controls panel
       const addPanel = el(`<div class="panel"></div>`);
       window._combatAddSelections = window._combatAddSelections || {};
-      const heroes = Store.list();
+      const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+      const heroes = inPartyCamp
+        ? Store.list().filter(h => h.campaignId === Sync.campaign.id)
+        : Store.list();
       if (heroes.length) {
         const heroRow = el(`<div class="inv-add"></div>`);
         const sel = el(`<select></select>`); sel.appendChild(el(`<option value="">Add a hero…</option>`));
@@ -3589,8 +3592,8 @@
       </div>`;
     }).join("");
     const bannerEl = el(`<div class="panel" style="border-color:var(--accent);background:rgba(122,46,29,0.05);margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3>🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
         <span class="tag code">${esc(Sync.campaign.joinCode)}</span>
       </div>
       <div style="margin-top:8px">${items}</div>
@@ -3624,35 +3627,29 @@
       } else {
         const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
         const myChars = inPartyCamp
-          ? chars.filter(c => !c.owner || c.owner === Sync.uid || !c.campaignId)
+          ? chars.filter(c => !c.owner || c.owner === Sync.uid || c.campaignId !== Sync.campaign.id)
           : chars;
-        const partyChars = inPartyCamp
-          ? chars.filter(c => c.campaignId === Sync.campaign.id && c.owner && c.owner !== Sync.uid)
-          : [];
 
-        const renderCard = (c, isMine) => {
+        const renderCard = (c) => {
           const inParty = inPartyCamp && c.campaignId === Sync.campaign.id;
-          const badge = inPartyCamp && isMine
-            ? `<div style="margin-top:10px"><button class="btn secondary step btn-toggle-party" data-id="${esc(c.id)}" style="font-size:0.75rem;padding:3px 10px;border-radius:4px" type="button">${inParty ? "🛡️ In Party (Shared)" : "⚡ Private (Click to share)"}</button></div>`
-            : (!isMine ? `<div style="margin-top:10px"><span class="tag" style="font-size:0.75rem">🔒 Read-Only</span></div>` : "");
+          const iconBtn = inPartyCamp
+            ? `<button class="btn secondary step btn-toggle-party" data-id="${esc(c.id)}" style="font-size:0.75rem;padding:3px 10px;border-radius:4px;flex-shrink:0" type="button" title="${inParty ? "In Party (Click to make private)" : "Private (Click to share with party)"}">${inParty ? "🛡️ In Party" : "⚡ Private"}</button>`
+            : "";
           return `
-            <div class="card" data-id="${esc(c.id)}" style="cursor:pointer;display:flex;flex-direction:column;align-items:flex-start">
-              <h3 style="margin:0">${esc(c.identity?.name || "Unnamed")}</h3>
-              <div class="meta" style="margin-top:2px">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
-              ${badge}
+            <div class="card" data-id="${esc(c.id)}" style="cursor:pointer;display:flex;flex-direction:column;align-items:stretch">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%">
+                <h3 style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.identity?.name || "Unnamed")}</h3>
+                ${iconBtn}
+              </div>
+              <div class="meta" style="margin-top:4px">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
             </div>`;
         };
 
-        const myCards = myChars.map(c => renderCard(c, true)).join("");
-        const partyCards = partyChars.map(c => renderCard(c, false)).join("");
+        const myCards = myChars.map(renderCard).join("");
 
         body = `
           ${sectionTitle("Your heroes")}
           <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
-          ${partyChars.length ? `
-            <div style="margin-top:20px">${sectionTitle("Party members' heroes")}</div>
-            <div class="card-grid">${partyCards}</div>
-          ` : ""}
           <p></p>
           <button class="btn block" id="new-hero">Forge a new hero</button>
           <p></p>
