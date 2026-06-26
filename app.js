@@ -298,7 +298,7 @@
         const homeBtn = $("#app-nav button[data-route='home']");
         if (window.activeCharacterId && Store.get(window.activeCharacterId)) {
           if ($("#screen .wiz-progress")) {
-            Sheet.rerender();
+            Sheet.render();
           }
         } else if (homeBtn && homeBtn.classList.contains("active")) {
           Router.go("home");
@@ -1707,7 +1707,7 @@
       const c = Store.get(id);
       if (!c) { Router.go("home"); return; }
       normalizeInventory(c); Store.update(id, normalizeInventory);
-      this.id = id; this.render();
+      this.id = id; window.activeCharacterId = id; this.render();
     },
     mutate(fn) { Store.update(this.id, fn); this.render(); },
     uploadPortrait() {
@@ -2170,13 +2170,13 @@
 
       // Delete
       const del = el(`<button class="btn ghost block" style="margin-top:6px">Delete hero</button>`);
-      del.onclick = () => { if (confirm("Delete " + c.identity.name + "?")) { Store.remove(this.id); Router.go("home"); } };
+      del.onclick = () => { if (confirm("Delete " + c.identity.name + "?")) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
       root.appendChild(del);
 
       // Mount, preserving scroll across re-renders
       const y = window.scrollY;
       const s = $("#screen"); s.innerHTML = ""; s.appendChild(root); window.scrollTo(0, y);
-      root.querySelector("#sheet-back").onclick = () => Router.go("home");
+      root.querySelector("#sheet-back").onclick = () => { window.activeCharacterId = null; Router.go("home"); };
     }
   };
 
@@ -2264,14 +2264,18 @@
 
       // Add controls panel
       const addPanel = el(`<div class="panel"></div>`);
+      window._combatAddSelections = window._combatAddSelections || {};
       const heroes = Store.list();
       if (heroes.length) {
         const heroRow = el(`<div class="inv-add"></div>`);
         const sel = el(`<select></select>`); sel.appendChild(el(`<option value="">Add a hero…</option>`));
         heroes.forEach((h) => sel.appendChild(el(`<option value="${esc(h.id)}">${esc(h.identity.name)}</option>`)));
+        if (window._combatAddSelections.hero) sel.value = window._combatAddSelections.hero;
+        sel.onchange = () => { window._combatAddSelections.hero = sel.value; };
         const add = el(`<button class="btn secondary">Add</button>`);
         add.onclick = () => {
           if (!sel.value) return; const h = Store.get(sel.value);
+          window._combatAddSelections.hero = "";
           this.mutate((st) => st.combatants.push({
             id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false,
             hp: h.state.hp, maxHp: h.derived.hpMax, wp: h.state.wp, maxWp: h.derived.wpMax,
@@ -2287,9 +2291,12 @@
         const monRow = el(`<div class="inv-add"></div>`);
         const monSel = el(`<select></select>`); monSel.appendChild(el(`<option value="">Add Bestiary monster…</option>`));
         monsters.forEach((m) => monSel.appendChild(el(`<option value="${esc(m.id)}">${esc(m.name)} (HP ${m.hp})</option>`)));
+        if (window._combatAddSelections.monster) monSel.value = window._combatAddSelections.monster;
+        monSel.onchange = () => { window._combatAddSelections.monster = monSel.value; };
         const monAdd = el(`<button class="btn secondary">Add</button>`);
         monAdd.onclick = () => {
           if (!monSel.value) return; const m = monsters.find(x => x.id === monSel.value);
+          window._combatAddSelections.monster = "";
           this.mutate((st) => st.combatants.push({
             id: uid(), name: m.name, kind: "monster", monId: m.id, init: null, done: false,
             hp: m.hp, maxHp: m.hp, armor: m.armor, attacks: m.attacks
@@ -2304,9 +2311,12 @@
         const rNpcRow = el(`<div class="inv-add"></div>`);
         const rNpcSel = el(`<select></select>`); rNpcSel.appendChild(el(`<option value="">Add Rulebook NPC / Animal…</option>`));
         npcs.forEach((n) => rNpcSel.appendChild(el(`<option value="${esc(n.id)}">${esc(n.name)} (HP ${n.hp})</option>`)));
+        if (window._combatAddSelections.npc) rNpcSel.value = window._combatAddSelections.npc;
+        rNpcSel.onchange = () => { window._combatAddSelections.npc = rNpcSel.value; };
         const rNpcAdd = el(`<button class="btn secondary">Add</button>`);
         rNpcAdd.onclick = () => {
           if (!rNpcSel.value) return; const n = npcs.find(x => x.id === rNpcSel.value);
+          window._combatAddSelections.npc = "";
           this.mutate((st) => st.combatants.push({
             id: uid(), name: n.name, kind: "npc", npcId: n.id, init: null, done: false,
             hp: n.hp, maxHp: n.hp, wp: n.wp || null, maxWp: n.wp || null, armor: n.armor || 0, desc: n.desc || "", weapons: n.weapons || null, spells: n.spells || null
@@ -2318,9 +2328,12 @@
       // Custom NPC
       const npcRow = el(`<div class="inv-add"></div>`);
       const npcName = el(`<input type="text" placeholder="Add custom humanoid NPC…">`);
+      if (window._combatAddSelections.custom) npcName.value = window._combatAddSelections.custom;
+      npcName.oninput = () => { window._combatAddSelections.custom = npcName.value; };
       const npcAdd = el(`<button class="btn secondary">Add</button>`);
       const doNpc = () => {
         const n = npcName.value.trim(); if (!n) return;
+        window._combatAddSelections.custom = "";
         this.mutate((st) => st.combatants.push({ id: uid(), name: n, kind: "npc", init: null, done: false, hp: 10, maxHp: 10, armor: 0 }));
       };
       npcAdd.onclick = doNpc; npcName.onkeydown = (e) => { if (e.key === "Enter") doNpc(); };
@@ -3117,6 +3130,7 @@
    * ================================================================= */
   const Router = {
     go(route) {
+      if (route !== "sheet") window.activeCharacterId = null;
       if (route === "solo" && !Settings.soloMode()) {
         this.go("home");
         return;
