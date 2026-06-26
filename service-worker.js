@@ -9,7 +9,7 @@
  * own offline persistence handles party sync when reconnecting.
  */
 
-const CACHE_VERSION = "dragonbane-v52";
+const CACHE_VERSION = "dragonbane-v53";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -20,10 +20,26 @@ const APP_SHELL = [
   "./data-pregens.js",
   "./data-monsters.js",
   "./data-npcs.js",
-  "./app.js",
   "./firebase-config.js",
   "./manifest.json",
-  "./icon.svg"
+  "./icon.svg",
+  // App logic — ES modules (split of the former app.js). Order doesn't matter for caching.
+  "./src/main.js",
+  "./src/router.js",
+  "./src/screens.js",
+  "./src/solo.js",
+  "./src/combat.js",
+  "./src/sheet.js",
+  "./src/roller.js",
+  "./src/spell-automation.js",
+  "./src/wizard.js",
+  "./src/sync.js",
+  "./src/store.js",
+  "./src/settings.js",
+  "./src/derived.js",
+  "./src/rules.js",
+  "./src/ui.js",
+  "./src/core.js"
 ];
 
 self.addEventListener("install", (event) => {

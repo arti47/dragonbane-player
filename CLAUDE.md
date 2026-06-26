@@ -131,8 +131,8 @@ The full Dragonbane core game data organized into searchable accordion categorie
 
 | File | Purpose | Status |
 |---|---|---|
-| `index.html` | App shell / markup | ✅ COMPLETE — shell done (header, nav, screen mount, script loads); wizard/tracker markup fully wired. |
-| `app.js` | Application logic (wizard, tracker, dice, sync) | ✅ ALL PHASES COMPLETE (Phases 1–9): wizard, sheet, roller, combat tracker, solo assistant, cloud sync, accordions/compendiums, tabletop automation & GM guards. |
+| `index.html` | App shell / markup | ✅ COMPLETE — shell done (header, nav, screen mount, script loads); loads `src/main.js` as an ES module. |
+| `src/*.js` | Application logic, split into **16 ES modules** (was the single `app.js` IIFE). Entry point `src/main.js`. | ✅ ALL PHASES COMPLETE (Phases 1–21): see the module map below. Native ES modules — **no bundler/build step**; the browser loads them directly (clone-and-run preserved). |
 | `styles.css` | Theming (Dragonbane look + light/dark) | ✅ Dragonbane theme (light + dark) + wizard/sheet styles (chips, attr grid, forms, steps) — verified in browser |
 | `data.js` | Dragonbane rules library (kin, professions, skills, abilities, spells, equipment) | ✅ COMPLETE — kin, conditions, derived tables, ages, 30 skills + 3 magic schools, 10 professions (+ full gear tables), 44 heroic abilities, all spells (4 schools), weapons/shields/armor/helmets, general gear, instruments, currency |
 | `data-magic.js` | Book of Magic library (revised spells, new spells for existing schools, 9 new schools) | ✅ COMPLETE & WIRED — 6 revised spells + 39 new spells for existing schools (+familiar table) + all 9 new schools; 254 magic entries total, fully wired into wizard and casting. |
@@ -149,6 +149,34 @@ The full Dragonbane core game data organized into searchable accordion categorie
 | `CLAUDE.md` | This file — canonical spec, kept in sync with code | ✅ active |
 
 *(Update this table's Status column as files are created/changed.)*
+
+### 5.1 `src/` module map (ES modules — entry point `src/main.js`)
+
+Loaded by the browser as native ES modules (no bundler). Each file `export`s its
+modules and `import`s exactly what it uses; runtime cross-calls between mutually
+referential modules (`Sheet` ↔ `Roller` ↔ `Combat` ↔ `SpellAutomation`) work via
+ESM live bindings (the cycles are only exercised at runtime, never at module
+load). **When adding a symbol used by another module, `export` it and `import` it
+where needed** — don't reach for globals.
+
+| Module | Exports | Responsibility |
+|---|---|---|
+| `core.js` | `DB`, `MAGICX`, `CORE_SCHOOLS`, `FANTASY_WORDS`, `$`, `el`, `esc`, `sectionTitle`, `uid`, `mountScreen`, `Dice`, `MISHAPS`, `CONDITION_BY_MISHAP` | Foundational globals, DOM/util helpers, dice, shared constants. No imports. |
+| `ui.js` | `modal`, `showToast`, `confirmModal`, `promptModal` | Themed non-blocking dialogs/toasts (replace native alert/confirm/prompt). |
+| `rules.js` | `Calc`, `findHeroicAbility`, `heroicReqMet`, `resolveEquippedWeapons`, `normName`, `resolveArmorItem`, `resolveHelmetItem`, `classifyItem`, `parseGear`, `buildSkills`, `resolveCanonicalSpell` | Pure rules lookups/derivations over the data libraries. |
+| `derived.js` | `effHpMax`, `effWpMax`, `encUsed`, `encLimit`, `equippedArmor`, `equippedHelmet`, `armorBanedSkills`, `normalizeInventory`, `itemQty`, `lightDieFor`, `abilityCount`, … | Character-derived calculations (vitals, encumbrance slots, equipped gear, normalization). |
+| `settings.js` | `Settings`, `Magic` | Settings flags (Book of Magic / Solo / GM Automation) + magic content gating. |
+| `store.js` | `Store`, `syncCharToCombat` | Local/cloud character persistence + combat mirroring. |
+| `sync.js` | `Sync`, `Theme` | Firebase auth/RTDB campaigns + light/dark theme. |
+| `wizard.js` | `Wizard`, `Pregens` | Character-creation wizard + pre-gens. |
+| `spell-automation.js` | `SpellAutomation`, `SUMMON_STATS` | Automated spell gameplay engine (Phase 19). |
+| `roller.js` | `Roller` | Dice engine: skill/attack/damage/cast rolls, push, mishaps. |
+| `sheet.js` | `Sheet` | The full character sheet view + all in-play tracking UI. |
+| `combat.js` | `Combat` | Combat tracker / initiative / damage applier. |
+| `solo.js` | `SoloMode` | Solo assistant (oracle, inspiration, NPC gen). |
+| `screens.js` | `Screens`, `renderPartyBanner`, `renderRuleDetail` | Top-level screen renderers (home/rules/about) + party banner. |
+| `router.js` | `Router` | Bottom-nav routing + Solo-tab gating. |
+| `main.js` | `init` | Entry point: boot, theme/sync init, `DOMContentLoaded`. |
 
 ---
 
@@ -608,6 +636,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Maintainability: split the 4,647-line `app.js` IIFE into 16 native ES modules under `src/`.** The monolith was one closure with ~30 mutually-referential modules — hard to navigate, review, and test. Carved it into `src/{core,ui,rules,derived,settings,store,sync,wizard,spell-automation,roller,sheet,combat,solo,screens,router,main}.js` (entry point `main.js`), each with explicit `import`/`export`. To avoid transcription error across 4.7k lines, I built an accurate dependency map by script (word-boundary reference scan of every top-level symbol) and **generated** the modules + their import headers from the original ranges, so cross-references are exact. **No bundler/build step** — `index.html` loads `<script type="module" src="src/main.js">` and the browser resolves the graph natively, preserving clone-and-run. The runtime cycles (`Sheet`↔`Roller`↔`Combat`↔`SpellAutomation`) are safe under ESM live bindings (only called at runtime, never at load). Updated the service-worker `APP_SHELL` to cache all `src/*.js` and removed the old `app.js`. Added §5.1 module map + a §9 module-discipline convention. Verified headless on the modular build: app boots, wizard/sheet/all tabs render, **skill roll and spell cast fire with 0 JS errors**, combat (monsters + boss, cards expanded) works, and the whole-app spillage audit stays clean at 360/390px. SW cache v53. |
 | 2026-06-26 | **UX polish: replaced every native `alert`/`confirm`/`prompt` with themed, non-blocking dialogs.** Native browser dialogs froze the page and looked off-brand (especially on mobile). Promoted the old `Sheet.toast` to three top-level helpers exposed on `window`: `showToast(msg, type)` (stacking, auto-dismiss; `type:"success"` green, `type:"error"/"warn"` red + tap-to-dismiss + longer 5.2s timeout so validation messages aren't missed), `confirmModal(msg, opts) → Promise<boolean>`, and `promptModal(msg, opts) → Promise<string|null>` — both built on the existing `modal()` helper (extended to expose `back` + fire an `_onClose` hook so X/backdrop dismissal resolves the promise). Converted **44 `alert()`** calls (28 error, 7 success, 9 info — classified by message content via a paren-aware script), the **1 inline-`onclick` `alert`** (rebuilt as a real handler), **9 `confirm()`** (delete hero, clear storage, end combat, leave campaign, discard character, out-of-range strike, Dracomancy learn — destructive ones use a red `danger` button), and **3 `prompt()`** (campaign name, companion max-HP, leap distance — number inputs where relevant). Made the affected `onclick` handlers `async`/awaited. Fixed a latent double-confirm on "Disconnect from Campaign" (button + `Sync.leaveCampaign` both prompted). Added CSS for `.toast-success`/`.toast-error`, `.modal-msg`, `.modal-input`, `.modal-actions`, `.btn.danger`. Verified headless: toasts stack & type correctly, confirm resolves true/false/false (OK/cancel/backdrop), prompt returns value/null, delete-hero shows the themed modal, **0 native dialogs fired, 0 page errors**, and the whole-app spillage audit stays clean at 360/390px. SW cache v52. |
 | 2026-06-26 | **Docs: corrected stale §7B intro + spec'd two new roadmap phases (20 & 21).** Fixed the §7B header line that still said the rules-accuracy phases were "None started yet" — phases 10–19 are all complete. Added **Phase 20 — Regression-Test Harness** (commit the throwaway headless-Playwright verification as a repeatable `tests/` suite covering spillage, wizard, dice, cast, and encumbrance invariants; tooling-only, no app behavior change, kept out of the SW `APP_SHELL`) and **Phase 21 — GM Screen** (build the GM dashboard the `members/{uid}.role:"gm"` schema + security rules were pre-laid for in Phase 5 — live party panel, read-only sheet peek, combat drop-in, hand-out conditions/damage/fear — strictly additive, zero DB migration). Docs only — no code yet. Both phases follow the §7B Rule/Target/Behavior/Schema/Acceptance spec format. |
 | 2026-06-26 | **Whole-app text-spillage audit — fixed the last two horizontal-overflow sources.** A headless audit (`scrollWidth > clientWidth` + page-overflow at 360px & 390px across sheet, home, combat, rules, solo, about, and the cast modal, with Book of Magic + Solo + GM Automation on) found every screen clean except the character sheet, which pushed the page 35px wide. Two causes, both on the sheet: (1) **HP/WP vitals** — each `.vital` stepper was rigid at ~174px (34+34 buttons, a 64px-min value, 12px padding), so two side-by-side exceeded a 360px viewport; tightened `.vitals` gap 12→8, `.vital` padding 12→8 + `min-width:0`, value `min-width` 64→44, stepper gap 8→6. (2) **Inventory rows** — `.inv-name { flex:1 }` kept its default `min-width:auto`, so a long item name shoved the trailing `✕`/Equip controls past the edge; added `flex-wrap:wrap` to `.inv-row` and `min-width:90px; overflow-wrap:anywhere` to `.inv-name` so controls wrap instead of spilling. Also widened the movement-panel `WALK:`/`HAZARDS:`/`TACTICS:` labels (fixed `width:60px` → `min-width:60px; white-space:nowrap; flex:0 0 auto`; "HAZARDS:" needed 71px). Re-audit: 0 spillage app-wide at 360px and 390px. SW cache v51. |
@@ -666,6 +695,7 @@ data-solo.js: failForward[]
 ## 9. Conventions & Rules of Engagement
 
 - **Single source of truth:** all game rules data lives in `data.js` (core), `data-magic.js` (Book of Magic), and `data-solo.js` (solo rules), sourced from the project's NotebookLM notebook. Do not hardcode rules values elsewhere.
+- **Module discipline (`src/`):** app logic is split into native ES modules (see §5.1). No bundler — keep it that way (clone-and-run). When one module needs a symbol from another, `export` it from its home module and `import` it explicitly; don't smuggle things through `window`. Put new code in the module that owns that responsibility; if a file outgrows its job, split along the same lines. When you add/move a `src/*.js` file, update the §5 table, §5.1 map, **and** the service-worker `APP_SHELL` list (then bump `CACHE_VERSION`).
 - **Sync discipline:** any code change → update §2/§4/§5/§6/§10 as needed, tick the relevant §7 roadmap box, and add a §8 changelog row — in the same edit.
 - **Scope guard:** Dragonbane **core rules**, plus **Book of Magic** (gated behind a content toggle) and **Solo mode** (a distinct play mode). No Misty Vale / campaign / setting content in the app. Sources: core rulebook `2ec5709d-…`; Book of Magic `5cc43bfe-…`; solo rules `98cc2537-…` (in the notebook).
 - **GitHub-bound:** keep the tree clean and documented; no secrets committed (Firebase keys go in the user-supplied config; real keys must not be committed).
