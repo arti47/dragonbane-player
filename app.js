@@ -1085,6 +1085,10 @@
       const rollBtn = el(`<button class="btn block" style="margin-top:12px">Roll d20</button>`);
       const result = el(`<div class="roll-result"></div>`);
       const doRoll = (pushedCondition) => {
+        if (!pushedCondition) {
+          rollBtn.disabled = true; rollBtn.style.opacity = "0.4"; rollBtn.style.cursor = "not-allowed";
+          minus.disabled = true; plus.disabled = true;
+        }
         const r = this.d20net(net);
         const dragon = r.used === 1, demon = r.used === 20;
         const success = r.used <= sk.level;
@@ -1253,6 +1257,9 @@
       dmgDiv.appendChild(rollDmgBtn);
 
       const doRoll = (isPush) => {
+        if (!isPush) {
+          rollAtkBtn.disabled = true; rollAtkBtn.style.opacity = "0.4"; rollAtkBtn.style.cursor = "not-allowed";
+        }
         if (combatantId && !isPush) {
           const comb = Combat.load();
           if (comb && comb.combatants) {
@@ -1424,6 +1431,7 @@
         };
       }
       rollBtn.onclick = () => {
+        rollBtn.disabled = true; rollBtn.style.opacity = "0.4"; rollBtn.style.cursor = "not-allowed";
         const d = Dice.d(20);
         const ok = d <= w.skill;
         const crit = d === 1; const fumble = d === 20;
@@ -1604,6 +1612,10 @@
       const castBtn = el(`<button class="btn block" style="margin-top:12px">Cast</button>`);
       const out = el(`<div class="roll-result"></div>`);
       const doCast = (pushedCondition) => {
+        if (!pushedCondition) {
+          castBtn.disabled = true; castBtn.style.opacity = "0.4"; castBtn.style.cursor = "not-allowed";
+          pm.disabled = true; pp.disabled = true;
+        }
         const isUnprepared = grimWrap.querySelector("#cast-unprepared")?.checked;
         if (isUnprepared && isReaction) {
           out.innerHTML = `<p class="outcome bad">❌ Reaction spells cannot be cast unprepared from a grimoire.</p>`;
