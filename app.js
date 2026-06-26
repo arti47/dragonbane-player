@@ -2161,15 +2161,18 @@
         const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0);
         const card = el(`<div class="panel ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""}" style="margin:0;padding:0;overflow:hidden;border:1px solid ${isCur ? "var(--accent)" : "var(--border)"};opacity:${isDefeated ? "0.55" : "1"}"></div>`);
         
-        const head = el(`<div class="combat-row" style="display:flex;align-items:center;padding:10px 12px;cursor:pointer;gap:8px;flex-wrap:wrap;${isDefeated ? "text-decoration:line-through;background:rgba(0,0,0,0.15)" : ""}">
-          <span class="init-card" style="margin:0">${cb.init == null ? "–" : cb.init}</span>
-          <span class="cb-name" style="font-weight:bold;font-size:1.25rem;margin-right:4px">${esc(cb.name)} 
+        const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:rgba(0,0,0,0.15)" : ""}">
+          <div style="display:flex;align-items:center;gap:10px;width:100%">
+            <span class="init-card" style="margin:0;flex-shrink:0">${cb.init == null ? "–" : cb.init}</span>
+            <span class="cb-name" style="font-weight:bold;font-size:1.3rem;color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap">
             <span class="tag">${cb.kind === "hero" ? "Hero" : cb.kind === "monster" ? "Monster" : "NPC"}</span>
-            ${isCur && !isDefeated ? ' <span class="tag" style="background:var(--accent);color:#f7eed6;border-color:var(--accent)">now</span>' : ""}
-            ${isDefeated ? ' <span class="tag" style="background:var(--bad);color:#fff">💀 DEFEATED</span>' : ""}
-          </span>
-          <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto"></div>
-          <span style="font-weight:bold;font-size:1.15rem;color:${isDefeated ? "var(--bad)" : "inherit"};min-width:65px;text-align:right">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
+            ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:#f7eed6;border-color:var(--accent)">now</span>' : ""}
+            ${isDefeated ? '<span class="tag" style="background:var(--bad);color:#fff">💀 DEFEATED</span>' : ""}
+            <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto"></div>
+            <span style="font-weight:bold;font-size:1.15rem;color:${isDefeated ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
+          </div>
         </div>`);
 
         const quickWrap = head.querySelector(".quick-attacks");
