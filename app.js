@@ -1820,9 +1820,14 @@
     if (typeof c.state.wpPenalty !== "number") c.state.wpPenalty = 0;
     if (typeof c.state.weaknessCooldown !== "boolean") c.state.weaknessCooldown = false;
     if (!c.state.teacherTrained || typeof c.state.teacherTrained !== "object") c.state.teacherTrained = {};
+    if (c.state.familiar === undefined) c.state.familiar = null;
   }
   // Effective max WP after permanent reductions (rituals, corruption); restorable via Focused.
-  const effWpMax = (c) => Math.max(0, c.derived.wpMax - (c.state.wpPenalty || 0));
+  const abilityCount = (c, name) => (c.abilities || []).filter((a) => a.name === name).length;
+  // Effective max HP/WP: Robust adds +2 HP per pick, Focused +2 WP per pick;
+  // WP is further reduced by permanent loss (rituals/corruption).
+  const effHpMax = (c) => (c.derived.hpMax || 0) + 2 * abilityCount(c, "Robust");
+  const effWpMax = (c) => Math.max(0, (c.derived.wpMax || 0) + 2 * abilityCount(c, "Focused") - (c.state.wpPenalty || 0));
   // Does a spell summon/raise a creature (gets its own roster entry)?
   function isSummonSpell(sp) {
     const t = ((sp.name || "") + " " + (sp.text || "")).toLowerCase();
@@ -1923,7 +1928,7 @@
         this.mutate((ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
         this.toast(`Round rest: +${w} WP.`);
       } else if (kind === "shift") {
-        this.mutate((ch) => { ch.state.hp = ch.derived.hpMax; ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; });
+        this.mutate((ch) => { ch.state.hp = effHpMax(ch); ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; });
         this.toast("Shift rest: full HP & WP, all conditions cleared.");
         const cur = Store.get(this.id);
         if ((cur?.spells?.known || []).length > 0) {
@@ -1946,7 +1951,7 @@
         }
       } else { // stretch
         const h = Dice.roll("D6"), w = Dice.roll("D6");
-        this.mutate((ch) => { ch.state.hp = Math.min(ch.derived.hpMax, ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
+        this.mutate((ch) => { ch.state.hp = Math.min(effHpMax(ch), ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
         const cur = Store.get(this.id);
         const held = (DB.conditions || []).filter((cn) => cur.state.conditions[cn.key]);
         if (!held.length) { this.toast(`Stretch rest: +${h} HP, +${w} WP.`); return; }
@@ -2213,7 +2218,7 @@
         return w;
       };
       const vitals = el(`<div class="vitals"></div>`);
-      vitals.appendChild(stepper("Hit Points", c.state.hp, c.derived.hpMax, "hp", "hp"));
+      vitals.appendChild(stepper("Hit Points", c.state.hp, effHpMax(c), "hp", "hp"));
       vitals.appendChild(stepper("Willpower", c.state.wp, effWpMax(c), "wp", "wp"));
       top.appendChild(vitals);
 
@@ -2395,6 +2400,42 @@
         fxBtn.onclick = doAddFx; fxName.onkeydown = (e) => { if (e.key === "Enter") doAddFx(); };
         addFx.append(fxName, fxBtn); fxPanel.appendChild(addFx);
         root.appendChild(fxPanel);
+      }
+
+      // Familiar WP splitting (Phase 15) — a mage may assign up to half their
+      // max WP to a familiar; the two pools are tracked separately.
+      const isCaster = Object.values(c.skills).some((v) => v.kind === "magic") || (c.spells && c.spells.castSkill);
+      if (isCaster) {
+        const cap = Math.floor(effWpMax(c) / 2);
+        const famPanel = el(`<div class="panel"><h3>Familiar</h3><p class="stat-line">Assign up to half your max WP (${cap}) to a familiar; the pools are tracked separately.</p></div>`);
+        if (!c.state.familiar) {
+          const addRow = el(`<div class="inv-add"></div>`);
+          const fIn = el(`<input type="text" placeholder="Name your familiar…">`);
+          const fBtn = el(`<button class="btn secondary">Bind familiar</button>`);
+          const doFam = () => { const n = fIn.value.trim() || "Familiar"; this.mutate((ch) => { ch.state.familiar = { name: n, wp: 0, wpMax: Math.floor(effWpMax(ch) / 2) }; }); };
+          fBtn.onclick = doFam; fIn.onkeydown = (e) => { if (e.key === "Enter") doFam(); };
+          addRow.append(fIn, fBtn); famPanel.appendChild(addRow);
+        } else {
+          const fam = c.state.familiar;
+          const pools = el(`<div class="vitals"></div>`);
+          // Mage WP
+          const mw = el(`<div class="vital wp"><div class="vital-label">Mage WP</div></div>`);
+          mw.appendChild(el(`<div class="stepper"><span class="vital-val">${c.state.wp} / ${effWpMax(c)}</span></div>`));
+          // Familiar WP with transfer controls
+          const fw = el(`<div class="vital"><div class="vital-label">${esc(fam.name)} WP</div></div>`);
+          const fctrl = el(`<div class="stepper"></div>`);
+          const toMage = el(`<button class="step" title="return 1 WP to mage">−</button>`);
+          const fval = el(`<span class="vital-val">${fam.wp} / ${cap}</span>`);
+          const toFam = el(`<button class="step" title="move 1 WP to familiar">+</button>`);
+          toFam.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; const cp = Math.floor(effWpMax(ch) / 2); if (ch.state.wp > 0 && f.wp < cp) { ch.state.wp--; f.wp++; f.wpMax = cp; } });
+          toMage.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; if (f.wp > 0 && ch.state.wp < effWpMax(ch)) { f.wp--; ch.state.wp++; } });
+          fctrl.append(toMage, fval, toFam); fw.appendChild(fctrl);
+          pools.append(mw, fw); famPanel.appendChild(pools);
+          const rm = el(`<button class="btn ghost block" style="margin-top:8px">Release familiar (return its WP)</button>`);
+          rm.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + (f.wp || 0)); ch.state.familiar = null; });
+          famPanel.appendChild(rm);
+        }
+        root.appendChild(famPanel);
       }
 
       // Summons & Companions (Phase 4B)
@@ -2710,7 +2751,7 @@
           const hArmor = equippedArmor(h);
           this.mutate((st) => st.combatants.push({
             id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false,
-            hp: h.state.hp, maxHp: h.derived.hpMax, wp: h.state.wp, maxWp: h.derived.wpMax,
+            hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h),
             armor: hArmor ? hArmor.rating : 0
           }));
         };
