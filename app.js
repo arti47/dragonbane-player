@@ -14,6 +14,18 @@
   const DB = window.DRAGONBANE || {};
   const $ = (sel, root = document) => root.querySelector(sel);
 
+  function syncCharToCombat(c) {
+    if (typeof Combat !== "undefined" && c) {
+      const cs = Combat.load();
+      const cb = cs.combatants?.find(x => x.charId === c.id);
+      if (cb && (cb.hp !== c.state?.hp || cb.wp !== c.state?.wp)) {
+        cb.hp = c.state?.hp; cb.wp = c.state?.wp;
+        if (cb.hp > 0) cb.defeated = false;
+        Combat.save(cs);
+      }
+    }
+  }
+
   /* =================================================================
    * Storage layer
    * Local mode (default): characters live in localStorage. Firebase sync
@@ -35,6 +47,7 @@
       const idx = list.findIndex((x) => x.id === c.id);
       if (idx >= 0) list[idx] = c; else list.push(c);
       this.save(list);
+      syncCharToCombat(c);
       if (typeof Sync !== "undefined" && Sync.enabled) {
         if (!c.owner && Sync.uid) c.owner = Sync.uid;
         if (c.campaignId) Sync.pushChar(c);
@@ -45,6 +58,7 @@
     // Apply a mutator to one character and persist. Returns the updated char.
     update(id, fn) {
       const list = this.list(); const c = list.find((x) => x.id === id); if (!c) return null; fn(c); this.save(list);
+      syncCharToCombat(c);
       if (typeof Sync !== "undefined" && Sync.enabled && c.campaignId && (c.owner === Sync.uid || (Sync.campaign && Sync.campaign.role === "gm"))) {
         Sync.pushChar(c);
       }
@@ -338,6 +352,7 @@
         const newJson = JSON.stringify(merged);
         const prevJson = localStorage.getItem(Store.KEY);
         localStorage.setItem(Store.KEY, newJson);
+        list.forEach(rem => syncCharToCombat(rem));
         if (prevJson === newJson) return;
         const homeBtn = $("#app-nav button[data-route='home']");
         if (window.activeCharacterId && Store.get(window.activeCharacterId)) {
@@ -1177,7 +1192,7 @@
     },
 
     // ---- Skill roll ----
-    skill(charId, name) {
+    skill(charId, name, opts = {}) {
       const c = Store.get(charId); if (!c) return;
       const sk = c.skills[name];
       const condBane = !!(DB.conditions || []).find((cn) => cn.attribute === sk.attribute && c.state.conditions[cn.key]);
@@ -1242,6 +1257,7 @@
           ffBtn.onclick = () => { const t = DRAGONBANE_SOLO.failForward; const r = Dice.d(t.length); ffOut.innerHTML = `<p class="stat-line" style="border-left:3px solid var(--accent);padding-left:8px">D${t.length}=${r}: ${esc(t[r - 1])}</p>`; };
           ffWrap.append(ffBtn, ffOut); result.appendChild(ffWrap);
         }
+        if (typeof opts.onRoll === "function") opts.onRoll(success, dragon, demon);
         this.refresh(charId);
       };
       rollBtn.onclick = () => doRoll(null);
@@ -1282,7 +1298,7 @@
         
         if (tgt.hp != null) {
           tgt.hp = Math.max(0, tgt.hp - netDmg);
-          if (tgt.hp === 0) tgt.defeated = true;
+          if (tgt.hp === 0 && tgt.kind !== "hero") tgt.defeated = true;
           if (tgt.kind === "hero" && tgt.charId) {
             Store.update(tgt.charId, ch => { ch.state.hp = tgt.hp; });
           }
@@ -2100,22 +2116,237 @@
         row.append(b, out); m.body.appendChild(row);
       });
     },
-    deathRoll() {
-      const con = Store.get(this.id).attributes.CON;
-      const roll = Dice.d(20);
-      const dragon = roll === 1, demon = roll === 20;
-      const success = roll <= con;
-      let stabilized = false, dead = false, recovered = 0;
-      this.mutate((ch) => {
-        const dr = ch.state.deathRolls || { successes: 0, failures: 0 };
-        if (dragon) dr.successes += 2; else if (demon) dr.failures += 2; else if (success) dr.successes += 1; else dr.failures += 1;
-        if (dr.failures >= 3) { dead = true; ch.state.deathRolls = dr; }
-        else if (dr.successes >= 3) { stabilized = true; recovered = Dice.roll("D6"); ch.state.hp = recovered; ch.state.rallied = false; ch.state.deathRolls = { successes: 0, failures: 0 }; }
-        else ch.state.deathRolls = dr;
+    deathRoll(targetId) { this.deathRollModal(targetId); },
+    deathRollModal(targetId) {
+      const cid = typeof targetId === "string" ? targetId : this.id;
+      const c = Store.get(cid);
+      if (!c) return;
+      const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+      const canEdit = !inPartyCamp || !c.owner || c.owner === Sync.uid || Sync.campaign.role === "gm";
+      if (!canEdit) { this.toast("🔒 Read-Only: You cannot roll for another player's hero."); return; }
+
+      const con = c.attributes.CON;
+      const m = modal(`💀 Death Roll — ${c.identity.name}`);
+      const dr = c.state.deathRolls || { successes: 0, failures: 0 };
+      const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${i<n?cls:""}"></span>`).join("");
+      
+      const head = el(`<p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
+        <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p>`);
+      const btn = el(`<button class="btn block" style="margin-top:12px">Roll Death Roll</button>`);
+      const out = el(`<div class="roll-result" style="margin-top:14px"></div>`);
+
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const roll = Dice.d(20);
+        const dragon = roll === 1, demon = roll === 20;
+        const success = roll <= con;
+        let stabilized = false, dead = false, recovered = 0;
+        let sCount = 0, fCount = 0;
+
+        Store.update(cid, (ch) => {
+          const curDr = ch.state.deathRolls || { successes: 0, failures: 0 };
+          if (dragon) curDr.successes += 2; else if (demon) curDr.failures += 2; else if (success) curDr.successes += 1; else curDr.failures += 1;
+          curDr.successes = Math.min(3, curDr.successes || 0);
+          curDr.failures = Math.min(3, curDr.failures || 0);
+          sCount = curDr.successes; fCount = curDr.failures;
+          if (curDr.failures >= 3) { dead = true; ch.state.deathRolls = curDr; }
+          else if (curDr.successes >= 3) { stabilized = true; recovered = Dice.roll("D6"); ch.state.hp = recovered; ch.state.rallied = false; ch.state.deathRolls = { successes: 0, failures: 0 }; }
+          else ch.state.deathRolls = curDr;
+        });
+
+        if (this.id === cid) this.render();
+        if (typeof Combat !== "undefined" && $("#app-nav button[data-route='party']")?.classList.contains("active")) {
+          Combat.rerender();
+        }
+
+        let html = `<div class="dice-faces"><span class="die used">${roll}</span></div>`;
+        html += `<p class="outcome ${success ? "ok" : "bad"}">${dragon ? "🐉 DRAGON (2 Successes!)" : demon ? "👹 DEMON (2 Failures!)" : success ? "Success" : "Failure"}</p>`;
+        if (stabilized) {
+          html += `<p class="stat-line" style="color:var(--ok);font-size:1.1rem"><b>✨ Stabilized! Recovered ${recovered} HP!</b></p>`;
+        } else if (dead) {
+          html += `<p class="stat-line" style="color:var(--bad);font-size:1.1rem"><b>💀 Your hero has succumbed to their wounds.</b></p>`;
+        } else {
+          html += `<p class="stat-line" style="margin-top:8px">Successes <span class="dr-dots">${dots(sCount,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(fCount,"bad")}</span></p>`;
+        }
+        out.innerHTML = html;
+        if (head.querySelector(".cur-dr")) head.querySelector(".cur-dr").style.display = "none";
+      };
+
+      m.body.append(head, btn, out);
+    },
+    movementModal(targetId) {
+      const cid = typeof targetId === "string" ? targetId : this.id;
+      const c = Store.get(cid);
+      if (!c) return;
+      const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+      const canEdit = !inPartyCamp || !c.owner || c.owner === Sync.uid || Sync.campaign.role === "gm";
+      if (!canEdit) { this.toast("🔒 Read-Only: You cannot move another player's hero."); return; }
+
+      const m = modal(`🏃 Movement Pool — ${c.identity.name}`);
+      const refreshModal = () => {
+        const cur = Store.get(cid);
+        if (!cur) { m.close(); return; }
+        m.body.innerHTML = "";
+        m.body.appendChild(this.buildMovementDOM(cur, refreshModal));
+        if (this.id === cid) this.render();
+      };
+      refreshModal();
+    },
+    buildMovementDOM(c, onChange) {
+      const baseMove = c.derived?.movement || 10;
+      if (typeof c.state.moveSpent !== "number") c.state.moveSpent = 0;
+      if (typeof c.state.isDashing !== "boolean") c.state.isDashing = false;
+      if (typeof c.state.isMounted !== "boolean") c.state.isMounted = false;
+
+      const calcMaxMove = () => {
+        let m = c.state.isMounted ? 20 : baseMove;
+        if (c.abilities?.some(x => x.name === "Longstrider")) m *= 2;
+        if (c.state.isDashing) m *= 2;
+        return m;
+      };
+      const maxMove = calcMaxMove();
+      const remMove = Math.max(0, maxMove - c.state.moveSpent);
+
+      const panel = el(`<div class="move-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0">
+        <div class="move-meter" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
+          <span>🏃 <b>Movement Pool:</b> <small style="color:var(--muted)">(Rating ${baseMove}m)</small></span>
+          <span class="move-val" style="font-size:1.3rem;font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent)"}">${remMove}m / ${maxMove}m</span>
+        </div>
+        
+        <p class="stat-line" style="margin:0 0 10px 0;font-size:0.85rem">
+          💡 <b>Splitting:</b> Move freely before, after, or during action. Unused meters cannot be saved for later rounds.
+        </p>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Action: Dash. Doubles pool for round & uses Action.">⚡ Dash ${c.state.isDashing ? "(2x)" : ""}</button>
+            <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted speed 20m">🐴 Mount</button>
+            <button type="button" class="move-btn ${c.state.prone ? "active" : ""}" title="Free action on own turn">🛌 ${c.state.prone ? "Prone" : "Stand"}</button>
+            <button type="button" class="move-btn" style="background:rgba(200,50,50,0.1);border-color:var(--bad)" title="Reset pool for new round">↺ Reset</button>
+          </div>
+
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);width:60px">WALK:</span>
+            <button type="button" class="move-btn" style="flex:1" title="Step 1 meter">+1m</button>
+            <button type="button" class="move-btn" style="flex:1" title="Step 2 meters (1 grid square)">+2m</button>
+            <button type="button" class="move-btn" style="flex:1" title="Step 4 meters">+4m</button>
+          </div>
+
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);width:60px">HAZARDS:</span>
+            <button type="button" class="move-btn" style="flex:1;color:#b46428;border-color:#b46428" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
+            <button type="button" class="move-btn" style="flex:1;color:#2878b4;border-color:#2878b4" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
+            <button type="button" class="move-btn" style="flex:1;color:#784696;border-color:#784696" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
+          </div>
+
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);width:60px">TACTICS:</span>
+            <button type="button" class="move-btn" style="flex:1;color:#964646;border-color:#964646" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
+            <button type="button" class="move-btn" style="flex:1;color:var(--bad);border-color:var(--bad)" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
+            <button type="button" class="move-btn" style="flex:1;color:var(--ok);border-color:var(--ok)" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end">
+            <button type="button" class="move-btn" style="flex:0 0 auto;color:var(--muted);border-color:var(--border);font-size:0.75rem;padding:4px 8px" title="Forced reaction before turn replaces normal turn & movement">💥 Lost Turn (Reaction)</button>
+          </div>
+        </div>
+      </div>`);
+
+      const doMutate = (fn) => {
+        Store.update(c.id, fn);
+        if (typeof onChange === "function") onChange();
+        if (typeof Combat !== "undefined" && $("#app-nav button[data-route='party']")?.classList.contains("active")) {
+          Combat.rerender();
+        }
+      };
+
+      const btns = panel.querySelectorAll(".move-btn");
+      // 0: Dash
+      btns[0].onclick = () => doMutate(ch => {
+        ch.state.isDashing = !ch.state.isDashing;
+        if (ch.state.isDashing && typeof Combat !== "undefined") {
+          const comb = Combat.load();
+          const ref = comb?.combatants?.find(x => x.charId === ch.id);
+          if (ref) { ref.acted = true; Combat.save(comb); }
+        }
       });
-      let msg = `Death roll ${roll} vs CON ${con}: ` + (dragon ? "🐉 Dragon — two successes!" : demon ? "👹 Demon — two failures!" : success ? "success." : "failure.");
-      if (stabilized) msg += ` Stabilized — recovered ${recovered} HP!`; else if (dead) msg += " 💀 Your hero has died.";
-      this.toast(msg);
+      // 1: Mount
+      btns[1].onclick = () => doMutate(ch => { ch.state.isMounted = !ch.state.isMounted; });
+      // 2: Prone/Stand
+      btns[2].onclick = () => doMutate(ch => { ch.state.prone = !ch.state.prone; });
+      // 3: Reset
+      btns[3].onclick = () => doMutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
+      // 4: +1m
+      btns[4].onclick = () => doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 1); });
+      // 5: +2m
+      btns[5].onclick = () => doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
+      // 6: +4m
+      btns[6].onclick = () => doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
+      // 7: Door
+      btns[7].onclick = () => doMutate(ch => {
+        const half = Math.ceil(calcMaxMove() / 2);
+        if (calcMaxMove() - (ch.state.moveSpent || 0) < half) {
+          alert("🚪 Not enough movement left to pass through the door! You stop directly in front of it.");
+        }
+        ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + half);
+      });
+      // 8: Water
+      btns[8].onclick = () => doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
+      // 9: Leap
+      btns[9].onclick = () => {
+        const d = parseFloat(prompt(`Leap distance (m)?\n• ≤ ¼ pool (${(maxMove/4).toFixed(1)}m): Free/Auto.\n• ≤ ½ pool (${(maxMove/2).toFixed(1)}m): Requires Acrobatics check.\n• > ½ pool: Too far!`, ""));
+        if (isNaN(d) || d <= 0) return;
+        if (d > maxMove / 2) {
+          alert(`❌ Too far! You cannot leap more than half your movement rate (${(maxMove/2).toFixed(1)}m).`);
+          return;
+        }
+        doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + d); });
+        if (d > maxMove / 4) {
+          Roller.skill(c.id, "Acrobatics", {
+            onRoll: (success) => {
+              if (!success) alert("💥 Leap failed! You fall short into the gap/hazard!");
+            }
+          });
+        } else {
+          this.toast(`🤸 Leap ${d}m — automatic success!`);
+        }
+      };
+      // 10: Rough check
+      btns[10].onclick = () => {
+        Roller.skill(c.id, "Acrobatics", {
+          onRoll: (success) => {
+            if (!success) {
+              doMutate(ch => { ch.state.prone = true; ch.state.moveSpent = calcMaxMove(); });
+              alert("💥 Failed! You trip and fall prone, instantly losing all remaining movement pool this round.");
+            } else {
+              this.toast("✅ Success! You navigate the rough terrain safely.");
+            }
+          }
+        });
+      };
+      // 11: Disengage
+      btns[11].onclick = () => {
+        Roller.skill(c.id, "Evade", {
+          onRoll: (success) => {
+            if (!success) {
+              alert("🩸 Evade failed! The enemy within reach gets an immediate free attack that cannot be dodged or parried!");
+            } else {
+              this.toast("✨ Success! You voluntarily walk away from enemy reach without triggering free attacks.");
+            }
+          }
+        });
+      };
+      // 12: Reaction Move (+2m free)
+      btns[12].onclick = () => {
+        this.toast("🛡️ Special 2m Reaction Move (successful Dodge/Parry): Free! Does not cost pool or trigger free attacks.");
+      };
+      // 13: Lost Turn (Reaction)
+      btns[13].onclick = () => {
+        doMutate(ch => { ch.state.moveSpent = calcMaxMove(); });
+        this.toast("💥 Forced reaction before turn: normal turn replaced & regular movement pool lost.");
+      };
+
+      return panel;
     },
     addCompanion(name, hpMax, notes) {
       this.mutate((ch) => ch.companions.push({ id: uid(), name, hp: hpMax || 0, hpMax: hpMax || 0, notes: notes || "" }));
@@ -2422,60 +2653,7 @@
       top.appendChild(vitals);
 
       // Movement Tracker
-      const baseMove = c.derived.movement || 10;
-      if (typeof c.state.moveSpent !== "number") c.state.moveSpent = 0;
-      if (typeof c.state.isDashing !== "boolean") c.state.isDashing = false;
-      if (typeof c.state.isMounted !== "boolean") c.state.isMounted = false;
-      
-      const calcMaxMove = () => {
-        let m = c.state.isMounted ? 20 : baseMove;
-        if (c.abilities?.some(x => x.name === "Longstrider")) m *= 2;
-        if (c.state.isDashing) m *= 2;
-        return m;
-      };
-      
-      const movePanel = el(`<div class="move-panel">
-        <div class="move-meter">
-          <span>🏃 <b>Movement Pool:</b> <small>(Base ${baseMove}m)</small></span>
-          <span class="move-val">${Math.max(0, calcMaxMove() - c.state.moveSpent)}m / ${calcMaxMove()}m</span>
-        </div>
-        <div class="move-toggles">
-          <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Dash: doubles pool & auto-spends Action">⚡ Dash ${c.state.isDashing ? "ON" : "OFF"}</button>
-          <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted: base speed 20m">🐴 Mount</button>
-          <button type="button" class="move-btn ${c.state.prone ? "active" : ""}" title="Change position — free action (drop prone / stand up)">${c.state.prone ? "🛌 Prone" : "🧍 Stand"}</button>
-          <button type="button" class="move-btn" title="Step 2m (1 grid square)">+2m</button>
-          <button type="button" class="move-btn" title="Difficult Terrain (Water) → spends 4m">+4m (½)</button>
-          <button type="button" class="move-btn" title="Through a closed door → spends half your movement pool">🚪 Door (−½)</button>
-          <button type="button" class="move-btn" title="Leap a gap (Acrobatics if over ¼ of your movement)">🤸 Leap</button>
-          <button type="button" class="move-btn" title="Reset movement turn">↺ Reset</button>
-        </div>
-      </div>`);
-
-      const moveBtns = movePanel.querySelectorAll(".move-btn");
-      moveBtns[0].onclick = () => this.mutate(ch => {
-        ch.state.isDashing = !ch.state.isDashing;
-        if (ch.state.isDashing) {
-          const comb = Combat.load();
-          if (comb && comb.combatants) {
-            const ref = comb.combatants.find(x => x.charId === ch.id);
-            if (ref) { ref.acted = true; Combat.save(comb); }
-          }
-        }
-      });
-      moveBtns[1].onclick = () => this.mutate(ch => { ch.state.isMounted = !ch.state.isMounted; });
-      moveBtns[2].onclick = () => this.mutate(ch => { ch.state.prone = !ch.state.prone; }); // free action
-      moveBtns[3].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
-      moveBtns[4].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
-      moveBtns[5].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + Math.ceil(calcMaxMove() / 2)); }); // door = half pool
-      moveBtns[6].onclick = () => {
-        const d = parseFloat(prompt(`Leap distance (m)? A gap longer than ¼ of your movement (${(calcMaxMove() / 4).toFixed(1)} m) needs an Acrobatics roll.`, ""));
-        if (isNaN(d) || d <= 0) return;
-        if (d > calcMaxMove() / 4) Roller.skill(this.id, "Acrobatics");
-        else this.toast(`Leap ${d} m — automatic (≤ ¼ of ${calcMaxMove()} m).`);
-      };
-      moveBtns[7].onclick = () => this.mutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
-
-      top.appendChild(movePanel);
+      top.appendChild(this.buildMovementDOM(c, () => this.render()));
 
       // Permanent WP loss (rituals / corruption)
       if (c.state.wpPenalty || (c.spells.tricks || []).length || (c.spells.known || []).length) {
@@ -3037,8 +3215,9 @@
       const addPanel = el(`<div class="panel"></div>`);
       window._combatAddSelections = window._combatAddSelections || {};
       const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
+      const isGm = inPartyCamp && Sync.campaign.role === "gm";
       const heroes = inPartyCamp
-        ? Store.list().filter(h => h.campaignId === Sync.campaign.id)
+        ? Store.list().filter(h => h.campaignId === Sync.campaign.id && (isGm || !h.owner || h.owner === Sync.uid))
         : Store.list();
       if (heroes.length) {
         const heroRow = el(`<div class="inv-add"></div>`);
@@ -3154,7 +3333,8 @@
       const currentId = (ord.find((c) => c.init != null && !c.done) || {}).id;
       ord.forEach((cb) => {
         const isCur = cb.id === currentId;
-        const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0);
+        const isDyingHero = cb.kind === "hero" && cb.hp != null && cb.hp <= 0 && !cb.defeated;
+        const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0 && !isDyingHero);
         const card = el(`<div class="panel ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""}" style="margin:0;padding:0;overflow:hidden;border:1px solid ${isCur ? "var(--accent)" : "var(--border)"};opacity:${isDefeated ? "0.55" : "1"}"></div>`);
         
         const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:rgba(0,0,0,0.15)" : ""}">
@@ -3167,8 +3347,9 @@
             <span class="tag">${cb.kind === "hero" ? "Hero" : cb.kind === "monster" ? "Monster" : "NPC"}</span>
             ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:#f7eed6;border-color:var(--accent)">now</span>' : ""}
             ${isDefeated ? '<span class="tag" style="background:var(--bad);color:#fff">💀 DEFEATED</span>' : ""}
+            ${isDyingHero ? '<span class="tag" style="background:var(--bad);color:#fff">🩸 DYING (0 HP)</span>' : ""}
             <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto"></div>
-            <span style="font-weight:bold;font-size:1.15rem;color:${isDefeated ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
+            <span style="font-weight:bold;font-size:1.15rem;color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
           </div>
         </div>`);
 
@@ -3184,8 +3365,20 @@
               Roller.monsterAttack(cb.name, chosen, d6, cb.id);
             };
             quickWrap.appendChild(d6Quick);
+          } else if (isDyingHero) {
+            const drBtn = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px;border-color:var(--bad);color:var(--bad)">💀 Death roll</button>`);
+            drBtn.onclick = (e) => { e.stopPropagation(); Sheet.deathRollModal(cb.charId); };
+            quickWrap.appendChild(drBtn);
           } else if (cb.kind === "hero" && cb.charId) {
             const h = Store.get(cb.charId);
+            if (h) {
+              const baseMv = h.derived?.movement || 10;
+              const maxMv = (h.state?.isMounted ? 20 : baseMv) * (h.state?.isDashing ? 2 : 1) * (h.abilities?.some(x=>x.name==="Longstrider")?2:1);
+              const remMv = Math.max(0, maxMv - (h.state?.moveSpent || 0));
+              const mvBtn = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px;border-color:var(--accent);color:var(--accent)">🏃 Move ${remMv}m/${maxMv}m</button>`);
+              mvBtn.onclick = (e) => { e.stopPropagation(); Sheet.movementModal(cb.charId); };
+              quickWrap.appendChild(mvBtn);
+            }
             const hWeapons = resolveEquippedWeapons(h && h.inventory && h.inventory.items);
             if (hWeapons[0]) {
               const w0 = hWeapons[0];
@@ -3245,7 +3438,7 @@
             if (ref && ref.hp != null) {
               const prev = ref.hp;
               ref.hp = d < 0 ? Math.max(0, ref.hp - 1) : Math.min(ref.maxHp || 999, ref.hp + 1);
-              ref.defeated = ref.hp === 0;
+              ref.defeated = ref.hp === 0 && ref.kind !== "hero";
               cb.hp = ref.hp; cb.defeated = ref.defeated;
               this.save(st);
               if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { ch.state.hp = ref.hp; });
@@ -3286,6 +3479,16 @@
           const h = Store.get(cb.charId);
           if (h) {
             const hDiv = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+            if (isDyingHero) {
+              const drBox = el(`<div style="padding:10px;border:1px dashed var(--bad);border-radius:6px;background:rgba(180,50,50,0.08);margin-bottom:8px">
+                <b style="color:var(--bad)">🩸 Unconscious & Dying</b><br>
+                <span class="stat-line" style="font-size:0.9rem">Your hero is down at 0 HP. Roll a death roll each round. 3 successes = stabilize (+D6 HP); 3 failures = death.</span>
+              </div>`);
+              const bigRoll = el(`<button class="btn block" style="border-color:var(--bad);color:var(--bad);margin-top:6px">💀 Death roll</button>`);
+              bigRoll.onclick = () => Sheet.deathRollModal(cb.charId);
+              drBox.appendChild(bigRoll);
+              hDiv.appendChild(drBox);
+            }
             const hWeapons = resolveEquippedWeapons(h.inventory && h.inventory.items);
             if (hWeapons.length) {
               hDiv.appendChild(el(`<p class="stat-line" style="margin:0"><b>Equipped Weapons:</b></p>`));
