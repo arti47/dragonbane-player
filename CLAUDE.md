@@ -336,13 +336,13 @@ data-solo.js: failForward[]
   - Acceptance: Add a hero wearing leather (rating 1) to Combat → applying 5 damage with "Ignore Armor" off removes 4 HP.
 
 ### Phase 11 — Combat Roll Accuracy (Priority: HIGH)
-- [ ] **STR-requirement bane on attacks.**
+- [x] **STR-requirement bane on attacks.** ✅ `Roller.heroWeaponAttack` applies a −1 bane (at roll time, stacking with conditions) when `c.attributes.STR < weapon.str` for melee weapons, with a live explanatory note.
   - Rule: If the wielder's STR is below a weapon's STR requirement, attack rolls with it get a bane.
   - Target: `app.js` · `Roller.heroWeaponAttack` (~line 1208). Weapons carry `str` in `DB.weapons`.
   - Behavior/UI: When `c.attributes.STR < weapon.str`, start the attack with net −1 (bane) and show a labeled note ("STR ${STR} < requirement ${weapon.str} → bane"). Stack with the existing condition bane.
   - Schema: none (uses `DB.weapons[].str`).
   - Acceptance: A STR 8 hero attacking with a Longsword (STR 13) opens the attack roll already at Bane ×1 with the explanatory note.
-- [ ] **Two-handed grip reduces STR requirement by 3.**
+- [x] **Two-handed grip reduces STR requirement by 3.** ✅ For 1H melee weapons, a "Two-handed grip" checkbox in the attack modal compares STR against `weapon.str − 3` for the bane calc above.
   - Rule: Wielding a one-handed melee weapon in two hands lowers its STR requirement by 3 (cannot also use a shield/off-hand).
   - Target: `app.js` · `Roller.heroWeaponAttack`. Use `weapon.grip` from `DB.weapons`.
   - Behavior/UI: For `grip === "1H"` melee weapons, show a "Two-handed grip (−3 STR req)" checkbox in the attack modal; when checked, compare STR against `weapon.str - 3` for the bane calc above.

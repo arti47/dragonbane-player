@@ -1251,6 +1251,23 @@
         atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ ${attr} condition bane applies</p>`));
       }
 
+      // STR-requirement bane + two-handed grip (−3 STR req). Melee weapons only.
+      let twoHandGrip = false;
+      const heroStr = c.attributes?.STR ?? 0;
+      const effStrReq = () => (weapon.str || 0) - (twoHandGrip ? 3 : 0);
+      const strShortfall = () => weapon.str != null && weapon.type !== "ranged" && heroStr < effStrReq();
+      if (weapon.str != null && weapon.type !== "ranged") {
+        const strNote = el(`<p class="warn-bane" style="margin:4px 0;display:${strShortfall() ? "block" : "none"}">⚠ STR ${heroStr} &lt; requirement ${effStrReq()} → bane</p>`);
+        const refreshStr = () => { strNote.textContent = `⚠ STR ${heroStr} < requirement ${effStrReq()} → bane`; strNote.style.display = strShortfall() ? "block" : "none"; };
+        // Two-handed grip toggle only matters for a 1H weapon (a 2H weapon is already two-handed).
+        if (weapon.grip === "1H") {
+          const gripRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Two-handed grip (−3 STR req; no shield/off-hand)</label>`);
+          gripRow.querySelector("input").onchange = (e) => { twoHandGrip = e.target.checked; refreshStr(); };
+          atkDiv.appendChild(gripRow);
+        }
+        atkDiv.appendChild(strNote);
+      }
+
       if (isRanged) {
         if (typeof c.state.combatAmmo !== "number") c.state.combatAmmo = 12;
         const pbRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
@@ -1315,6 +1332,7 @@
         }
         let effNet = net;
         if (c.state.conditions && c.state.conditions[attr]) effNet--;
+        if (strShortfall()) effNet--;
         const r = this.d20net(effNet);
         const crit = r.used === 1, fumble = r.used === 20;
         const success = r.used <= target;
