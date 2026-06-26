@@ -341,6 +341,11 @@ a { color: var(--accent); }
 .vital-label { font-family: var(--font-display); font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 6px; }
 .vital-val { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; min-width: 64px; display: inline-block; }
 .stepper { display: flex; align-items: center; justify-content: center; gap: 8px; }
+button, .step {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .step {
   width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line);
   background: var(--bg); color: var(--ink); font-size: 1.1rem; cursor: pointer; line-height: 1;

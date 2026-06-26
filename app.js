@@ -275,7 +275,10 @@
       this.combatRef.on("value", (snap) => {
         const val = snap.val();
         if (val) {
-          localStorage.setItem("dragonbane.combat", JSON.stringify(val));
+          const newJson = JSON.stringify(val);
+          const prevJson = localStorage.getItem("dragonbane.combat");
+          localStorage.setItem("dragonbane.combat", newJson);
+          if (prevJson === newJson) return;
           (val.combatants || []).forEach(cb => {
             if (cb.kind === "hero" && cb.charId) {
               const ch = Store.get(cb.charId);
@@ -305,7 +308,10 @@
           if (idx >= 0) merged[idx] = rem;
           else merged.push(rem);
         });
-        localStorage.setItem(Store.KEY, JSON.stringify(merged));
+        const newJson = JSON.stringify(merged);
+        const prevJson = localStorage.getItem(Store.KEY);
+        localStorage.setItem(Store.KEY, newJson);
+        if (prevJson === newJson) return;
         const homeBtn = $("#app-nav button[data-route='home']");
         if (window.activeCharacterId && Store.get(window.activeCharacterId)) {
           if ($("#screen .wiz-progress")) {
@@ -1931,14 +1937,29 @@
       const stepper = (label, cur, max, key, cls) => {
         const w = el(`<div class="vital ${cls}"><div class="vital-label">${label}</div></div>`);
         const ctrl = el(`<div class="stepper"></div>`);
-        const minus = el(`<button class="step">−</button>`);
+        const minus = el(`<button class="step" type="button">−</button>`);
         const val = el(`<span class="vital-val">${cur} / ${max}</span>`);
-        const plus = el(`<button class="step">+</button>`);
-        minus.onclick = () => this.mutate((ch) => {
-          if (key === "hp" && ch.state.hp <= 0) { ch.state.deathRolls.failures = Math.min(3, (ch.state.deathRolls.failures || 0) + 1); } // damage while down = a failed death roll
-          else ch.state[key] = Math.max(0, ch.state[key] - 1);
-        });
-        plus.onclick = () => this.mutate((ch) => { ch.state[key] = Math.min(max, ch.state[key] + 1); if (key === "hp" && ch.state.hp > 0) { ch.state.deathRolls = { successes: 0, failures: 0 }; ch.state.rallied = false; } });
+        const plus = el(`<button class="step" type="button">+</button>`);
+        const doStep = (d) => {
+          const prevHp = c.state.hp;
+          Store.update(this.id, ch => {
+            if (d < 0) {
+              if (key === "hp" && ch.state.hp <= 0) ch.state.deathRolls.failures = Math.min(3, (ch.state.deathRolls.failures || 0) + 1);
+              else ch.state[key] = Math.max(0, ch.state[key] - 1);
+            } else {
+              ch.state[key] = Math.min(max, ch.state[key] + 1);
+              if (key === "hp" && ch.state.hp > 0) { ch.state.deathRolls = { successes: 0, failures: 0 }; ch.state.rallied = false; }
+            }
+            c.state[key] = ch.state[key];
+            if (ch.state.deathRolls) c.state.deathRolls = ch.state.deathRolls;
+          });
+          val.textContent = `${c.state[key]} / ${max}`;
+          if (key === "hp" && ((prevHp <= 0 && c.state.hp > 0) || (prevHp > 0 && c.state.hp <= 0))) {
+            this.render();
+          }
+        };
+        minus.onclick = (e) => { e.preventDefault(); doStep(-1); };
+        plus.onclick = (e) => { e.preventDefault(); doStep(1); };
         ctrl.append(minus, val, plus); w.appendChild(ctrl);
         return w;
       };
@@ -2503,29 +2524,26 @@
         // Vitals
         if (cb.hp != null) {
           const vitRow = el(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>`);
-          const hpMin = el(`<button class="step" style="width:34px;height:34px;font-size:1.5rem">−</button>`);
-          const hpPl = el(`<button class="step" style="width:34px;height:34px;font-size:1.5rem">+</button>`);
-          hpMin.onclick = () => {
-            this.mutate((st) => {
-              const ref = st.combatants.find(c => c.id === cb.id);
-              if (ref && ref.hp != null) {
-                ref.hp = Math.max(0, ref.hp - 1);
-                if (ref.hp === 0) ref.defeated = true;
-                if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { ch.state.hp = ref.hp; });
-              }
-            });
+          const hpMin = el(`<button class="step" style="width:34px;height:34px;font-size:1.5rem" type="button">−</button>`);
+          const hpPl = el(`<button class="step" style="width:34px;height:34px;font-size:1.5rem" type="button">+</button>`);
+          const hpSpan = el(`<span style="font-size:1.3rem;font-weight:bold;min-width:48px;text-align:center">${cb.hp} / ${cb.maxHp || cb.hp}</span>`);
+          const doHp = (d) => {
+            const st = this.load();
+            const ref = st.combatants.find(c => c.id === cb.id);
+            if (ref && ref.hp != null) {
+              const prev = ref.hp;
+              ref.hp = d < 0 ? Math.max(0, ref.hp - 1) : Math.min(ref.maxHp || 999, ref.hp + 1);
+              ref.defeated = ref.hp === 0;
+              cb.hp = ref.hp; cb.defeated = ref.defeated;
+              this.save(st);
+              if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { ch.state.hp = ref.hp; });
+              hpSpan.textContent = `${cb.hp} / ${cb.maxHp || cb.hp}`;
+              if ((prev === 0 && cb.hp > 0) || (prev > 0 && cb.hp === 0)) this.rerender();
+            }
           };
-          hpPl.onclick = () => {
-            this.mutate((st) => {
-              const ref = st.combatants.find(c => c.id === cb.id);
-              if (ref && ref.hp != null) {
-                ref.hp = Math.min(ref.maxHp || 999, (ref.hp || 0) + 1);
-                if (ref.hp > 0) ref.defeated = false;
-                if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { ch.state.hp = ref.hp; });
-              }
-            });
-          };
-          vitRow.append(el(`<span class="stat-line" style="margin:0"><b>HP:</b></span>`), hpMin, el(`<span style="font-size:1.3rem;font-weight:bold;min-width:48px;text-align:center">${cb.hp} / ${cb.maxHp || cb.hp}</span>`), hpPl);
+          hpMin.onclick = (e) => { e.preventDefault(); doHp(-1); };
+          hpPl.onclick = (e) => { e.preventDefault(); doHp(1); };
+          vitRow.append(el(`<span class="stat-line" style="margin:0"><b>HP:</b></span>`), hpMin, hpSpan, hpPl);
           if (cb.armor != null && cb.armor > 0) vitRow.append(el(`<span class="tag" style="margin-left:6px">Armor ${cb.armor}</span>`));
           body.appendChild(vitRow);
         }
