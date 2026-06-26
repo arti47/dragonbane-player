@@ -69,7 +69,7 @@
       const c = list.find((x) => x.id === id);
       if (!c) return null;
       if (typeof Sync === "undefined" || !Sync.enabled || !Sync.campaign) {
-        alert("You must join or create a party campaign first.");
+        showToast("You must join or create a party campaign first.", "error");
         return null;
       }
       if (c.campaignId === Sync.campaign.id) {
@@ -219,7 +219,7 @@
 
     async createCampaign(name) {
       if (!await this.ensureAuth()) {
-        alert(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`);
+        showToast(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`, "error");
         return;
       }
       const id = "camp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -233,20 +233,20 @@
         ]), "create campaign");
       } catch (err) {
         console.error("Failed to create campaign in RTDB:", err);
-        alert(`Database error:\n${err.message || err.code || "Permission denied"}\n\nCheck your Firebase Console > Realtime Database > Rules tab.`);
+        showToast(`Database error:\n${err.message || err.code || "Permission denied"}\n\nCheck your Firebase Console > Realtime Database > Rules tab.`, "error");
         return;
       }
       this.campaign = { id, joinCode, name: camp.name, role: "gm" };
       localStorage.setItem("dragonbane.campaign", JSON.stringify(this.campaign));
       this.attachListeners();
       this.updateHeaderStatus();
-      alert(`Created campaign "${camp.name}"!\nInvite Code: ${joinCode}`);
+      showToast(`Created campaign "${camp.name}"!\nInvite Code: ${joinCode}`, "success");
       Router.go("about");
     },
 
     async joinCampaign(code) {
       if (!await this.ensureAuth()) {
-        alert(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`);
+        showToast(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`, "error");
         return;
       }
       const clean = String(code).trim().toLowerCase();
@@ -254,7 +254,7 @@
       try {
         const snap = await this.timeoutRace(this.db.ref(`joinCodes/${clean}`).once("value"), "verify join code");
         const id = snap.val();
-        if (!id) { alert("Invalid join code. Check spelling and try again."); return; }
+        if (!id) { showToast("Invalid join code. Check spelling and try again.", "error"); return; }
         const metaSnap = await this.timeoutRace(this.db.ref(`campaigns/${id}/meta`).once("value"), "fetch campaign info");
         const meta = metaSnap.val() || { name: "Campaign" };
         await this.timeoutRace(this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" }), "join campaign");
@@ -267,18 +267,18 @@
         } else {
           msg += `Check your Firebase Console > Realtime Database > Rules tab.`;
         }
-        alert(msg);
+        showToast(msg);
         return;
       }
       localStorage.setItem("dragonbane.campaign", JSON.stringify(this.campaign));
       this.attachListeners();
       this.updateHeaderStatus();
-      alert(`Joined campaign "${this.campaign.name}"!`);
+      showToast(`Joined campaign "${this.campaign.name}"!`, "success");
       Router.go("home");
     },
 
-    leaveCampaign() {
-      if (confirm("Disconnect from current campaign? Your local characters will remain.")) {
+    async leaveCampaign() {
+      if (await confirmModal("Disconnect from current campaign? Your local characters will remain.", { title: "Leave campaign", okText: "Disconnect" })) {
         this.detachListeners();
         this.campaign = null;
         localStorage.removeItem("dragonbane.campaign");
@@ -293,16 +293,16 @@
       this.user.linkWithPopup(provider).then((res) => {
         this.user = res.user;
         this.uid = res.user.uid;
-        alert("Linked to Google account: " + (res.user.displayName || res.user.email));
+        showToast("Linked to Google account: " + (res.user.displayName || res.user.email), "success");
         Router.go("about");
       }).catch((err) => {
         if (err.code === "auth/credential-already-in-use") {
-          alert("This Google account is already linked to another Dragonbane profile.");
+          showToast("This Google account is already linked to another Dragonbane profile.", "error");
         } else if (err.code === "auth/unauthorized-domain") {
           const domain = window.location.hostname || "your current domain";
-          alert(`Google linking blocked (Unauthorized Domain):\n\nFirebase does not recognize '${domain}' as an authorized website for Google Login.\n\nTo allow login on this domain:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Authentication > Settings tab > Authorized domains\n4. Click 'Add domain', paste:\n   ${domain}\n5. Save and try linking again.`);
+          showToast(`Google linking blocked (Unauthorized Domain):\n\nFirebase does not recognize '${domain}' as an authorized website for Google Login.\n\nTo allow login on this domain:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Authentication > Settings tab > Authorized domains\n4. Click 'Add domain', paste:\n   ${domain}\n5. Save and try linking again.`, "error");
         } else {
-          alert("Google linking failed: " + err.message);
+          showToast("Google linking failed: " + err.message, "error");
         }
       });
     },
@@ -683,12 +683,12 @@
       if (this.s.step > 0) { const b = el(`<button class="btn ghost">Back</button>`); b.onclick = () => { this.s.step--; this.render(); }; nav.appendChild(b); }
       const isLast = step === "review";
       const next = el(`<button class="btn">${isLast ? "Create hero" : "Next"}</button>`);
-      next.onclick = () => { const err = this.validate(step); if (err) { alert(err); return; } if (isLast) { this.save(); } else { this.s.step++; this.render(); } };
+      next.onclick = () => { const err = this.validate(step); if (err) { showToast(err); return; } if (isLast) { this.save(); } else { this.s.step++; this.render(); } };
       nav.appendChild(next);
       root.appendChild(nav);
 
       mountScreen(root);
-      root.querySelector("#wiz-cancel").onclick = () => { if (confirm("Discard this character?")) Router.go("home"); };
+      root.querySelector("#wiz-cancel").onclick = async () => { if (await confirmModal("Discard this character?", { title: "Discard character", okText: "Discard", danger: true })) Router.go("home"); };
     },
     stepTitle(step) {
       return { attributes: "Attributes", kin: "Kin", profession: "Profession", age: "Age",
@@ -861,7 +861,7 @@
           chip.onclick = () => {
             const idx = this.s.spells[bucket].findIndex((x) => x.name === item.name);
             if (idx >= 0) this.s.spells[bucket].splice(idx, 1);
-            else { if (this.s.spells[bucket].length >= max) { alert("You've already chosen " + max + "."); return; } this.s.spells[bucket].push({ name: item.name, rank: item.rank || 0, school: item.src, text: item.text }); }
+            else { if (this.s.spells[bucket].length >= max) { showToast("You've already chosen " + max + ".", "error"); return; } this.s.spells[bucket].push({ name: item.name, rank: item.rank || 0, school: item.src, text: item.text }); }
             chip.classList.toggle("on"); refresh();
           };
           wrapc.appendChild(chip);
@@ -896,7 +896,7 @@
         c.onclick = () => {
           const i = this.s.heroicPicks.indexOf(name);
           if (i >= 0) this.s.heroicPicks.splice(i, 1);
-          else { if (this.s.heroicPicks.length >= cap) { alert(`Choose ${cap} ${cap === 1 ? "ability" : "abilities"}.`); return; } this.s.heroicPicks.push(name); }
+          else { if (this.s.heroicPicks.length >= cap) { showToast(`Choose ${cap} ${cap === 1 ? "ability" : "abilities"}.`); return; } this.s.heroicPicks.push(name); }
           this.render();
         };
         grid.appendChild(c);
@@ -1147,11 +1147,77 @@
     };
     fit();
     if (vv) { vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); }
-    const close = () => { if (vv) { vv.removeEventListener("resize", fit); vv.removeEventListener("scroll", fit); } back.remove(); };
+    const close = () => { if (vv) { vv.removeEventListener("resize", fit); vv.removeEventListener("scroll", fit); } back.remove(); if (typeof back._onClose === "function") back._onClose(); };
     back.onclick = (e) => { if (e.target === back) close(); };
     x.onclick = close;
-    return { body, close };
+    return { body, close, back };
   }
+
+  /* =================================================================
+   * UX helpers — non-blocking toasts + themed confirm/prompt modals
+   * (replace native alert/confirm/prompt so the app stays on-brand and
+   *  never freezes the page with a system dialog, esp. on mobile).
+   * ================================================================= */
+  function showToast(msg, type) {
+    const isErr = type === "error" || type === "warn";
+    const t = el(`<div class="toast ${type ? "toast-" + type : ""}" role="${isErr ? "alert" : "status"}">${esc(msg)}</div>`);
+    // Stack multiple toasts so they don't overlap; tap an error toast to dismiss.
+    const existing = document.querySelectorAll(".toast").length;
+    t.style.bottom = (84 + existing * 46) + "px";
+    if (isErr) { t.style.pointerEvents = "auto"; t.style.cursor = "pointer"; }
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add("show"));
+    const dur = isErr ? 5200 : 2600;
+    const kill = () => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); };
+    let timer = setTimeout(kill, dur);
+    t.onclick = () => { clearTimeout(timer); kill(); };
+    return t;
+  }
+  // Promise<boolean>. opts: { title, okText, cancelText, danger }
+  function confirmModal(message, opts) {
+    opts = opts || {};
+    return new Promise((resolve) => {
+      const m = modal(opts.title || "Confirm");
+      m.body.appendChild(el(`<p class="modal-msg">${esc(message)}</p>`));
+      const row = el(`<div class="modal-actions"></div>`);
+      const cancel = el(`<button class="btn ghost">${esc(opts.cancelText || "Cancel")}</button>`);
+      const ok = el(`<button class="btn ${opts.danger ? "danger" : "block"}">${esc(opts.okText || "OK")}</button>`);
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; m.close(); resolve(v); };
+      m.back._onClose = () => finish(false);
+      cancel.onclick = () => finish(false);
+      ok.onclick = () => finish(true);
+      row.append(cancel, ok);
+      m.body.appendChild(row);
+      ok.focus();
+    });
+  }
+  // Promise<string|null> (null = cancelled). opts: { title, defaultValue, inputType, placeholder, okText }
+  function promptModal(message, opts) {
+    opts = opts || {};
+    return new Promise((resolve) => {
+      const m = modal(opts.title || "Enter a value");
+      if (message) m.body.appendChild(el(`<p class="modal-msg">${esc(message)}</p>`));
+      const input = el(`<input class="modal-input" type="${opts.inputType || "text"}" placeholder="${esc(opts.placeholder || "")}" value="${esc(opts.defaultValue != null ? opts.defaultValue : "")}">`);
+      m.body.appendChild(input);
+      const row = el(`<div class="modal-actions"></div>`);
+      const cancel = el(`<button class="btn ghost">Cancel</button>`);
+      const ok = el(`<button class="btn block">${esc(opts.okText || "OK")}</button>`);
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; m.close(); resolve(v); };
+      m.back._onClose = () => finish(null);
+      cancel.onclick = () => finish(null);
+      ok.onclick = () => finish(input.value);
+      input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); finish(input.value); } };
+      row.append(cancel, ok);
+      m.body.appendChild(row);
+      setTimeout(() => { input.focus(); input.select(); }, 30);
+    });
+  }
+  // Expose for any inline handlers / debugging.
+  window.showToast = showToast;
+  window.confirmModal = confirmModal;
+  window.promptModal = promptModal;
 
   /* =================================================================
    * Dice engine (Phase 3) — skill rolls, damage, spell casting
@@ -1238,11 +1304,11 @@
         dWrap.innerHTML = `<b style="color:#ffd700;display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
         const bRow = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
         const bDbl = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Double Damage or Healing dice">💥 Double</button>`);
-        bDbl.onclick = () => { plMult = 2; bDbl.style.background = "#ffd700"; bDbl.style.color = "#000"; alert("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
+        bDbl.onclick = () => { plMult = 2; bDbl.style.background = "#ffd700"; bDbl.style.color = "#000"; showToast("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
         const bRef = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Refund ${cost} WP">✨ Refund</button>`);
-        bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min(effWpMax(ch), (ch.state.wp || 0) + cost); }); Roller.refresh(charId); bRef.disabled = true; alert(`Refunded ${cost} WP!`); };
+        bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min(effWpMax(ch), (ch.state.wp || 0) + cost); }); Roller.refresh(charId); bRef.disabled = true; showToast(`Refunded ${cost} WP!`, "success"); };
         const bFree = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Cast another spell without spending an action">⚡ Free Cast</button>`);
-        bFree.onclick = () => { alert("Free Follow-Up Spell unlocked! You may immediately cast another spell without spending an action."); };
+        bFree.onclick = () => { showToast("Free Follow-Up Spell unlocked! You may immediately cast another spell without spending an action."); };
         bRow.append(bDbl, bRef, bFree);
         dWrap.appendChild(bRow);
         card.appendChild(dWrap);
@@ -1328,9 +1394,9 @@
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Strike target">💥 Strike</button>`);
-        btn.onclick = () => {
+        btn.onclick = async () => {
           const dist = Number(distIn.value) || 0, maxR = this.getRangeLimit(spell);
-          if (dist > maxR && !confirm(`Distance (${dist}m) exceeds range (${maxR}m). Strike anyway?`)) return;
+          if (dist > maxR && !(await confirmModal(`Distance (${dist}m) exceeds range (${maxR}m). Strike anyway?`, { title: "Out of range", okText: "Strike anyway" }))) return;
           let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`); if (plMult === 2) dmg *= 2;
           const t = findT(enemies, tSel.value);
           const arm = (armLbl.querySelector("input").checked && t) ? t.armor : 0;
@@ -1441,7 +1507,7 @@
             ch.effects = ch.effects || [];
             if (isConc) {
               const old = ch.effects.filter(x => x.concentration || (x.duration || "").toLowerCase().includes("concentration"));
-              if (old.length) alert(`Ending older Concentration spell: ${old[0].name}`);
+              if (old.length) showToast(`Ending older Concentration spell: ${old[0].name}`);
               ch.effects = ch.effects.filter(x => !x.concentration && !(x.duration || "").toLowerCase().includes("concentration"));
             }
             ch.effects.push({ id: uid(), name: `${spell.name} (PL${pl})`, duration: spell.duration || "Shift", concentration: isConc, notes: spell.text });
@@ -1728,7 +1794,7 @@
 
       const doRoll = (isPush) => {
         if (isRanged && !isPush && (c.state.combatAmmo || 0) <= 0) {
-          alert("🏹 Out of Ammunition: You have 0 Arrows/Bolts remaining.");
+          showToast("🏹 Out of Ammunition: You have 0 Arrows/Bolts remaining.", "error");
           return;
         }
         if (!isPush) {
@@ -2072,7 +2138,7 @@
                 ch.state.hp = Math.max(0, ch.state.hp - roll);
                 ch.state.wp = Math.min(ch.derived.wpMax || 99, ch.state.wp + roll);
               });
-              alert(`🩸 Power from the Body (Rolled D${d})!\nTook ${roll} damage.\nGained ${roll} Willpower Points!`);
+              showToast(`🩸 Power from the Body (Rolled D${d})!\nTook ${roll} damage.\nGained ${roll} Willpower Points!`, "error");
               m.close();
               Roller.cast(charId, spell, isTrick);
             };
@@ -2146,14 +2212,14 @@
           else if (roll === 8) { const wl = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - wl); }); html += `<p class="stat-line">Lost a further ${wl} WP.</p>`; }
           if (spell.school === "demonology") {
             Store.update(charId, ch => { ch.state.corruption = (ch.state.corruption || 0) + 1; });
-            alert("🧿 Demonology Mishap! Gained 1 Corruption point. You must roll for Insanity.");
+            showToast("🧿 Demonology Mishap! Gained 1 Corruption point. You must roll for Insanity.", "error");
           }
         }
         if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
         if (success) {
           if (isUnprepared && document.querySelector(".combat-tracker")) {
-            alert("⏳ Unprepared spell cast in combat: Casting takes 2 rounds! Effect delayed until next turn.");
+            showToast("⏳ Unprepared spell cast in combat: Casting takes 2 rounds! Effect delayed until next turn.");
           } else {
             SpellAutomation.renderCard(charId, spell, pl, false, dragon, cost, out);
           }
@@ -2367,12 +2433,7 @@
       };
       inp.click();
     },
-    toast(msg) {
-      const t = el(`<div class="toast">${esc(msg)}</div>`);
-      document.body.appendChild(t);
-      setTimeout(() => t.classList.add("show"), 10);
-      setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2600);
-    },
+    toast(msg, type) { return showToast(msg, type); },
     rest(kind) {
       const gm = Settings.gmAutomation();
       const cg = Store.get(this.id);
@@ -2675,25 +2736,27 @@
       btns[7].onclick = () => doMutate(ch => {
         const half = Math.ceil(calcMaxMove() / 2);
         if (calcMaxMove() - (ch.state.moveSpent || 0) < half) {
-          alert("🚪 Not enough movement left to pass through the door! You stop directly in front of it.");
+          showToast("🚪 Not enough movement left to pass through the door! You stop directly in front of it.", "error");
         }
         ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + half);
       });
       // 8: Water
       btns[8].onclick = () => doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
       // 9: Leap
-      btns[9].onclick = () => {
-        const d = parseFloat(prompt(`Leap distance (m)?\n• ≤ ¼ pool (${(maxMove/4).toFixed(1)}m): Free/Auto.\n• ≤ ½ pool (${(maxMove/2).toFixed(1)}m): Requires Acrobatics check.\n• > ½ pool: Too far!`, ""));
+      btns[9].onclick = async () => {
+        const raw = await promptModal(`Leap distance (m)?\n• ≤ ¼ pool (${(maxMove/4).toFixed(1)}m): Free/Auto.\n• ≤ ½ pool (${(maxMove/2).toFixed(1)}m): Requires Acrobatics check.\n• > ½ pool: Too far!`, { title: "🤸 Leap", inputType: "number", placeholder: "metres", okText: "Leap" });
+        if (raw == null) return;
+        const d = parseFloat(raw);
         if (isNaN(d) || d <= 0) return;
         if (d > maxMove / 2) {
-          alert(`❌ Too far! You cannot leap more than half your movement rate (${(maxMove/2).toFixed(1)}m).`);
+          showToast(`❌ Too far! You cannot leap more than half your movement rate (${(maxMove/2).toFixed(1)}m).`, "error");
           return;
         }
         doMutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + d); });
         if (d > maxMove / 4) {
           Roller.skill(c.id, "Acrobatics", {
             onRoll: (success) => {
-              if (!success) alert("💥 Leap failed! You fall short into the gap/hazard!");
+              if (!success) showToast("💥 Leap failed! You fall short into the gap/hazard!", "error");
             }
           });
         } else {
@@ -2706,7 +2769,7 @@
           onRoll: (success) => {
             if (!success) {
               doMutate(ch => { ch.state.prone = true; ch.state.moveSpent = calcMaxMove(); });
-              alert("💥 Failed! You trip and fall prone, instantly losing all remaining movement pool this round.");
+              showToast("💥 Failed! You trip and fall prone, instantly losing all remaining movement pool this round.", "error");
             } else {
               this.toast("✅ Success! You navigate the rough terrain safely.");
             }
@@ -2718,7 +2781,7 @@
         Roller.skill(c.id, "Evade", {
           onRoll: (success) => {
             if (!success) {
-              alert("🩸 Evade failed! The enemy within reach gets an immediate free attack that cannot be dodged or parried!");
+              showToast("🩸 Evade failed! The enemy within reach gets an immediate free attack that cannot be dodged or parried!", "error");
             } else {
               this.toast("✨ Success! You voluntarily walk away from enemy reach without triggering free attacks.");
             }
@@ -2785,7 +2848,7 @@
         const pool = Magic.poolFor(sel.value);
         const cw = el(`<div class="chip-wrap"></div>`);
         (pool.tricks || []).filter((t) => !known.has(t.name)).forEach((t) => { const chip = el(`<button class="skill-chip">${esc(t.name)} <span class="stat-line">trick</span></button>`); chip.onclick = () => { this.mutate((ch) => ch.spells.tricks.push({ name: t.name, rank: 0, school: sel.value, text: t.text })); renderList(); this.toast(`Learned trick: ${t.name}.`); }; cw.appendChild(chip); });
-        (pool.spells || []).filter((s) => !known.has(s.name)).forEach((s) => { const chip = el(`<button class="skill-chip">${esc(s.name)} <span class="stat-line">R${s.rank}</span></button>`); chip.onclick = () => { if (sel.value.toLowerCase() === "dracomancy" && !confirm("🐉 Dracomancy Spell Learning: Has the GM awarded you the required ancient Draconic Relic or Lore study to learn this spell?")) return; this.mutate((ch) => ch.spells.known.push({ name: s.name, rank: s.rank, school: sel.value, text: s.text })); renderList(); this.toast(`Learned: ${s.name}.`); }; cw.appendChild(chip); });
+        (pool.spells || []).filter((s) => !known.has(s.name)).forEach((s) => { const chip = el(`<button class="skill-chip">${esc(s.name)} <span class="stat-line">R${s.rank}</span></button>`); chip.onclick = async () => { if (sel.value.toLowerCase() === "dracomancy" && !(await confirmModal("🐉 Dracomancy Spell Learning: Has the GM awarded you the required ancient Draconic Relic or Lore study to learn this spell?", { title: "Learn Dracomancy spell", okText: "Yes, learn it" }))) return; this.mutate((ch) => ch.spells.known.push({ name: s.name, rank: s.rank, school: sel.value, text: s.text })); renderList(); this.toast(`Learned: ${s.name}.`, "success"); }; cw.appendChild(chip); });
         if (!cw.children.length) cw.appendChild(el(`<span class="stat-line">All spells in this school are known.</span>`));
         listWrap.appendChild(cw);
       };
@@ -2806,7 +2869,7 @@
           chip.onclick = () => {
             const i = picked.indexOf(n);
             if (i >= 0) picked.splice(i, 1);
-            else { if (picked.length >= capFn()) { alert(`You can mark at most ${capFn()} skill(s) here.`); return; } picked.push(n); }
+            else { if (picked.length >= capFn()) { showToast(`You can mark at most ${capFn()} skill(s) here.`, "error"); return; } picked.push(n); }
             refresh(); if (onChange) onChange();
           };
           wrap.appendChild(chip);
@@ -2892,7 +2955,7 @@
       const { wrap } = this.markSkillPicker(picked, () => 2);
       const btn = el(`<button class="btn block" style="margin-top:8px">Overcome (mark 2 skills)</button>`);
       btn.onclick = () => {
-        if (picked.length !== 2) { alert("Pick exactly two skills to mark."); return; }
+        if (picked.length !== 2) { showToast("Pick exactly two skills to mark.", "error"); return; }
         this.mutate((ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); ch.identity.weakness = ""; ch.state.weaknessCooldown = true; });
         m.close(); this.toast("Weakness overcome — 2 marks gained.");
       };
@@ -2908,7 +2971,7 @@
       const btn = el(`<button class="btn block">Roll advancement (teacher)</button>`);
       btn.onclick = () => {
         const n = sel.value; if (!n) return;
-        if (c.state.teacherTrained && c.state.teacherTrained[n]) { alert("This teacher has already raised that skill."); return; }
+        if (c.state.teacherTrained && c.state.teacherTrained[n]) { showToast("This teacher has already raised that skill.", "error"); return; }
         btn.disabled = true; btn.style.opacity = "0.4";
         let roll, improved, reached18 = false, newLvl;
         this.mutate((ch) => { const sk = ch.skills[n]; const before = sk.level; roll = Dice.d(20); improved = roll > sk.level && sk.level < 18; if (improved) sk.level = Math.min(18, sk.level + 1); newLvl = sk.level; ch.state.teacherTrained[n] = true; if (before < 18 && sk.level === 18) reached18 = true; });
@@ -2949,7 +3012,7 @@
       const rollBtn = el(`<button class="btn block" style="margin-top:10px">Mark skills &amp; roll catch-up advancement</button>`);
       rollBtn.onclick = () => {
         const n = capFn();
-        if (picked.length !== n) { alert(`Please pick exactly ${n} skill(s) to mark.`); return; }
+        if (picked.length !== n) { showToast(`Please pick exactly ${n} skill(s) to mark.`, "error"); return; }
         Store.update(this.id, (ch) => { picked.forEach((s) => { if (ch.skills[s]) ch.skills[s].mark = true; }); });
         m.close(); this.rollAdvancement();
       };
@@ -2964,7 +3027,7 @@
       m.body.appendChild(el(`<p class="stat-line">Solo play: on returning from a successful mission, mark 5 skills of your choice, then roll advancement.</p>`));
       const { wrap } = this.markSkillPicker(picked, () => 5);
       const btn = el(`<button class="btn block" style="margin-top:8px">Mark 5 &amp; roll advancement</button>`);
-      btn.onclick = () => { if (picked.length !== 5) { alert("Pick exactly 5 skills to mark."); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
+      btn.onclick = () => { if (picked.length !== 5) { showToast("Pick exactly 5 skills to mark.", "error"); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
       m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
     },
     render() {
@@ -3273,7 +3336,7 @@
           ctrl.append(m, v, p); row.appendChild(ctrl);
         }
         const sethp = el(`<button class="step" title="set max HP">HP</button>`);
-        sethp.onclick = () => { const n = parseInt(prompt(`Max HP for ${cp.name}?`, cp.hpMax || ""), 10); if (!isNaN(n)) this.mutate((ch) => { ch.companions[i].hpMax = Math.max(0, n); ch.companions[i].hp = Math.max(0, n); }); };
+        sethp.onclick = async () => { const raw = await promptModal(`Max HP for ${cp.name}?`, { title: "Set max HP", inputType: "number", defaultValue: cp.hpMax || "", okText: "Set" }); if (raw == null) return; const n = parseInt(raw, 10); if (!isNaN(n)) this.mutate((ch) => { ch.companions[i].hpMax = Math.max(0, n); ch.companions[i].hp = Math.max(0, n); }); };
         const rm = el(`<button class="step rm">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.companions.splice(i, 1));
         row.append(sethp, rm);
         compPanel.appendChild(row);
@@ -3339,9 +3402,9 @@
           } else {
             const eq = el(`<button class="step" style="width:auto;padding:0 8px" title="equip (exempt from encumbrance)">Equip</button>`);
             eq.onclick = () => {
-              if (slot === "armor" && counts.armor >= 1) { alert("You're already wearing armor. Unequip it first."); return; }
-              if (slot === "helmet" && counts.helmet >= 1) { alert("You're already wearing a helmet."); return; }
-              if (slot === "weapon" && counts.weapon >= 3) { alert("You can keep at most 3 weapons at hand."); return; }
+              if (slot === "armor" && counts.armor >= 1) { showToast("You're already wearing armor. Unequip it first.", "error"); return; }
+              if (slot === "helmet" && counts.helmet >= 1) { showToast("You're already wearing a helmet.", "error"); return; }
+              if (slot === "weapon" && counts.weapon >= 3) { showToast("You can keep at most 3 weapons at hand.", "error"); return; }
               this.mutate((ch) => { const x = ch.inventory.items[i]; x.equipped = true; if (slot === "weapon") { const w = resolveEquippedWeapons([x.name])[0]; if (w && w.durability != null && x.durability == null) x.durability = w.durability; } });
             };
             row.append(el(`<span class="tag" style="opacity:0.55">${slot}</span>`), eq);
@@ -3433,7 +3496,7 @@
         }
         // Delete
         const del = el(`<button class="btn ghost block" style="margin-top:6px">Delete hero</button>`);
-        del.onclick = () => { if (confirm("Delete " + c.identity.name + "?")) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
+        del.onclick = async () => { if (await confirmModal("Delete " + c.identity.name + "? This cannot be undone.", { title: "Delete hero", okText: "Delete", danger: true })) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
         root.appendChild(del);
       } else {
         notes.readOnly = true;
@@ -3463,7 +3526,7 @@
     },
     guardGm(fn) {
       if (!this.isGm()) {
-        alert("🛡️ GM Locked: Only the Campaign Game Master can manage combat turns or advance rounds.");
+        showToast("🛡️ GM Locked: Only the Campaign Game Master can manage combat turns or advance rounds.", "error");
         return;
       }
       fn();
@@ -3507,7 +3570,7 @@
         if (allEnemiesDead) {
           st.round = 0;
           st.combatants = st.combatants.filter(c => c.kind === "hero");
-          setTimeout(() => alert("🎉 VICTORY! All enemies defeated! Battle concluded."), 50);
+          setTimeout(() => showToast("🎉 VICTORY! All enemies defeated! Battle concluded.", "success"), 50);
           return;
         }
         const active = st.combatants.filter(c => c.hp == null || c.hp > 0);
@@ -3515,7 +3578,7 @@
           this.draw(st);
           st.round = (st.round || 1) + 1;
           st.combatants.forEach(c => { c.done = false; c.acted = false; });
-          setTimeout(() => alert("⚔️ Round " + st.round + "! Initiative redrawn."), 50);
+          setTimeout(() => showToast("⚔️ Round " + st.round + "! Initiative redrawn."), 50);
         }
       });
     },
@@ -3556,7 +3619,7 @@
         const me = s.combatants.find(c => c.id === combatantId);
         if (!me) return;
         const others = s.combatants.filter(c => c.id !== combatantId);
-        if (!others.length) { alert("No other combatants to swap with."); return; }
+        if (!others.length) { showToast("No other combatants to swap with.", "error"); return; }
         const m = modal(`Wait / swap — ${me.name}`);
         const sel = el(`<select class="input" style="width:100%;margin-bottom:10px"></select>`);
         others.forEach(o => sel.appendChild(el(`<option value="${esc(o.id)}">${esc(o.name)} (init ${o.init == null ? "–" : o.init})</option>`)));
@@ -3703,18 +3766,20 @@
       const resetTurns = el(`<button class="btn ghost">Reset Turns</button>`);
       resetTurns.onclick = () => this.guardGm(() => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const end = el(`<button class="btn ghost">End combat</button>`);
-      end.onclick = () => this.guardGm(() => { if (confirm("End combat and clear all combatants?")) this.mutate((st) => { st.round = 0; st.combatants = []; }); });
+      end.onclick = () => this.guardGm(async () => { if (await confirmModal("End combat and clear all combatants?", { title: "End combat", okText: "End combat", danger: true })) this.mutate((st) => { st.round = 0; st.combatants = []; }); });
       const fleeBtn = el(`<button class="btn ghost" style="border:1px dashed var(--bad);color:var(--bad)">🏃 Flee Close Combat</button>`);
       fleeBtn.onclick = () => {
         const d = Dice.d(20);
         if (d <= 5) {
-          alert(`🏃 Evade Roll: ${d} ≤ 5 → Success!\nYou successfully flee close combat without provoking a Free Attack.`);
+          showToast(`🏃 Evade Roll: ${d} ≤ 5 → Success!\nYou successfully flee close combat without provoking a Free Attack.`);
         } else {
           const fm = modal("Evade Failed! Free Attack Triggered");
+          const freeBtn = el(`<button class="btn block" style="background:var(--bad);color:#fff">🎲 Roll Enemy Free Attack</button>`);
+          freeBtn.onclick = () => { freeBtn.disabled = true; showToast("🎲 GM rolls Enemy Free Attack! Apply damage as usual.", "warn"); };
           fm.body.append(
             el(`<p class="outcome bad" style="font-size:1.4rem">Rolled ${d} (Failed Evade)</p>`),
             el(`<p class="stat-line">You fail to break away cleanly. The engaged enemy gets an immediate Free Attack against you!</p>`),
-            el(`<button class="btn block" style="background:var(--bad);color:#fff" onclick="this.disabled=true;alert('🎲 GM rolls Enemy Free Attack! Apply damage as usual.');">🎲 Roll Enemy Free Attack</button>`)
+            freeBtn
           );
         }
       };
@@ -4161,7 +4226,7 @@
           id: uid(), name: foeName, kind: "npc", init: null, done: false,
           hp: tmpl.hp, maxHp: tmpl.hp, armor: tmpl.armor || 0, notes: `${tmpl.name} template (${tmpl.damage})`
         }));
-        alert(`Added "${foeName}" to the Combat Tracker!`);
+        showToast(`Added "${foeName}" to the Combat Tracker!`, "success");
       };
 
       nPanel.querySelector("#solo-n-atk").onclick = () => {
@@ -4425,8 +4490,8 @@
 
         if (!Sync.campaign) {
           const createRow = el(`<div style="margin-top:8px"><button class="btn secondary block" id="btn-create-camp">⚡ Create New Party Campaign</button></div>`);
-          createRow.querySelector("#btn-create-camp").onclick = () => {
-            const n = prompt("Enter a Campaign / Party Name:", "Misty Vale Adventurers");
+          createRow.querySelector("#btn-create-camp").onclick = async () => {
+            const n = await promptModal("Enter a Campaign / Party Name:", { title: "Create campaign", defaultValue: "Misty Vale Adventurers", okText: "Create" });
             if (n !== null) Sync.createCampaign(n.trim() || "Dragonbane Campaign");
           };
           const joinRow = el(`<div style="display:flex;gap:8px;margin-top:8px">
@@ -4445,7 +4510,7 @@
             <span class="stat-line" style="font-size:0.85rem">Share this code with players so they can join your party.</span>
           </div>`);
           const leaveBtn = el(`<button class="btn ghost block" style="margin-top:8px;color:var(--bad)">Disconnect from Campaign</button>`);
-          leaveBtn.onclick = () => { if (confirm("Disconnect from this party campaign?")) Sync.leaveCampaign(); };
+          leaveBtn.onclick = () => Sync.leaveCampaign();
           syncPanel.append(campInfo, leaveBtn);
         }
       }
@@ -4454,8 +4519,8 @@
       root.querySelector("#btn-export").addEventListener("click", () => Screens.export());
       root.querySelector("#btn-import").addEventListener("click", () => root.querySelector("#file-import").click());
       root.querySelector("#file-import").addEventListener("change", (e) => Screens.importFile(e));
-      root.querySelector("#btn-clear").addEventListener("click", () => {
-        if (confirm("Clear all locally saved heroes and reset app?")) {
+      root.querySelector("#btn-clear").addEventListener("click", async () => {
+        if (await confirmModal("Clear all locally saved heroes and reset the app? This cannot be undone.", { title: "Clear all storage", okText: "Clear everything", danger: true })) {
           Store.clear(); Router.go("home");
         }
       });
@@ -4483,10 +4548,10 @@
           let added = 0, updated = 0;
           imported.forEach((c) => { if (!c || !c.id) return; if (byId[c.id]) updated++; else added++; byId[c.id] = c; });
           Store.save(Object.values(byId));
-          alert(`Imported ${imported.length} hero(es): ${added} added, ${updated} updated.`);
+          showToast(`Imported ${imported.length} hero(es): ${added} added, ${updated} updated.`, "success");
           Router.go("home");
         } catch (err) {
-          alert("Import failed: " + (err.message || err));
+          showToast("Import failed: " + (err.message || err), "error");
         }
       };
       reader.readAsText(file);

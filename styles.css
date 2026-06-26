@@ -489,6 +489,13 @@ input.wt { width: 56px; padding: 6px 8px; border: 1px solid var(--line); border-
   opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.toast-success { background: var(--ok, #2f7d4f); color: #fff; }
+.toast.toast-error, .toast.toast-warn { background: var(--bad, #9b2c2c); color: #fff; max-width: 92%; white-space: normal; border-radius: 12px; line-height: 1.35; }
+.modal-msg { font-size: 0.95rem; line-height: 1.4; white-space: pre-wrap; margin: 4px 0 12px; }
+.modal-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.modal-actions .btn { flex: 1; min-width: 110px; }
+.btn.danger { background: var(--bad, #9b2c2c); border-color: var(--bad, #9b2c2c); color: #fff; }
 .update-toast {
   position: fixed; left: 50%; top: 16px; transform: translate(-50%, 0);
   z-index: 100; background: var(--accent); color: #fff;
