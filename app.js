@@ -4446,15 +4446,45 @@
       }
       root.appendChild(syncPanel);
 
-      root.querySelector("#btn-export").addEventListener("click", () => this.export());
+      root.querySelector("#btn-export").addEventListener("click", () => Screens.export());
       root.querySelector("#btn-import").addEventListener("click", () => root.querySelector("#file-import").click());
-      root.querySelector("#file-import").addEventListener("change", (e) => this.importFile(e));
+      root.querySelector("#file-import").addEventListener("change", (e) => Screens.importFile(e));
       root.querySelector("#btn-clear").addEventListener("click", () => {
         if (confirm("Clear all locally saved heroes and reset app?")) {
           Store.clear(); Router.go("home");
         }
       });
       return root;
+    },
+    // Download all locally-stored heroes as a JSON file.
+    export() {
+      const data = JSON.stringify(Store.list(), null, 2);
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "dragonbane-heroes.json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    // Import heroes from a JSON file (merge by id; imported overrides on conflict).
+    importFile(e) {
+      const file = e.target.files && e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (!Array.isArray(imported)) throw new Error("Expected a JSON array of heroes.");
+          const byId = {}; Store.list().forEach((c) => { if (c && c.id) byId[c.id] = c; });
+          let added = 0, updated = 0;
+          imported.forEach((c) => { if (!c || !c.id) return; if (byId[c.id]) updated++; else added++; byId[c.id] = c; });
+          Store.save(Object.values(byId));
+          alert(`Imported ${imported.length} hero(es): ${added} added, ${updated} updated.`);
+          Router.go("home");
+        } catch (err) {
+          alert("Import failed: " + (err.message || err));
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
@@ -4552,7 +4582,8 @@
       }
       const screen = $("#screen");
       screen.innerHTML = "";
-      screen.appendChild((Screens[route] || Screens.home)());
+      const screenFn = Screens[route] || Screens.home;
+      screen.appendChild(screenFn.call(Screens)); // bind `this` = Screens for screen methods
       document.querySelectorAll("#app-nav button").forEach((b) =>
         b.classList.toggle("active", b.dataset.route === route));
       window.scrollTo(0, 0);
