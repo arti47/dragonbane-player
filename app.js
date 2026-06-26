@@ -1095,9 +1095,10 @@
         if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
         result.innerHTML = html;
         // Offer push if failed, not a demon, and conditions remain
-        const curChar = Store.get(charId);
-        const remaining = (DB.conditions || []).filter((cn) => !curChar.state.conditions[cn.key]);
-        const hasSS = curChar.abilities?.some((a) => a.name === "Sole Survivor") && curChar.state.wp >= 3;
+        const curChar = Store.get(charId) || c;
+        const curConds = curChar?.state?.conditions || {};
+        const remaining = (DB.conditions || []).filter((cn) => !curConds[cn.key]);
+        const hasSS = curChar?.abilities?.some((a) => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
         if (!success && !demon && !pushedCondition && (remaining.length || hasSS)) {
           const pushWrap = el(`<div class="push-wrap"><p class="stat-line">Push the roll? Choose a condition to suffer, then re-roll:</p></div>`);
           const cw = el(`<div class="chip-wrap"></div>`);
@@ -1278,17 +1279,18 @@
         const crit = r.used === 1, fumble = r.used === 20;
         const success = r.used <= target;
         
-        if ((crit || fumble) && !(c.skills[skillName] && c.skills[skillName].mark)) {
-          Store.update(charId, (ch) => { if (ch.skills[skillName]) ch.skills[skillName].mark = true; });
+        if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) {
+          Store.update(charId, (ch) => { if (ch.skills?.[skillName]) ch.skills[skillName].mark = true; });
         }
 
         let outcomeHtml = `<div style="margin-top:10px"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:1.6rem;margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:1rem;font-weight:normal">(${r.used} vs ${target})</small></p>`;
-        if ((crit || fumble) && !(c.skills[skillName] && c.skills[skillName].mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
+        if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
 
         if (!crit && !fumble && !isPush) {
-          const curChar = Store.get(charId);
-          const unchosen = (DB.conditions||[]).filter(cn => !curChar.state.conditions[cn.key]);
-          const hasSS = curChar.abilities?.some(a => a.name === "Sole Survivor") && curChar.state.wp >= 3;
+          const curChar = Store.get(charId) || c;
+          const curConds = curChar?.state?.conditions || {};
+          const unchosen = (DB.conditions||[]).filter(cn => !curConds[cn.key]);
+          const hasSS = curChar?.abilities?.some(a => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
           if (unchosen.length || hasSS) {
             const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px"></div>`);
             pushWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (mark condition & re-roll):</p>`));
@@ -1609,9 +1611,10 @@
         }
         if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
-        const cur2 = Store.get(charId);
-        const remaining = (DB.conditions || []).filter((cn) => !cur2.state.conditions[cn.key]);
-        const hasSS2 = cur2.abilities?.some(a => a.name === "Sole Survivor") && cur2.state.wp >= 3;
+        const cur2 = Store.get(charId) || c;
+        const curConds2 = cur2?.state?.conditions || {};
+        const remaining = (DB.conditions || []).filter((cn) => !curConds2[cn.key]);
+        const hasSS2 = cur2?.abilities?.some(a => a.name === "Sole Survivor") && (cur2?.state?.wp || 0) >= 3;
         if (!success && !demon && !pushedCondition && (remaining.length || hasSS2)) {
           const pushWrap = el(`<div class="push-wrap"><p class="stat-line">Push? Choose a condition, then re-roll (WP already spent):</p></div>`);
           const cw = el(`<div class="chip-wrap"></div>`);
