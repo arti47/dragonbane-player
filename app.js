@@ -1189,15 +1189,15 @@
     categorize(spell) {
       if (!spell || !spell.name) return "utility";
       const n = spell.name.toLowerCase();
-      if (n.match(/cure|treat wound|recovery|healing radiance|restoration|rejuvenation/)) return "heal";
-      if (n.match(/firestorm|frost gale|shockwave|meteor swarm|rock tornado|hailstorm|scalding shower|demonic gust|chaos swamp|thorn field|mass purge/)) return "damage_aoe";
-      if (n.match(/fireball|lightning bolt|fire blast|thunderbolt|mental strike|boneshaker|death touch|abyssal stench|beetle boil|blood strike|gust of wind|water jet|acid splash|flame wall/)) return "damage_single";
-      if (n.match(/familiar|skeleton|undine|gnome|sylph|salamander|carbuncle|animate dead|conjure|summon|demon/)) return "summon";
+      if (n.match(/cure|treat wound|recovery|healing radiance|restoration|rejuvenation|heal/)) return "heal";
+      if (n.match(/firestorm|frost gale|shockwave|meteor swarm|rock tornado|hailstorm|scalding shower|demonic gust|chaos swamp|thorn field|mass purge|lightning flash|chaos mire|beetle swarm|swarm/)) return "damage_aoe";
+      if (n.match(/fireball|lightning bolt|fire blast|thunderbolt|mental strike|boneshaker|death touch|abyssal stench|beetle boil|blood strike|gust of wind|water jet|acid splash|flame wall|flick|ignite|immolate|drain|gutworm|demonic exile|magic bolt/)) return "damage_single";
+      if (n.match(/familiar|skeleton|undine|gnome|sylph|salamander|carbuncle|animate dead|conjure|summon|demon|champion|guardian/)) return "summon";
       if (n.match(/rune of/)) return "rune";
       if (n.match(/curse|evil eye|plague|puppet/)) return "curse";
       if (n.match(/phantom|disguise|illusion|mirror image/)) return "illusion";
       if (n.match(/haste|speed/)) return "haste";
-      if (n.match(/slow|daze|exhaust|paralyze|terror|command|dominate|sleep/)) return "slow";
+      if (n.match(/slow|daze|exhaust|paralyze|terror|command|dominate|sleep|ensnaring roots|banish|demon face|bloodlust|rage/)) return "slow";
       return "utility";
     },
     getRangeLimit(spell) {
@@ -1241,15 +1241,20 @@
       }
 
       const combatData = Combat.load() || { combatants: [] };
-      const opps = combatData.combatants.filter(x => x && x.type !== "hero");
-      const heroes = combatData.combatants.filter(x => x && x.type === "hero");
+      const casterCb = combatData.combatants.find(x => x && x.id === charId);
+      const isNpcCaster = !Store.get(charId) && !!casterCb;
+      const opps = combatData.combatants.filter(x => x && !(x.type === "hero" || x.kind === "hero"));
+      const heroes = combatData.combatants.filter(x => x && (x.type === "hero" || x.kind === "hero"));
       const allRoster = Store.list().filter(x => x && x.name);
+
+      const enemyList = isNpcCaster ? heroes : opps;
+      const allyList = isNpcCaster ? opps : allRoster;
 
       if (cat === "heal") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>`);
         row.innerHTML = `<span class="stat-line">Target:</span>`;
         const tSel = el(`<select class="input" style="width:160px"></select>`);
-        allRoster.forEach(h => tSel.appendChild(el(`<option value="${h.id}">${esc(h.name)} (${h.state?.hp||0}/${h.derived?.hpMax||10} HP)</option>`)));
+        allyList.forEach(h => tSel.appendChild(el(`<option value="${h.id || h.charId}">${esc(h.name)} (${h.state?.hp != null ? h.state.hp : (h.hp||0)}/${h.derived?.hpMax || h.maxHp || 10} HP)</option>`)));
         const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice formula">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#000" title="Apply Healing">💚 Heal</button>`);
         btn.onclick = () => {
@@ -1257,14 +1262,20 @@
           const formula = dIn.value.trim() || `${pl}D6`;
           let baseHeal = Dice.roll(formula);
           if (plMult === 2) baseHeal *= 2;
-          Store.update(tid, tgt => {
-            tgt.state.hp = Math.min((tgt.derived?.hpMax||10), (tgt.state.hp||0) + baseHeal);
-            if (tgt.state.dying || tgt.state.hp > 0) {
-              tgt.state.dying = false;
-              tgt.state.deathRolls = { successes: 0, failures: 0 };
-            }
-          });
-          Combat.rerender(); Roller.refresh(tid); Roller.refresh(charId);
+          if (Store.get(tid)) {
+            Store.update(tid, tgt => {
+              tgt.state.hp = Math.min((tgt.derived?.hpMax||10), (tgt.state.hp||0) + baseHeal);
+              if (tgt.state.dying || tgt.state.hp > 0) {
+                tgt.state.dying = false;
+                tgt.state.deathRolls = { successes: 0, failures: 0 };
+              }
+            });
+            Roller.refresh(tid);
+          } else {
+            let tgtCb = combatData.combatants.find(x => x && (x.id === tid || x.charId === tid));
+            if (tgtCb) { tgtCb.hp = Math.min((tgtCb.maxHp||10), (tgtCb.hp||0) + baseHeal); Combat.save(combatData); }
+          }
+          Combat.rerender(); Roller.refresh(charId);
           card.innerHTML = `<p class="outcome ok">💚 Healed <b>${baseHeal} HP</b> on target! Cleared DYING status.</p>`;
         };
         row.append(tSel, dIn, btn);
@@ -1274,7 +1285,7 @@
         const rTop = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
         rTop.innerHTML = `<span class="stat-line">Enemy:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
-        opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)} (HP ${o.hp})</option>`)));
+        enemyList.forEach(o => tSel.appendChild(el(`<option value="${o.id || o.charId}">${esc(o.name)} (HP ${o.state?.hp != null ? o.state.hp : (o.hp||0)})</option>`)));
         const cstIn = el(`<input type="text" class="input" style="width:90px" placeholder="Custom enemy">`);
         rTop.append(tSel, cstIn);
         
@@ -1299,15 +1310,23 @@
           
           const targetId = tSel.value;
           const customName = cstIn.value.trim();
-          let tgtOpp = opps.find(x => x.id === targetId);
+          let tgtOpp = combatData.combatants.find(x => x && (x.id === targetId || x.charId === targetId));
           let armRating = 0;
-          if (armLbl.querySelector("input").checked && tgtOpp) armRating = Number(tgtOpp.armor)||0;
+          if (armLbl.querySelector("input").checked && tgtOpp) {
+            armRating = (tgtOpp.type === "hero" || tgtOpp.kind === "hero") && tgtOpp.charId ? (Store.get(tgtOpp.charId)?.derived?.armor || 0) : (Number(tgtOpp.armor)||0);
+          }
           
           const netDmg = Math.max(0, dmg - armRating);
           if (tgtOpp) {
-            tgtOpp.hp = Math.max(0, (tgtOpp.hp||0) - netDmg);
-            if (tgtOpp.hp === 0) tgtOpp.defeated = true;
+            if ((tgtOpp.type === "hero" || tgtOpp.kind === "hero") && tgtOpp.charId && Store.get(tgtOpp.charId)) {
+              Store.update(tgtOpp.charId, ch => { ch.state.hp = Math.max(0, (ch.state.hp||0) - netDmg); });
+              Roller.refresh(tgtOpp.charId);
+            } else {
+              tgtOpp.hp = Math.max(0, (tgtOpp.hp||0) - netDmg);
+            }
+            if ((tgtOpp.hp != null && tgtOpp.hp <= 0)) tgtOpp.defeated = true;
             Combat.save(combatData);
+            Combat.rerender();
           }
           card.innerHTML = `<p class="outcome bad">💥 Dealt <b>${netDmg} damage</b> (${dmg} roll − ${armRating} armor) to ${customName || (tgtOpp ? tgtOpp.name : "target")}!</p>`;
         };
@@ -1398,15 +1417,16 @@
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.innerHTML = `<span class="stat-line">Curse Target:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
-        opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)}</option>`)));
+        enemyList.forEach(o => tSel.appendChild(el(`<option value="${o.id || o.charId}">${esc(o.name)}</option>`)));
         const btn = el(`<button class="skill-chip quick-chip" style="background:#9370db;color:#fff;border:none" title="Hex curse selected target">🧿 Hex</button>`);
         btn.onclick = () => {
           const tid = tSel.value;
-          let o = opps.find(x => x.id === tid);
+          let o = combatData.combatants.find(x => x && (x.id === tid || x.charId === tid));
           if (o) {
             o.name = `🧿 ${o.name.replace(/🧿\s*/,"")}`;
             o.notes = `${o.notes ? o.notes + " · " : ""}CURSED (${spell.name} PL${pl})`;
             Combat.save(combatData);
+            Combat.rerender();
           }
           card.innerHTML = `<p class="outcome" style="border-color:#9370db;color:#9370db">🧿 Cursed target ${o ? o.name : ""}!</p>`;
         };
@@ -1430,15 +1450,16 @@
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.innerHTML = `<span class="stat-line">Haste Hero:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
-        heroes.forEach(h => tSel.appendChild(el(`<option value="${h.id}">${esc(h.name)}</option>`)));
+        allyList.forEach(h => tSel.appendChild(el(`<option value="${h.id || h.charId}">${esc(h.name)}</option>`)));
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:#00ffff;color:#00ffff" title="Grant second initiative turn in tracker">⚡ Grant Turn</button>`);
         btn.onclick = () => {
           const hid = tSel.value;
-          let h = heroes.find(x => x.id === hid);
+          let h = combatData.combatants.find(x => x && (x.id === hid || x.charId === hid));
           if (h) {
             const copy = { ...h, id: h.id + "_turn2", name: `${h.name} (Hasted 2nd Turn)`, initCard: null, acted: false };
             combatData.combatants.push(copy);
             Combat.save(combatData);
+            Combat.rerender();
           }
           card.innerHTML = `<p class="outcome" style="color:#00ffff;border-color:#00ffff">⚡ Hasted! Granted second combat turn in tracker.</p>`;
         };
@@ -1448,11 +1469,11 @@
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
         row.innerHTML = `<span class="stat-line">Slow/Debuff Enemy:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
-        opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)}</option>`)));
+        enemyList.forEach(o => tSel.appendChild(el(`<option value="${o.id || o.charId}">${esc(o.name)}</option>`)));
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--bad);color:var(--bad)" title="Automatically roll resistance save and apply debuff">⏳ Auto Debuff</button>`);
         btn.onclick = () => {
           const tid = tSel.value;
-          let o = opps.find(x => x.id === tid);
+          let o = combatData.combatants.find(x => x && (x.id === tid || x.charId === tid));
           const saveRoll = Dice.d(20);
           const penalty = pl;
           const saveDC = 12 - penalty;
@@ -1463,6 +1484,7 @@
               o.notes = `${o.notes ? o.notes + " · " : ""}${spell.name.toUpperCase()} (Slowed/Dazed)`;
               if (spell.name.match(/slow/i)) o.initCard = 10;
               Combat.save(combatData);
+              Combat.rerender();
             }
             card.innerHTML = `<p class="outcome bad">⏳ Target failed save (Rolled ${saveRoll} vs DC ${saveDC})! Debuffed.</p>`;
           }
@@ -1997,6 +2019,7 @@
       let skillLvl = 14;
       if (npcName.toLowerCase().includes("boss") || npcName.toLowerCase().includes("archmage") || npcName.toLowerCase().includes("chieftain")) skillLvl = 15;
       
+      spell = resolveCanonicalSpell(spell, "general") || { name: "Spell", rank: 1, text: "Magical spell." };
       const m = modal(`${npcName}: Cast ${spell.name}`);
       const sDetail = el(`<div class="spell-detail-card" style="margin-bottom:12px;padding:10px;background:var(--bg-raised);border-left:4px solid var(--accent)">
         <p style="margin:0;font-weight:bold">${esc(spell.name)} <span class="tag">${spell.rank ? `Rank ${spell.rank}` : "Trick"}</span></p>
@@ -2024,8 +2047,8 @@
           ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
         if (success) {
-          const tot = (spell.rank || 1) * 2;
-          out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
+          const pl = spell.rank || 1;
+          SpellAutomation.renderCard(combatantId, spell, pl, false, false, 2, out);
         }
       };
 
@@ -2036,6 +2059,8 @@
           <p class="outcome ok" style="margin:0;font-size:1.3rem">Spell Cast Automatically!</p>
           ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
+        const pl = spell.rank || 1;
+        SpellAutomation.renderCard(combatantId, spell, pl, false, false, 2, out);
       };
 
       m.body.append(sDetail, skillRow, d20Btn, autoBtn, out);
@@ -2044,8 +2069,11 @@
     // ---- Spell / trick casting ----
     cast(charId, spell, isTrick) {
       const c = Store.get(charId); if (!c) return;
-      let schoolEntry = Object.entries(c.skills).find(([, v]) => v.kind === "magic");
-      if (!schoolEntry && c.spells && c.spells.castSkill && c.skills[c.spells.castSkill]) schoolEntry = [c.spells.castSkill, c.skills[c.spells.castSkill]];
+      spell = resolveCanonicalSpell(spell, c.identity?.mageSchool);
+      if (!spell) return;
+      if (isTrick == null) isTrick = spell.rank === 0;
+      let schoolEntry = Object.entries(c.skills || {}).find(([, v]) => v && v.kind === "magic");
+      if (!schoolEntry && c.spells && c.spells.castSkill && c.skills && c.skills[c.spells.castSkill]) schoolEntry = [c.spells.castSkill, c.skills[c.spells.castSkill]];
       const level = schoolEntry ? schoolEntry[1].level : 0;
       const schoolName = schoolEntry ? schoolEntry[0] : "(no school)";
       const castAttr = schoolEntry ? schoolEntry[1].attribute : "INT";
@@ -2068,7 +2096,7 @@
       if (hasMetal) {
         sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Metal Restriction:</b> Wearing metal armor or holding metal weapons penalizes or blocks spellcasting.</div>`));
       }
-      if (spell.school === "necromancy" && (spell.name.match(/animate|skeleton|ghost|corpse/i) || spell.text?.match(/corpse|body|skeleton/i))) {
+      if (spell.school === "necromancy" && ((spell.name || "").match(/animate|skeleton|ghost|corpse/i) || (spell.text || "").match(/corpse|body|skeleton/i))) {
         const hasCorpse = (c.inventory?.items || []).some(x => x.name.match(/corpse|body|skeleton|bone/i));
         if (!hasCorpse) {
           sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Ingredient Warning:</b> No Corpse/Bones found in inventory. You may cast anyway assuming ambient battlefield corpses.</div>`));
@@ -2209,6 +2237,49 @@
   /* =================================================================
    * Character sheet — live, persistent tracker (Phase 2)
    * ================================================================= */
+  function resolveCanonicalSpell(sp, fallbackSchool) {
+    if (!sp) return null;
+    const name = typeof sp === "string" ? sp : sp?.name;
+    if (!name) return typeof sp === "object" ? sp : null;
+    if (typeof sp === "object" && sp.text && sp.school && sp.rank != null) return sp;
+
+    const clean = normName(name);
+    const mx = typeof MAGICX !== "undefined" ? MAGICX : (window.DRAGONBANE_MAGIC || {});
+
+    const rev = (mx.revisedSpells || []).find(x => x && normName(x.name) === clean);
+    if (rev) return Object.assign({}, typeof sp === "object" ? sp : {}, rev, { name: rev.name });
+
+    if (typeof DB !== "undefined" && DB.spells) {
+      for (const [schKey, pool] of Object.entries(DB.spells)) {
+        if (!pool) continue;
+        const t = (pool.tricks || []).find(x => x && normName(x.name) === clean);
+        if (t) return Object.assign({ rank: 0, school: schKey }, typeof sp === "object" ? sp : {}, t, { name: t.name });
+        const s = (pool.spells || []).find(x => x && normName(x.name) === clean);
+        if (s) return Object.assign({ school: schKey }, typeof sp === "object" ? sp : {}, s, { name: s.name });
+      }
+    }
+
+    for (const [schKey, pool] of Object.entries(mx.newSpells || {})) {
+      if (!pool) continue;
+      const t = (pool.tricks || []).find(x => x && normName(x.name) === clean);
+      if (t) return Object.assign({ rank: 0, school: schKey }, typeof sp === "object" ? sp : {}, t, { name: t.name });
+      const s = (pool.spells || []).find(x => x && normName(x.name) === clean);
+      if (s) return Object.assign({ school: schKey }, typeof sp === "object" ? sp : {}, s, { name: s.name });
+    }
+
+    for (const [schKey, pool] of Object.entries(mx.schools || {})) {
+      if (!pool) continue;
+      const t = (pool.tricks || []).find(x => x && normName(x.name) === clean);
+      if (t) return Object.assign({ rank: 0, school: schKey }, typeof sp === "object" ? sp : {}, t, { name: t.name });
+      const s = (pool.spells || []).find(x => x && normName(x.name) === clean);
+      if (s) return Object.assign({ school: schKey }, typeof sp === "object" ? sp : {}, s, { name: s.name });
+    }
+
+    return typeof sp === "object"
+      ? Object.assign({ name, rank: 1, school: fallbackSchool || "general", text: sp.text || sp.desc || "Magical spell incantation." }, sp)
+      : { name, rank: 1, school: fallbackSchool || "general", text: "Magical spell incantation." };
+  }
+
   // Ensure a character's inventory uses the structured shape (migrates legacy data).
   function normalizeInventory(c) {
     if (!c) return;
@@ -2218,6 +2289,8 @@
     if (!c.attributes) c.attributes = {};
     if (!c.skills) c.skills = {};
     if (!c.spells) c.spells = { tricks: [], known: [] };
+    c.spells.tricks = (c.spells.tricks || []).map(x => resolveCanonicalSpell(x, c.identity?.mageSchool)).filter(Boolean);
+    c.spells.known = (c.spells.known || []).map(x => resolveCanonicalSpell(x, c.identity?.mageSchool)).filter(Boolean);
     const inv = c.inventory || (c.inventory = {});
     inv.items = (inv.items || []).map((it) => typeof it === "string"
       ? { name: it, weight: 1, equipped: false }
