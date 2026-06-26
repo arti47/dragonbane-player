@@ -2134,7 +2134,12 @@
   const Combat = {
     KEY: "dragonbane.combat",
     load() { try { return JSON.parse(localStorage.getItem(this.KEY)) || { round: 0, combatants: [] }; } catch (_) { return { round: 0, combatants: [] }; } },
-    save(s) { localStorage.setItem(this.KEY, JSON.stringify(s)); },
+    save(s) {
+      localStorage.setItem(this.KEY, JSON.stringify(s));
+      if (typeof Sync !== "undefined" && Sync.enabled && Sync.campaign) {
+        Sync.pushCombat(s);
+      }
+    },
     rerender() { const y = window.scrollY; const sc = $("#screen"); sc.innerHTML = ""; sc.appendChild(this.view()); window.scrollTo(0, y); },
     mutate(fn) {
       const s = this.load();
