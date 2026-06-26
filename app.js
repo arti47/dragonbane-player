@@ -2015,7 +2015,11 @@
 
     // ---- Spell / trick casting ----
     cast(charId, spell, isTrick) {
-      const c = Store.get(charId); if (!c) return;
+      let c = Store.get(charId); if (!c) return;
+      // Synced/older characters can arrive without a normalized state (e.g. no
+      // state.conditions), which would crash the ranked-spell path below and
+      // leave an empty "no text" window. Normalize once (persisted) if needed.
+      if (!c.state || !c.state.conditions || !c.state.deathRolls) { Store.update(charId, normalizeInventory); c = Store.get(charId) || c; }
       spell = resolveCanonicalSpell(spell, c.identity?.mageSchool);
       if (!spell) return;
       if (isTrick == null) isTrick = spell.rank === 0;
