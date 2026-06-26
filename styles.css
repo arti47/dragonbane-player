@@ -359,13 +359,13 @@ button {
 .tag.baned { border-color: var(--bad); color: var(--bad); }
 .skill-chip.cond-on { background: var(--bad); color: #f7eed6; border-color: var(--bad); }
 
-.vitals { display: flex; gap: 12px; margin-top: 14px; }
-.vital { flex: 1; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-align: center; }
+.vitals { display: flex; gap: 8px; margin-top: 14px; }
+.vital { flex: 1; min-width: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 10px 8px; text-align: center; }
 .vital.hp { border-color: var(--accent-soft); }
 .vital.wp { border-color: var(--gold); }
 .vital-label { font-family: var(--font-display); font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 6px; }
-.vital-val { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; min-width: 64px; display: inline-block; }
-.stepper { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.vital-val { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; min-width: 44px; display: inline-block; }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 6px; }
 button, .step {
   touch-action: manipulation;
   user-select: none;
@@ -400,9 +400,9 @@ button.step:not(:empty), .btn.step {
 .enc-fill { height: 100%; background: var(--good); transition: width 0.15s ease; }
 .enc-fill.over { background: var(--bad); }
 
-.inv-row, .inv-add { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.inv-row, .inv-add { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); }
 .inv-add { border-bottom: none; margin-top: 8px; }
-.inv-name { flex: 1; }
+.inv-name { flex: 1; min-width: 90px; overflow-wrap: anywhere; }
 input.wt { width: 56px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 .inv-add input[type="text"] { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 

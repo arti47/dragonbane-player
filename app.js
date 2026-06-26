@@ -2610,21 +2610,21 @@
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);width:60px">WALK:</span>
+            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">WALK:</span>
             <button type="button" class="move-btn" style="flex:1" title="Step 1 meter">+1m</button>
             <button type="button" class="move-btn" style="flex:1" title="Step 2 meters (1 grid square)">+2m</button>
             <button type="button" class="move-btn" style="flex:1" title="Step 4 meters">+4m</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);width:60px">HAZARDS:</span>
+            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">HAZARDS:</span>
             <button type="button" class="move-btn" style="flex:1;color:#b46428;border-color:#b46428" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
             <button type="button" class="move-btn" style="flex:1;color:#2878b4;border-color:#2878b4" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
             <button type="button" class="move-btn" style="flex:1;color:#784696;border-color:#784696" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);width:60px">TACTICS:</span>
+            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">TACTICS:</span>
             <button type="button" class="move-btn" style="flex:1;color:#964646;border-color:#964646" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
             <button type="button" class="move-btn" style="flex:1;color:var(--bad);border-color:var(--bad)" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
             <button type="button" class="move-btn" style="flex:1;color:var(--ok);border-color:var(--ok)" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
