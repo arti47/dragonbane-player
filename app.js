@@ -192,20 +192,7 @@
         ]), "create campaign");
       } catch (err) {
         console.error("Failed to create campaign in RTDB:", err);
-        if (err.message && err.message.includes("timed out")) {
-          const curUrl = localStorage.getItem("dragonbane.customDbUrl") || window.FIREBASE_CONFIG?.databaseURL || "";
-          const newUrl = prompt(
-            `Database Connection Timed Out!\n\nYour app attempted to connect to:\n${curUrl}\n\nIf your database was created outside US Central (e.g. Europe or Asia), Firebase assigns a regional URL ending in .firebasedatabase.app.\n\nTo fix instantly:\n1. Open console.firebase.google.com > Realtime Database > Data tab.\n2. Copy the exact URL shown at the top of the database tree.\n3. Paste it below and click OK to reconnect:`,
-            curUrl
-          );
-          if (newUrl && newUrl.trim() && newUrl.trim() !== curUrl) {
-            localStorage.setItem("dragonbane.customDbUrl", newUrl.trim());
-            alert("Updated Database URL! Reloading app to connect...");
-            window.location.reload();
-          }
-        } else {
-          alert(`Database error:\n${err.message || err.code || "Permission denied"}\n\nCheck your Firebase Console > Realtime Database > Rules tab.`);
-        }
+        alert(`Database error:\n${err.message || err.code || "Permission denied"}\n\nCheck your Firebase Console > Realtime Database > Rules tab.`);
         return;
       }
       this.campaign = { id, joinCode, name: camp.name, role: "gm" };
