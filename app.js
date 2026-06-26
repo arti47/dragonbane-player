@@ -1225,292 +1225,214 @@
         const dWrap = el(`<div style="margin-bottom:10px;padding:8px;background:rgba(255,215,0,0.1);border:1px dashed #ffd700;border-radius:6px"></div>`);
         dWrap.innerHTML = `<b style="color:#ffd700;display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
         const bRow = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
-        
         const bDbl = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Double Damage or Healing dice">💥 Double</button>`);
         bDbl.onclick = () => { plMult = 2; bDbl.style.background = "#ffd700"; bDbl.style.color = "#000"; alert("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
-        
         const bRef = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Refund ${cost} WP">✨ Refund</button>`);
-        bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min((ch.derived?.wpMax||20), (ch.state.wp||0) + cost); }); Roller.refresh(charId); bRef.disabled = true; alert(`Refunded ${cost} WP!`); };
-        
+        bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min(effWpMax(ch), (ch.state.wp || 0) + cost); }); Roller.refresh(charId); bRef.disabled = true; alert(`Refunded ${cost} WP!`); };
         const bFree = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Cast another spell without spending an action">⚡ Free Cast</button>`);
         bFree.onclick = () => { alert("Free Follow-Up Spell unlocked! You may immediately cast another spell without spending an action."); };
-        
         bRow.append(bDbl, bRef, bFree);
         dWrap.appendChild(bRow);
         card.appendChild(dWrap);
       }
 
-      const combatData = Combat.load() || { combatants: [] };
-      const casterCb = combatData.combatants.find(x => x && x.id === charId);
+      // ---- Unified target lists: combat tracker + party roster + self ----
+      const cd = Combat.load() || { combatants: [] };
+      const combs = (cd.combatants || []).filter(Boolean);
+      const isHeroCb = (x) => x.kind === "hero" || x.type === "hero";
+      const casterCb = combs.find(x => x.id === charId || x.charId === charId);
       const isNpcCaster = !Store.get(charId) && !!casterCb;
-      const opps = combatData.combatants.filter(x => x && !(x.type === "hero" || x.kind === "hero"));
-      const heroes = combatData.combatants.filter(x => x && (x.type === "hero" || x.kind === "hero"));
-      const allRoster = Store.list().filter(x => x && x.name);
 
-      const enemyList = isNpcCaster ? heroes : opps;
-      const allyList = isNpcCaster ? opps : allRoster;
+      const fromCb = (x) => ({ key: x.id, name: x.name, label: `${x.name}${x.hp != null ? ` (HP ${x.hp})` : ""}`, isChar: false, cb: x, armor: Number(x.armor) || 0 });
+      const fromChar = (ch) => ({ key: "char:" + ch.id, name: ch.identity && ch.identity.name || ch.name || "Hero", label: `${(ch.identity && ch.identity.name) || "Hero"} (HP ${ch.state && ch.state.hp}/${effHpMax(ch)})`, isChar: true, charId: ch.id, armor: (equippedArmor(ch) ? equippedArmor(ch).rating : 0) });
+
+      const combHeroes = combs.filter(isHeroCb);
+      const combFoes = combs.filter(x => !isHeroCb(x));
+      const inCombatCharIds = new Set(combs.map(x => x.charId).filter(Boolean));
+      const rosterAllies = Store.list().filter(ch => ch && ch.id && !inCombatCharIds.has(ch.id));
+
+      let allies, enemies;
+      if (isNpcCaster) { allies = combFoes.map(fromCb); enemies = combHeroes.map(fromCb); }
+      else {
+        allies = [...combHeroes.map(fromCb), ...rosterAllies.map(fromChar)];
+        enemies = combFoes.map(fromCb);
+        const me = Store.get(charId);
+        if (me && !allies.some(a => a.charId === charId)) allies.unshift(fromChar(me));
+      }
+      const hasteList = (isNpcCaster ? combFoes : combHeroes).map(fromCb);
+
+      const findT = (list, key) => list.find(t => t.key === key);
+      const buildSelect = (list, emptyLabel) => {
+        const s = el(`<select class="input" style="min-width:150px"></select>`);
+        list.forEach(t => s.appendChild(el(`<option value="${esc(t.key)}">${esc(t.label)}</option>`)));
+        if (!list.length && emptyLabel) s.appendChild(el(`<option value="">${esc(emptyLabel)}</option>`));
+        return s;
+      };
+      const applyHp = (t, delta) => {
+        if (!t) return;
+        if (t.isChar) {
+          Store.update(t.charId, ch => { const mx = effHpMax(ch); ch.state.hp = Math.max(0, Math.min(mx, (ch.state.hp || 0) + delta)); if (delta > 0 && ch.state.hp > 0) { ch.state.dying = false; ch.state.deathRolls = { successes: 0, failures: 0 }; } });
+          const syncCb = combs.find(x => x.charId === t.charId); if (syncCb) syncCb.hp = Store.get(t.charId).state.hp;
+          Roller.refresh(t.charId);
+        } else {
+          t.cb.hp = Math.max(0, Math.min(t.cb.maxHp || 9999, (t.cb.hp || 0) + delta));
+          if (t.cb.hp === 0) t.cb.defeated = true;
+          if (t.cb.charId && Store.get(t.cb.charId)) { Store.update(t.cb.charId, ch => { ch.state.hp = t.cb.hp; }); Roller.refresh(t.cb.charId); }
+        }
+        Combat.save(cd); Combat.rerender();
+      };
 
       if (cat === "heal") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>`);
-        row.innerHTML = `<span class="stat-line">Target:</span>`;
-        const tSel = el(`<select class="input" style="width:160px"></select>`);
-        allyList.forEach(h => tSel.appendChild(el(`<option value="${h.id || h.charId}">${esc(h.name)} (${h.state?.hp != null ? h.state.hp : (h.hp||0)}/${h.derived?.hpMax || h.maxHp || 10} HP)</option>`)));
-        const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice formula">`);
-        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#000" title="Apply Healing">💚 Heal</button>`);
+        row.append(el(`<span class="stat-line">Heal:</span>`));
+        const tSel = buildSelect(allies, "— no targets —");
+        const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice">`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#000;border:none" title="Apply Healing">💚 Heal</button>`);
         btn.onclick = () => {
-          const tid = tSel.value;
-          const formula = dIn.value.trim() || `${pl}D6`;
-          let baseHeal = Dice.roll(formula);
-          if (plMult === 2) baseHeal *= 2;
-          if (Store.get(tid)) {
-            Store.update(tid, tgt => {
-              tgt.state.hp = Math.min((tgt.derived?.hpMax||10), (tgt.state.hp||0) + baseHeal);
-              if (tgt.state.dying || tgt.state.hp > 0) {
-                tgt.state.dying = false;
-                tgt.state.deathRolls = { successes: 0, failures: 0 };
-              }
-            });
-            Roller.refresh(tid);
-          } else {
-            let tgtCb = combatData.combatants.find(x => x && (x.id === tid || x.charId === tid));
-            if (tgtCb) { tgtCb.hp = Math.min((tgtCb.maxHp||10), (tgtCb.hp||0) + baseHeal); Combat.save(combatData); }
-          }
-          Combat.rerender(); Roller.refresh(charId);
-          card.innerHTML = `<p class="outcome ok">💚 Healed <b>${baseHeal} HP</b> on target! Cleared DYING status.</p>`;
+          let amt = Dice.roll(dIn.value.trim() || `${pl}D6`); if (plMult === 2) amt *= 2;
+          const t = findT(allies, tSel.value);
+          if (t) applyHp(t, +amt);
+          card.innerHTML = `<p class="outcome ok">💚 Healed <b>${amt} HP</b>${t ? ` → ${esc(t.name)}` : " (apply manually)"}.</p>`;
         };
-        row.append(tSel, dIn, btn);
-        card.appendChild(row);
+        row.append(tSel, dIn, btn); card.appendChild(row);
       } else if (cat === "damage_single") {
-        const row = el(`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px"></div>`);
+        const wrap = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
         const rTop = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
-        rTop.innerHTML = `<span class="stat-line">Enemy:</span>`;
-        const tSel = el(`<select class="input" style="width:140px"></select>`);
-        enemyList.forEach(o => tSel.appendChild(el(`<option value="${o.id || o.charId}">${esc(o.name)} (HP ${o.state?.hp != null ? o.state.hp : (o.hp||0)})</option>`)));
-        const cstIn = el(`<input type="text" class="input" style="width:90px" placeholder="Custom enemy">`);
+        rTop.append(el(`<span class="stat-line">Enemy:</span>`));
+        const tSel = buildSelect(enemies, "— none in combat —");
+        const cstIn = el(`<input type="text" class="input" style="width:110px" placeholder="or custom target">`);
         rTop.append(tSel, cstIn);
-        
         const rMid = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
-        rMid.innerHTML = `<span class="stat-line">Dist:</span>`;
-        const distIn = el(`<input type="number" class="input" style="width:60px" value="5" min="0">`);
-        rMid.append(distIn, el(`<span class="stat-line">m (Max ${this.getRangeLimit(spell)}m)</span>`));
-        
-        const isPsychic = spell.name.match(/mental|death|stench|psychic|soul|boneshaker/i);
-        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text)"><input type="checkbox" ${isPsychic ? "" : "checked"}> Worn Armor Mitigates Damage</label>`);
-        
-        const rBot = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        rMid.append(el(`<span class="stat-line">Dist:</span>`));
+        const distIn = el(`<input type="number" class="input" style="width:56px" value="5" min="0">`);
+        rMid.append(distIn, el(`<span class="stat-line">m (max ${this.getRangeLimit(spell)}m)</span>`));
+        const isPsychic = /mental|death|stench|psychic|soul|boneshaker/i.test(spell.name || "");
+        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Strike target">💥 Strike</button>`);
         btn.onclick = () => {
-          const dist = Number(distIn.value)||0;
-          const maxR = this.getRangeLimit(spell);
-          if (dist > maxR && !confirm(`Target distance (${dist}m) exceeds spell range (${maxR}m)! Strike anyway?`)) return;
-          
-          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`);
-          if (plMult === 2) dmg *= 2;
-          
-          const targetId = tSel.value;
-          const customName = cstIn.value.trim();
-          let tgtOpp = combatData.combatants.find(x => x && (x.id === targetId || x.charId === targetId));
-          let armRating = 0;
-          if (armLbl.querySelector("input").checked && tgtOpp) {
-            armRating = (tgtOpp.type === "hero" || tgtOpp.kind === "hero") && tgtOpp.charId ? (Store.get(tgtOpp.charId)?.derived?.armor || 0) : (Number(tgtOpp.armor)||0);
-          }
-          
-          const netDmg = Math.max(0, dmg - armRating);
-          if (tgtOpp) {
-            if ((tgtOpp.type === "hero" || tgtOpp.kind === "hero") && tgtOpp.charId && Store.get(tgtOpp.charId)) {
-              Store.update(tgtOpp.charId, ch => { ch.state.hp = Math.max(0, (ch.state.hp||0) - netDmg); });
-              Roller.refresh(tgtOpp.charId);
-            } else {
-              tgtOpp.hp = Math.max(0, (tgtOpp.hp||0) - netDmg);
-            }
-            if ((tgtOpp.hp != null && tgtOpp.hp <= 0)) tgtOpp.defeated = true;
-            Combat.save(combatData);
-            Combat.rerender();
-          }
-          card.innerHTML = `<p class="outcome bad">💥 Dealt <b>${netDmg} damage</b> (${dmg} roll − ${armRating} armor) to ${customName || (tgtOpp ? tgtOpp.name : "target")}!</p>`;
+          const dist = Number(distIn.value) || 0, maxR = this.getRangeLimit(spell);
+          if (dist > maxR && !confirm(`Distance (${dist}m) exceeds range (${maxR}m). Strike anyway?`)) return;
+          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`); if (plMult === 2) dmg *= 2;
+          const t = findT(enemies, tSel.value);
+          const arm = (armLbl.querySelector("input").checked && t) ? t.armor : 0;
+          const net = Math.max(0, dmg - arm);
+          if (t) applyHp(t, -net);
+          const who = cstIn.value.trim() || (t ? t.name : "your target");
+          card.innerHTML = `<p class="outcome bad">💥 <b>${net} damage</b> (${dmg} roll${arm ? ` − ${arm} armor` : ""}) → ${esc(who)}.${t ? "" : " <span class='stat-line'>Apply manually.</span>"}</p>`;
         };
-        rBot.append(fIn, btn);
-        row.append(rTop, rMid, armLbl, rBot);
-        card.appendChild(row);
+        const rBot = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        rBot.append(fIn, armLbl, btn);
+        wrap.append(rTop, rMid, rBot); card.appendChild(wrap);
       } else if (cat === "damage_aoe") {
-        const row = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
-        row.innerHTML = `<span class="stat-line">Select AoE Blast Targets:</span>`;
-        const chkWrap = el(`<div style="max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px"></div>`);
-        combatData.combatants.forEach(cb => {
-          if (!cb) return;
-          const lbl = el(`<label style="font-size:12px;display:flex;gap:6px"><input type="checkbox" value="${cb.id}" ${cb.type !== "hero" ? "checked" : ""}> ${esc(cb.name)} (${cb.hp} HP)</label>`);
-          chkWrap.appendChild(lbl);
-        });
-        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Worn Armor Mitigates</label>`);
-        const rBot = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const wrap = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+        wrap.append(el(`<span class="stat-line">AoE blast targets:</span>`));
+        const chkWrap = el(`<div style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px"></div>`);
+        enemies.forEach(t => { chkWrap.appendChild(el(`<label style="font-size:12px;display:flex;gap:6px"><input type="checkbox" value="${esc(t.key)}" checked> ${esc(t.label)}</label>`)); });
+        if (!enemies.length) chkWrap.appendChild(el(`<span class="stat-line">No enemies in combat — roll &amp; apply manually.</span>`));
+        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Blast all checked targets">💥 Blast AoE</button>`);
         btn.onclick = () => {
-          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`);
-          if (plMult === 2) dmg *= 2;
-          const checkedIds = Array.from(chkWrap.querySelectorAll("input:checked")).map(x => x.value);
-          let names = [];
-          checkedIds.forEach(cid => {
-            let cb = combatData.combatants.find(x => x && x.id === cid);
-            if (cb) {
-              const arm = armLbl.querySelector("input").checked ? (Number(cb.armor)||0) : 0;
-              const nd = Math.max(0, dmg - arm);
-              cb.hp = Math.max(0, (cb.hp||0) - nd);
-              if (cb.hp === 0) cb.defeated = true;
-              names.push(`${cb.name} (-${nd})`);
-            }
-          });
-          Combat.save(combatData);
-          card.innerHTML = `<p class="outcome bad">💥 Blast dealt <b>${dmg} raw dmg</b> to: ${names.join(", ") || "none"}!</p>`;
+          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`); if (plMult === 2) dmg *= 2;
+          const ids = Array.from(chkWrap.querySelectorAll("input:checked")).map(x => x.value);
+          const names = [];
+          ids.forEach(id => { const t = findT(enemies, id); if (t) { const arm = armLbl.querySelector("input").checked ? t.armor : 0; const net = Math.max(0, dmg - arm); applyHp(t, -net); names.push(`${t.name} (−${net})`); } });
+          card.innerHTML = `<p class="outcome bad">💥 Blast <b>${dmg} raw</b> → ${names.join(", ") || "roll & apply manually"}.</p>`;
         };
-        rBot.append(fIn, btn);
-        row.append(chkWrap, armLbl, rBot);
-        card.appendChild(row);
+        wrap.append(chkWrap, armLbl, fIn, btn); card.appendChild(wrap);
       } else if (cat === "summon") {
-        const sKey = Object.keys(SUMMON_STATS).find(k => spell.name.toLowerCase().includes(k)) || "familiar";
+        const sKey = Object.keys(SUMMON_STATS).find(k => (spell.name || "").toLowerCase().includes(k)) || "familiar";
         const st = SUMMON_STATS[sKey];
         const row = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
-        row.innerHTML = `<p class="notice" style="font-size:12px"><b>Summon Stats (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Add companion entity to sheet and combat tracker">+ Spawn</button>`);
+        row.innerHTML = `<p class="notice" style="font-size:12px"><b>Summon (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Add companion to sheet and combat tracker">+ Spawn</button>`);
         btn.onclick = () => {
-          const sName = `${spell.name} (${char.name || "Caster"})`;
-          Store.update(charId, ch => {
-            ch.companions = ch.companions || [];
-            ch.companions.push({ name: sName, notes: `HP ${st.hp}, Arm ${st.armor}. ${st.attack}` });
-          });
-          const combatData2 = Combat.load() || { combatants: [] };
-          if (combatData2.combatants) {
-            combatData2.combatants.push({
-              id: "sum_" + Date.now(),
-              name: sName,
-              type: "npc",
-              hp: st.hp,
-              maxHp: st.hp,
-              armor: st.armor,
-              notes: st.attack,
-              initCard: null,
-              acted: false
-            });
-            Combat.save(combatData2);
-          }
-          Roller.refresh(charId);
-          card.innerHTML = `<p class="outcome ok">✨ Spawned <b>${esc(sName)}</b> to Companion roster and Combat Tracker!</p>`;
+          const sName = `${spell.name} (${(char.identity && char.identity.name) || char.name || "Caster"})`;
+          Store.update(charId, ch => { ch.companions = ch.companions || []; ch.companions.push({ id: uid(), name: sName, hp: st.hp, hpMax: st.hp, notes: `Armor ${st.armor}. ${st.attack}` }); });
+          cd.combatants = cd.combatants || [];
+          cd.combatants.push({ id: uid(), name: sName, kind: "npc", init: null, done: false, acted: false, hp: st.hp, maxHp: st.hp, armor: st.armor, notes: st.attack, isCompanion: true });
+          Combat.save(cd); Roller.refresh(charId); Combat.rerender();
+          card.innerHTML = `<p class="outcome ok">✨ Spawned <b>${esc(sName)}</b> to companions + combat tracker.</p>`;
         };
-        row.appendChild(btn);
-        card.appendChild(row);
+        row.appendChild(btn); card.appendChild(row);
       } else if (cat === "rune") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
-        row.innerHTML = `<span class="stat-line">Inscribed dormant Rune:</span>`;
+        row.append(el(`<span class="stat-line">Inscribe dormant rune:</span>`));
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Inscribe dormant rune">+ Rune</button>`);
         btn.onclick = () => {
-          Store.update(charId, ch => {
-            ch.effects = ch.effects || [];
-            ch.effects.push({ id: "rn_"+Date.now(), name: `Dormant Rune (${spell.name})`, isRune: true, pl, text: spell.text });
-          });
+          Store.update(charId, ch => { ch.effects = ch.effects || []; ch.effects.push({ id: uid(), name: `Dormant Rune (${spell.name})`, isRune: true, pl, notes: spell.text }); });
           Roller.refresh(charId);
-          card.innerHTML = `<p class="outcome ok">⚡ Inscribed dormant Rune on sheet!</p>`;
+          card.innerHTML = `<p class="outcome ok">⚡ Inscribed dormant rune on sheet.</p>`;
         };
-        row.appendChild(btn);
-        card.appendChild(row);
+        row.appendChild(btn); card.appendChild(row);
       } else if (cat === "curse") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
-        row.innerHTML = `<span class="stat-line">Curse Target:</span>`;
-        const tSel = el(`<select class="input" style="width:140px"></select>`);
-        enemyList.forEach(o => tSel.appendChild(el(`<option value="${o.id || o.charId}">${esc(o.name)}</option>`)));
-        const btn = el(`<button class="skill-chip quick-chip" style="background:#9370db;color:#fff;border:none" title="Hex curse selected target">🧿 Hex</button>`);
+        row.append(el(`<span class="stat-line">Curse target:</span>`));
+        const tSel = buildSelect(enemies, "— none in combat —");
+        const btn = el(`<button class="skill-chip quick-chip" style="background:#9370db;color:#fff;border:none" title="Hex target">🧿 Hex</button>`);
         btn.onclick = () => {
-          const tid = tSel.value;
-          let o = combatData.combatants.find(x => x && (x.id === tid || x.charId === tid));
-          if (o) {
-            o.name = `🧿 ${o.name.replace(/🧿\s*/,"")}`;
-            o.notes = `${o.notes ? o.notes + " · " : ""}CURSED (${spell.name} PL${pl})`;
-            Combat.save(combatData);
-            Combat.rerender();
-          }
-          card.innerHTML = `<p class="outcome" style="border-color:#9370db;color:#9370db">🧿 Cursed target ${o ? o.name : ""}!</p>`;
+          const t = findT(enemies, tSel.value);
+          if (t && !t.isChar) { t.cb.name = `🧿 ${t.cb.name.replace(/🧿\s*/, "")}`; t.cb.notes = `${t.cb.notes ? t.cb.notes + " · " : ""}CURSED (${spell.name} PL${pl})`; Combat.save(cd); Combat.rerender(); }
+          card.innerHTML = `<p class="outcome" style="color:#9370db;border-color:#9370db">🧿 Cursed ${t ? esc(t.name) : "target (apply manually)"}.</p>`;
         };
-        row.append(tSel, btn);
-        card.appendChild(row);
+        row.append(tSel, btn); card.appendChild(row);
       } else if (cat === "illusion") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
-        row.innerHTML = `<span class="stat-line">Active Illusion (DC ${10+pl}):</span>`;
+        row.append(el(`<span class="stat-line">Active illusion (DC ${10 + pl}):</span>`));
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Create active illusion">+ Illusion</button>`);
         btn.onclick = () => {
-          Store.update(charId, ch => {
-            ch.effects = ch.effects || [];
-            ch.effects.push({ id: "ill_"+Date.now(), name: `Illusion: ${spell.name} (DC ${10+pl})`, isIllusion: true, pl });
-          });
+          Store.update(charId, ch => { ch.effects = ch.effects || []; ch.effects.push({ id: uid(), name: `Illusion: ${spell.name} (DC ${10 + pl})`, isIllusion: true, pl }); });
           Roller.refresh(charId);
-          card.innerHTML = `<p class="outcome ok">👁️ Illusion active on sheet!</p>`;
+          card.innerHTML = `<p class="outcome ok">👁️ Illusion active on sheet.</p>`;
         };
-        row.appendChild(btn);
-        card.appendChild(row);
+        row.appendChild(btn); card.appendChild(row);
       } else if (cat === "haste") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
-        row.innerHTML = `<span class="stat-line">Haste Hero:</span>`;
-        const tSel = el(`<select class="input" style="width:140px"></select>`);
-        allyList.forEach(h => tSel.appendChild(el(`<option value="${h.id || h.charId}">${esc(h.name)}</option>`)));
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:#00ffff;color:#00ffff" title="Grant second initiative turn in tracker">⚡ Grant Turn</button>`);
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        row.append(el(`<span class="stat-line">Haste (2nd turn):</span>`));
+        const tSel = buildSelect(hasteList, "— add ally to tracker —");
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:#00bcd4;color:#00bcd4" title="Grant second initiative turn">⚡ Grant Turn</button>`);
         btn.onclick = () => {
-          const hid = tSel.value;
-          let h = combatData.combatants.find(x => x && (x.id === hid || x.charId === hid));
-          if (h) {
-            const copy = { ...h, id: h.id + "_turn2", name: `${h.name} (Hasted 2nd Turn)`, initCard: null, acted: false };
-            combatData.combatants.push(copy);
-            Combat.save(combatData);
-            Combat.rerender();
-          }
-          card.innerHTML = `<p class="outcome" style="color:#00ffff;border-color:#00ffff">⚡ Hasted! Granted second combat turn in tracker.</p>`;
+          const t = findT(hasteList, tSel.value);
+          if (t && !t.isChar) { cd.combatants.push({ ...t.cb, id: uid(), name: `${t.cb.name} (Hasted 2nd Turn)`, init: null, done: false, acted: false }); Combat.save(cd); Combat.rerender(); card.innerHTML = `<p class="outcome" style="color:#00bcd4;border-color:#00bcd4">⚡ Granted a second combat turn.</p>`; }
+          else card.innerHTML = `<p class="stat-line">Haste grants an extra turn in combat — add the ally to the tracker first.</p>`;
         };
-        row.append(tSel, btn);
-        card.appendChild(row);
+        row.append(tSel, btn); card.appendChild(row);
       } else if (cat === "slow") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
-        row.innerHTML = `<span class="stat-line">Slow/Debuff Enemy:</span>`;
-        const tSel = el(`<select class="input" style="width:140px"></select>`);
-        enemyList.forEach(o => tSel.appendChild(el(`<option value="${o.id || o.charId}">${esc(o.name)}</option>`)));
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--bad);color:var(--bad)" title="Automatically roll resistance save and apply debuff">⏳ Auto Debuff</button>`);
+        row.append(el(`<span class="stat-line">Slow/debuff enemy:</span>`));
+        const tSel = buildSelect(enemies, "— none in combat —");
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--bad);color:var(--bad)" title="Roll resistance save and apply debuff">⏳ Auto Debuff</button>`);
         btn.onclick = () => {
-          const tid = tSel.value;
-          let o = combatData.combatants.find(x => x && (x.id === tid || x.charId === tid));
-          const saveRoll = Dice.d(20);
-          const penalty = pl;
-          const saveDC = 12 - penalty;
-          if (saveRoll <= saveDC) {
-            card.innerHTML = `<p class="outcome ok">🛡️ Target resisted! (Rolled ${saveRoll} vs DC ${saveDC})</p>`;
-          } else {
-            if (o) {
-              o.notes = `${o.notes ? o.notes + " · " : ""}${spell.name.toUpperCase()} (Slowed/Dazed)`;
-              if (spell.name.match(/slow/i)) o.initCard = 10;
-              Combat.save(combatData);
-              Combat.rerender();
-            }
-            card.innerHTML = `<p class="outcome bad">⏳ Target failed save (Rolled ${saveRoll} vs DC ${saveDC})! Debuffed.</p>`;
-          }
+          const t = findT(enemies, tSel.value);
+          const saveRoll = Dice.d(20), saveDC = 12 - pl;
+          if (saveRoll <= saveDC) { card.innerHTML = `<p class="outcome ok">🛡️ Resisted! (${saveRoll} vs DC ${saveDC})</p>`; return; }
+          if (t && !t.isChar) { t.cb.notes = `${t.cb.notes ? t.cb.notes + " · " : ""}${(spell.name || "").toUpperCase()} (Slowed/Dazed)`; if (/slow/i.test(spell.name || "")) t.cb.init = 10; Combat.save(cd); Combat.rerender(); }
+          card.innerHTML = `<p class="outcome bad">⏳ Failed save (${saveRoll} vs DC ${saveDC}) — debuffed${t ? "" : " (apply manually)"}.</p>`;
         };
-        row.append(tSel, btn);
-        card.appendChild(row);
+        row.append(tSel, btn); card.appendChild(row);
       } else {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        // Utility / buff — show the effect text and offer to track it on the sheet.
         const isConc = (spell.duration || "").toLowerCase().includes("concentration");
-        row.innerHTML = `<span class="stat-line">Utility / Buff (${spell.duration || "Instant"}):</span>`;
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Apply spell buff or utility effect to character sheet">+ Apply</button>`);
+        const wrap = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
+        wrap.appendChild(el(`<p class="stat-line" style="margin:0">${esc(spell.text || spell.desc || "Apply this spell's effect.")}</p>`));
+        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        row.append(el(`<span class="stat-line">Utility / Buff (${esc(spell.duration || "Instant")}):</span>`));
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Track this effect on the character sheet">+ Track effect</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => {
             ch.effects = ch.effects || [];
             if (isConc) {
-              const old = ch.effects.filter(x => x.concentration || (x.duration||"").toLowerCase().includes("concentration"));
+              const old = ch.effects.filter(x => x.concentration || (x.duration || "").toLowerCase().includes("concentration"));
               if (old.length) alert(`Ending older Concentration spell: ${old[0].name}`);
-              ch.effects = ch.effects.filter(x => !x.concentration && !(x.duration||"").toLowerCase().includes("concentration"));
+              ch.effects = ch.effects.filter(x => !x.concentration && !(x.duration || "").toLowerCase().includes("concentration"));
             }
-            ch.effects.push({ id: "fx_"+Date.now(), name: `${spell.name} (PL${pl})`, duration: spell.duration || "Shift", concentration: isConc });
+            ch.effects.push({ id: uid(), name: `${spell.name} (PL${pl})`, duration: spell.duration || "Shift", concentration: isConc, notes: spell.text });
           });
           Roller.refresh(charId);
-          card.innerHTML = `<p class="outcome ok">✨ Applied effect to character sheet!</p>`;
+          card.innerHTML = `<p class="outcome ok">✨ Tracked “${esc(spell.name)}” on the character sheet.</p>`;
         };
-        row.appendChild(btn);
-        card.appendChild(row);
+        row.appendChild(btn); wrap.appendChild(row); card.appendChild(wrap);
       }
 
       out.appendChild(card);
