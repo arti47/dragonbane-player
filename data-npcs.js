@@ -72,7 +72,8 @@ const DRAGONBANE_NPCS = [
   {
     id: "archmage", name: "Archmage (Boss)", kind: "npc", hp: 22, wp: 30, armor: 0, mov: 10,
     desc: "Boss · Master Spellcaster, Focused × 6, Robust × 4 · Magic School 15",
-    weapons: [{ name: "Staff", skill: 13, damage: "1d8" }]
+    weapons: [{ name: "Staff", skill: 13, damage: "1d8" }],
+    spells: [{ name: "Fireball", rank: 3 }, { name: "Lightning Bolt", rank: 2 }, { name: "Shield", rank: 1 }, { name: "Teleport", rank: 3 }]
   },
 
   // Goblins (Nocturnal trait)
@@ -104,7 +105,8 @@ const DRAGONBANE_NPCS = [
   {
     id: "orc_shaman", name: "Orc Shaman", kind: "npc", hp: 10, wp: 16, armor: 0, mov: 10,
     desc: "Orc · Animism 14, Awareness 12, Evade 8 · Spells: Ensnaring Roots, Lightning Flash, Treat Wound",
-    weapons: [{ name: "Staff", skill: 10, damage: "1d8" }]
+    weapons: [{ name: "Staff", skill: 10, damage: "1d8" }],
+    spells: [{ name: "Ensnaring Roots", rank: 1 }, { name: "Lightning Flash", rank: 1 }, { name: "Treat Wound", rank: 1 }]
   },
   {
     id: "orc_chieftain", name: "Orc Chieftain", kind: "npc", hp: 24, wp: 15, armor: 4, mov: 10,
@@ -141,15 +143,15 @@ const DRAGONBANE_NPCS = [
   { id: "cat_hunter", name: "Cat People Hunter", kind: "npc", hp: 8, wp: 9, armor: 1, mov: 12, desc: "Cat People · Nine Lives · Acrobatics 14, Awareness 12, Sneaking 14", weapons: [{ name: "Short spear", skill: 14, damage: "1d10", bonus: "1d4" }, { name: "Short bow", skill: 12, damage: "1d10" }] },
   { id: "cat_thief", name: "Cat People Thief", kind: "npc", hp: 8, wp: 9, armor: 0, mov: 12, desc: "Cat People · Nine Lives · Awareness 14, Evade 12, Sleight of Hand 12, Sneaking 14", weapons: [{ name: "Dagger", skill: 14, damage: "1d8", bonus: "1d4" }, { name: "Sling", skill: 10, damage: "1d8" }] },
   { id: "frog_hunter", name: "Frog People Hunter", kind: "npc", hp: 8, wp: 10, armor: 1, mov: 12, desc: "Frog People · Leaping · Acrobatics 14, Awareness 8, Sneaking 10", weapons: [{ name: "Short spear", skill: 10, damage: "1d10", bonus: "1d4" }, { name: "Short bow", skill: 12, damage: "1d10" }] },
-  { id: "frog_shaman", name: "Frog People Shaman", kind: "npc", hp: 6, wp: 12, armor: 0, mov: 10, desc: "Frog People · Leaping · Animism 12 · Spells: Animal Whisperer, Ensnaring Roots, Lightning Flash, Treat Wound, Sleep", weapons: [{ name: "Staff", skill: 8, damage: "1d8" }] },
+  { id: "frog_shaman", name: "Frog People Shaman", kind: "npc", hp: 6, wp: 12, armor: 0, mov: 10, desc: "Frog People · Leaping · Animism 12 · Spells: Animal Whisperer, Ensnaring Roots, Lightning Flash, Treat Wound, Sleep", weapons: [{ name: "Staff", skill: 8, damage: "1d8" }], spells: [{ name: "Animal Whisperer", rank: 1 }, { name: "Ensnaring Roots", rank: 1 }, { name: "Lightning Flash", rank: 1 }, { name: "Treat Wound", rank: 1 }, { name: "Sleep", rank: 1 }] },
   { id: "hobgoblin_scout", name: "Hobgoblin Scout", kind: "npc", hp: 9, wp: 8, armor: 1, mov: 10, desc: "Hobgoblin · Fearless, Nocturnal · Awareness 12, Evade 12, Sneaking 14", weapons: [{ name: "Short bow", skill: 10, damage: "1d10" }, { name: "Dagger", skill: 8, damage: "1d8" }] },
   { id: "hobgoblin_fighter", name: "Hobgoblin Fighter", kind: "npc", hp: 12, wp: 8, armor: 2, mov: 10, desc: "Hobgoblin · Fearless, Nocturnal · Awareness 10, Evade 10, Sneaking 10", weapons: [{ name: "Short spear", skill: 10, damage: "1d10" }] },
   { id: "hobgoblin_thief", name: "Hobgoblin Thief", kind: "npc", hp: 7, wp: 8, armor: 0, mov: 12, desc: "Hobgoblin · Fearless, Nocturnal · Awareness 12, Evade 12, Sleight of Hand 12, Sneaking 14", weapons: [{ name: "Dagger", skill: 10, damage: "1d8", bonus: "1d4" }, { name: "Sling", skill: 8, damage: "1d8" }] },
   { id: "karkion_scholar", name: "Karkion Scholar", kind: "npc", hp: 12, wp: 14, armor: 0, mov: 12, desc: "Karkion · Wings (flight 1 WP/rd) · Awareness 14, Beast Lore 14, Languages 14, Myths & Legends 14", weapons: [{ name: "Short bow", skill: 14, damage: "1d10", bonus: "1d4" }, { name: "Short sword", skill: 12, damage: "1d10", bonus: "1d4" }] },
-  { id: "karkion_mage", name: "Karkion Mage", kind: "npc", hp: 12, wp: 16, armor: 0, mov: 12, desc: "Karkion · Wings · Animism 14 · Spells: Animal Whisperer, Banish, Birdsong, Cook Food, Engulfing Forest, Heal Wound, Lightning Bolt, Sleep", weapons: [{ name: "Staff", skill: 12, damage: "1d8", bonus: "1d4" }] },
+  { id: "karkion_mage", name: "Karkion Mage", kind: "npc", hp: 12, wp: 16, armor: 0, mov: 12, desc: "Karkion · Wings · Animism 14 · Spells: Animal Whisperer, Banish, Birdsong, Cook Food, Engulfing Forest, Heal Wound, Lightning Bolt, Sleep", weapons: [{ name: "Staff", skill: 12, damage: "1d8", bonus: "1d4" }], spells: [{ name: "Animal Whisperer", rank: 1 }, { name: "Banish", rank: 2 }, { name: "Birdsong", rank: 1 }, { name: "Cook Food", rank: 1 }, { name: "Engulfing Forest", rank: 2 }, { name: "Heal Wound", rank: 1 }, { name: "Lightning Bolt", rank: 2 }, { name: "Sleep", rank: 1 }] },
   { id: "lizard_hunter", name: "Lizard People Hunter", kind: "npc", hp: 9, wp: 8, armor: 0, mov: 12, desc: "Lizard People · Camouflage · Awareness 12, Evade 14, Sneaking 14", weapons: [{ name: "Short bow", skill: 12, damage: "1d10", bonus: "1d4" }, { name: "Dagger", skill: 10, damage: "1d8", bonus: "1d4" }] },
   { id: "lizard_fighter", name: "Lizard People Fighter", kind: "npc", hp: 10, wp: 8, armor: 0, mov: 10, desc: "Lizard People · Camouflage · Awareness 12, Evade 12, Sneaking 10", weapons: [{ name: "Short spear", skill: 12, damage: "1d10", bonus: "1d4" }, { name: "Sling", skill: 10, damage: "1d8", bonus: "1d4" }] },
-  { id: "lizard_mage", name: "Lizard People Mage", kind: "npc", hp: 8, wp: 14, armor: 0, mov: 10, desc: "Lizard People · Camouflage · Animism 12 · Spells: Animal Whisperer, Banish, Engulfing Forest, Heal Wound, Lightning Flash, Sleep", weapons: [{ name: "Knife", skill: 10, damage: "1d8" }] },
+  { id: "lizard_mage", name: "Lizard People Mage", kind: "npc", hp: 8, wp: 14, armor: 0, mov: 10, desc: "Lizard People · Camouflage · Animism 12 · Spells: Animal Whisperer, Banish, Engulfing Forest, Heal Wound, Lightning Flash, Sleep", weapons: [{ name: "Knife", skill: 10, damage: "1d8" }], spells: [{ name: "Animal Whisperer", rank: 1 }, { name: "Banish", rank: 2 }, { name: "Engulfing Forest", rank: 2 }, { name: "Heal Wound", rank: 1 }, { name: "Lightning Flash", rank: 1 }, { name: "Sleep", rank: 1 }] },
   { id: "lizard_merchant", name: "Lizard People Merchant", kind: "npc", hp: 8, wp: 8, armor: 0, mov: 8, desc: "Lizard People · Camouflage · Bartering 10, Bluffing 10, Persuasion 12", weapons: [{ name: "Knife", skill: 8, damage: "1d8" }] },
   { id: "ogre_fighter", name: "Ogre Fighter", kind: "npc", hp: 16, wp: 12, armor: 1, mov: 10, desc: "Ogre · Body Slam, Nocturnal, Large · Awareness 8, Brawling 12", weapons: [{ name: "Large wooden club", skill: 10, damage: "2d8", bonus: "1d6" }] },
   { id: "ogre_chieftain", name: "Ogre Chieftain (Boss)", kind: "npc", hp: 24, wp: 16, armor: 2, mov: 10, desc: "Ogre Boss · Body Slam, Nocturnal, Large · Veteran, Robust × 4", weapons: [{ name: "Heavy warhammer", skill: 12, damage: "2d10", bonus: "1d6" }] },

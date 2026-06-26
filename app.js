@@ -111,9 +111,15 @@
       const pill = $("#sync-status");
       if (!pill) return;
       if (this.enabled && this.uid) {
-        pill.textContent = this.campaign ? `Party (${this.campaign.joinCode})` : "Synced";
-        pill.className = "status-pill synced";
-        pill.title = this.campaign ? `Connected to ${this.campaign.name}` : "Cloud sync active";
+        if (this.campaign) {
+          pill.textContent = `Party (${this.campaign.joinCode})`;
+          pill.className = "status-pill synced";
+          pill.title = `Connected to ${this.campaign.name}`;
+        } else {
+          pill.textContent = "⚡ Join Party";
+          pill.className = "status-pill local";
+          pill.title = "Cloud sync active — Click to join or create a party campaign";
+        }
       } else {
         pill.textContent = "Local";
         pill.className = "status-pill local";
@@ -1385,6 +1391,56 @@
       m.body.append(el(`<p class="stat-line">Select NPC role:</p>`), sel, rollBtn, out);
     },
 
+    npcCast(npcName, spell, combatantId) {
+      const comb = Combat.load();
+      const cb = comb?.combatants?.find(c => c.id === combatantId) || { name: npcName, wp: 16, maxWp: 16 };
+      let skillLvl = 14;
+      if (npcName.toLowerCase().includes("boss") || npcName.toLowerCase().includes("archmage") || npcName.toLowerCase().includes("chieftain")) skillLvl = 15;
+      
+      const m = modal(`${npcName}: Cast ${spell.name}`);
+      const sDetail = el(`<div class="spell-detail-card" style="margin-bottom:12px;padding:10px;background:var(--bg-raised);border-left:4px solid var(--accent)">
+        <p style="margin:0;font-weight:bold">${esc(spell.name)} <span class="tag">${spell.rank ? `Rank ${spell.rank}` : "Trick"}</span></p>
+        <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">${esc(spell.text || spell.desc || "Magical spell.")}</p>
+      </div>`);
+
+      const skillRow = el(`<div class="roll-ctl" style="margin-bottom:10px">
+        <span class="stat-line">Magic Skill</span>
+        <button class="step" id="sm">−</button>
+        <span class="net-lbl" id="slvl">${skillLvl}</span>
+        <button class="step" id="sp">+</button>
+      </div>`);
+      skillRow.querySelector("#sm").onclick = () => { skillLvl = Math.max(1, skillLvl - 1); skillRow.querySelector("#slvl").textContent = skillLvl; };
+      skillRow.querySelector("#sp").onclick = () => { skillLvl = Math.min(20, skillLvl + 1); skillRow.querySelector("#slvl").textContent = skillLvl; };
+
+      const out = el(`<div class="roll-result"></div>`);
+      
+      const d20Btn = el(`<button class="btn secondary block" style="margin-bottom:8px">🎲 Roll D20 Magic Check (vs PC Target)</button>`);
+      d20Btn.onclick = () => {
+        const r = Dice.d(20);
+        const success = r <= skillLvl;
+        if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
+        out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${success ? "var(--ok)" : "var(--bad)"}">
+          <p class="outcome ${success ? "ok" : "bad"}" style="margin:0;font-size:1.3rem">Rolled ${r} vs Skill ${skillLvl} — ${success ? "SUCCESS!" : "FAILED!"}</p>
+          ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
+        </div>`;
+        if (success) {
+          const tot = (spell.rank || 1) * 2;
+          out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
+        }
+      };
+
+      const autoBtn = el(`<button class="btn block" style="background:var(--ok);color:#fff;border:none">✓ Auto-Succeed (Self / Ally Buff)</button>`);
+      autoBtn.onclick = () => {
+        if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
+        out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid var(--ok)">
+          <p class="outcome ok" style="margin:0;font-size:1.3rem">Spell Cast Automatically!</p>
+          ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
+        </div>`;
+      };
+
+      m.body.append(sDetail, skillRow, d20Btn, autoBtn, out);
+    },
+
     // ---- Spell / trick casting ----
     cast(charId, spell, isTrick) {
       const c = Store.get(charId); if (!c) return;
@@ -1400,21 +1456,39 @@
         <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">${esc(spell.text || spell.desc || "Magical incantation.")}</p>
         ${spell.range ? `<p class="stat-line" style="margin:4px 0 0 0;font-size:0.85rem"><b>Range:</b> ${esc(spell.range)} · <b>Time:</b> ${esc(spell.time || "Action")}</p>` : ""}
       </div>`);
+
+      const hasMetal = (c.gear?.armor?.name?.toLowerCase().match(/chain|plate|scale|ring|metal/)) ||
+                       (c.inventory?.items?.some(x => x.equipped && x.name?.toLowerCase().match(/sword|dagger|knife|axe|spear|mace|halberd|warhammer|scimitar|chain|plate|metal/)));
+      if (hasMetal) {
+        sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Metal Restriction:</b> Wearing metal armor or holding metal weapons penalizes or blocks spellcasting.</div>`));
+      }
+
+      const isHeal = spell.name?.toLowerCase().match(/heal|cure|treat|resurrect/);
       if (c.state.wp <= 1) {
-        const pftbBtn = el(`<button class="btn ghost block" style="border:1px dashed var(--bad);color:var(--bad);font-weight:bold;margin-top:8px">🩸 Power from the Body (Convert HP to WP)</button>`);
-        pftbBtn.onclick = () => {
-          if (confirm("Use Power from the Body? Take 1D6 damage to gain 1D6 WP.")) {
-            const dmg = Dice.d(6), wpGain = Dice.d(6);
-            Store.update(charId, ch => {
-              ch.state.hp = Math.max(0, ch.state.hp - dmg);
-              ch.state.wp = Math.min(ch.derived.wpMax || 99, ch.state.wp + wpGain);
-            });
-            alert(`🩸 Power from the Body!\nTook ${dmg} damage.\nGained ${wpGain} Willpower Points!`);
-            m.close();
-            Roller.cast(charId, spell, isTrick);
-          }
-        };
-        sDetail.appendChild(pftbBtn);
+        if (isHeal) {
+          sDetail.appendChild(el(`<div style="margin-top:8px;padding:6px;background:rgba(200,0,0,0.1);border-radius:4px;color:var(--bad);font-size:0.85rem">⚠️ Desperate? Power from the Body cannot be used for healing spells.</div>`));
+        } else {
+          const pWrap = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px dashed var(--bad);border-radius:6px">
+            <div style="color:var(--bad);font-weight:bold;font-size:0.9rem;margin-bottom:6px">🩸 Power from the Body (Convert HP to WP)</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap"></div>
+          </div>`);
+          const btnsWrap = pWrap.querySelector("div:nth-child(2)");
+          [4, 6, 8, 10, 12, 20].forEach(d => {
+            const db = el(`<button class="btn step small" style="flex:1;min-width:36px;border-color:var(--bad);color:var(--bad)">D${d}</button>`);
+            db.onclick = () => {
+              const roll = Dice.d(d);
+              Store.update(charId, ch => {
+                ch.state.hp = Math.max(0, ch.state.hp - roll);
+                ch.state.wp = Math.min(ch.derived.wpMax || 99, ch.state.wp + roll);
+              });
+              alert(`🩸 Power from the Body (Rolled D${d})!\nTook ${roll} damage.\nGained ${roll} Willpower Points!`);
+              m.close();
+              Roller.cast(charId, spell, isTrick);
+            };
+            btnsWrap.appendChild(db);
+          });
+          sDetail.appendChild(pWrap);
+        }
       }
 
       if (isTrick) {
@@ -1440,9 +1514,22 @@
       pm.onclick = () => { pl = Math.max(1, pl - 1); plLbl.textContent = `Power level ${pl} · ${pl * perLevel} WP`; };
       pp.onclick = () => { pl = Math.min(3, pl + 1); plLbl.textContent = `Power level ${pl} · ${pl * perLevel} WP`; };
       plRow.append(el(`<span class="stat-line">Power</span>`), pm, plLbl, pp);
+      
+      const isReaction = spell.time?.toLowerCase().includes("reaction") || spell.castingTime?.toLowerCase().includes("reaction");
+      const grimWrap = el(`<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.95rem;cursor:pointer">
+        <input type="checkbox" id="cast-unprepared">
+        <span>📖 Cast Unprepared from Grimoire (Doubles time)</span>
+      </label>`);
+
       const castBtn = el(`<button class="btn block" style="margin-top:12px">Cast</button>`);
       const out = el(`<div class="roll-result"></div>`);
       const doCast = (pushedCondition) => {
+        const isUnprepared = grimWrap.querySelector("#cast-unprepared")?.checked;
+        if (isUnprepared && isReaction) {
+          out.innerHTML = `<p class="outcome bad">❌ Reaction spells cannot be cast unprepared from a grimoire.</p>`;
+          return;
+        }
+
         const cost = pl * perLevel;
         const cur = Store.get(charId);
         if (cur.state.wp < cost && !pushedCondition) { out.innerHTML = `<p class="outcome bad">Not enough WP (need ${cost}, have ${cur.state.wp}).</p>`; return; }
@@ -1454,17 +1541,16 @@
         let html = `<div class="dice-faces">${r.dice.map((d) => `<span class="die ${d === r.used ? "used" : ""}">${d}</span>`).join("")}</div>`;
         html += `<p class="outcome ${success ? "ok" : "bad"}">${dragon ? "🐉 DRAGON — cast! choose: double damage/range, no WP cost, or cast another (bane)" : demon ? "👹 DEMON — magical mishap!" : success ? `Success — power level ${pl}` : "Failed — WP still spent"}</p>`;
         if (!pushedCondition) html += `<p class="stat-line">−${cost} WP.</p>`;
+        if (isUnprepared && success) html += `<p class="stat-line" style="color:var(--bad)">⏳ Unprepared: Casting time doubled (takes 2 rounds/stretches).</p>`;
         if (demon) {
           const roll = Dice.d(20); const text = MISHAPS[roll - 1];
           html += `<p class="notice" style="border-color:var(--bad)"><b>Mishap (D20=${roll}):</b> ${esc(text)}</p>`;
-          // Apply mechanical mishaps automatically
           if (roll <= 6) Store.update(charId, (ch) => { ch.state.conditions[CONDITION_BY_MISHAP[roll - 1]] = true; });
           else if (roll === 7) { const dmg = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); }); html += `<p class="stat-line">Took ${dmg} damage.</p>`; }
           else if (roll === 8) { const wl = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - wl); }); html += `<p class="stat-line">Lost a further ${wl} WP.</p>`; }
         }
         if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
-        // Push option on a plain failure (not Demon)
         const cur2 = Store.get(charId);
         const remaining = (DB.conditions || []).filter((cn) => !cur2.state.conditions[cn.key]);
         const hasSS2 = cur2.abilities?.some(a => a.name === "Sole Survivor") && cur2.state.wp >= 3;
@@ -1482,7 +1568,7 @@
         this.refresh(charId);
       };
       castBtn.onclick = () => doCast(null);
-      m.body.append(sDetail, head, plRow, castBtn, out);
+      m.body.append(sDetail, head, plRow, grimWrap, castBtn, out);
     }
   };
 
@@ -2101,7 +2187,7 @@
           if (!rNpcSel.value) return; const n = npcs.find(x => x.id === rNpcSel.value);
           this.mutate((st) => st.combatants.push({
             id: uid(), name: n.name, kind: "npc", npcId: n.id, init: null, done: false,
-            hp: n.hp, maxHp: n.hp, wp: n.wp || null, maxWp: n.wp || null, armor: n.armor || 0, desc: n.desc || "", weapons: n.weapons || null
+            hp: n.hp, maxHp: n.hp, wp: n.wp || null, maxWp: n.wp || null, armor: n.armor || 0, desc: n.desc || "", weapons: n.weapons || null, spells: n.spells || null
           }));
         };
         rNpcRow.append(rNpcSel, rNpcAdd); addPanel.appendChild(rNpcRow);
@@ -2165,6 +2251,7 @@
           <div style="display:flex;align-items:center;gap:10px;width:100%">
             <span class="init-card" style="margin:0;flex-shrink:0">${cb.init == null ? "–" : cb.init}</span>
             <span class="cb-name" style="font-weight:bold;font-size:1.3rem;color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
+            <div class="row-top-actions" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap">
             <span class="tag">${cb.kind === "hero" ? "Hero" : cb.kind === "monster" ? "Monster" : "NPC"}</span>
@@ -2221,14 +2308,15 @@
           body.style.display = body.style.display === "none" ? "block" : "none";
         };
 
+        const topActions = head.querySelector(".row-top-actions");
         if (cb.kind === "hero" && cb.charId) {
           const open = el(`<button class="step" title="open sheet">↗</button>`);
           open.onclick = (e) => { e.stopPropagation(); Sheet.open(cb.charId); };
-          head.appendChild(open);
+          topActions.appendChild(open);
         }
         const rm = el(`<button class="step rm">✕</button>`);
         rm.onclick = (e) => { e.stopPropagation(); this.mutate((st) => { st.combatants = st.combatants.filter((c) => c.id !== cb.id); }); };
-        head.appendChild(rm);
+        topActions.appendChild(rm);
 
         // Vitals
         if (cb.hp != null) {
@@ -2262,21 +2350,21 @@
 
         // Attacks
         if (cb.kind === "monster" && cb.attacks && cb.attacks.length) {
-          const atkDiv = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+          const atkDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
+          atkDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Monster Attacks (Auto-hit):</b></p>`));
           
-          const d6Btn = el(`<button class="btn block" style="background:var(--ok);color:#fff;font-size:1.25rem;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15)">🎲 Roll D6 Monster Attack Table</button>`);
-          d6Btn.onclick = () => {
+          const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok);color:#fff;font-size:1.15rem;padding:10px;margin-bottom:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">🎲 Roll D6 Monster Attack Table</button>`);
+          d6BannerBtn.onclick = () => {
             const d6 = Dice.d(6);
             const idx = Math.min(cb.attacks.length - 1, Math.floor((d6 - 1) / (6 / cb.attacks.length)));
             const chosen = cb.attacks[idx] || cb.attacks[0];
             Roller.monsterAttack(cb.name, chosen, d6, cb.id);
           };
-          atkDiv.appendChild(d6Btn);
+          atkDiv.appendChild(d6BannerBtn);
 
-          atkDiv.appendChild(el(`<p class="stat-line" style="margin:6px 0 0 0"><b>Manual GM Override (All Attacks):</b></p>`));
           const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
           cb.attacks.forEach((atk, i) => {
-            const rangeStr = cb.attacks.length === 6 ? `${i+1}` : cb.attacks.length === 3 ? `${i*2+1}–${i*2+2}` : `${i+1}`;
+            const rangeStr = (cb.attacks.length === 6) ? `${i+1}` : (cb.attacks.length === 3 ? `${i*2+1}-${i*2+2}` : `${i+1}`);
             const b = el(`<button class="btn secondary block" style="text-align:left;font-size:1.1rem;padding:8px;background:var(--card-bg);color:var(--text);border:1px solid var(--border)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small style="color:var(--muted)">(${atk.damage})</small>` : ""}</button>`);
             b.onclick = () => Roller.monsterAttack(cb.name, atk, null, cb.id);
             grid.appendChild(b);
@@ -2324,6 +2412,16 @@
             npcDiv.appendChild(grid);
           } else {
             npcDiv.appendChild(el(`<p class="stat-line" style="margin:0">💡 Ordinary NPCs roll standard combat skills against PCs. True Monsters auto-hit.</p>`));
+          }
+          if (cb.spells && cb.spells.length) {
+            npcDiv.appendChild(el(`<p class="stat-line" style="margin:4px 0 0 0"><b>Known Spells:</b></p>`));
+            const sGrid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
+            cb.spells.forEach(sp => {
+              const b = el(`<button class="btn ghost block" style="text-align:left;font-size:1.1rem;padding:6px;border:1px solid var(--accent)">🪄 ${esc(sp.name)} <br><small style="color:var(--muted)">Rank ${sp.rank||1} Spell</small></button>`);
+              b.onclick = () => Roller.npcCast(cb.name, sp, cb.id);
+              sGrid.appendChild(b);
+            });
+            npcDiv.appendChild(sGrid);
           }
           if (typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks) {
             const natBtn = el(`<button class="btn ghost block" style="margin-top:4px;border:1px dashed var(--accent)">🎲 Roll NPC Attack Table (AI Action)</button>`);
@@ -2587,7 +2685,24 @@
   };
 
   function renderPartyBanner() {
-    if (typeof Sync === "undefined" || !Sync.enabled || !Sync.campaign) return null;
+    if (typeof Sync === "undefined" || !Sync.enabled) return null;
+    if (!Sync.campaign) {
+      const banner = el(`<div class="panel" style="border-left:4px solid var(--accent);background:var(--bg-raised);cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+        <div>
+          <h3 style="margin:0;color:var(--accent);font-size:1.2rem">🛡️ Multiplayer Cloud Sync Ready</h3>
+          <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">You are offline/local. Join or create a party campaign to sync characters and combat live across devices.</p>
+        </div>
+        <button class="btn secondary" style="flex-shrink:0;margin-left:12px">⚡ Join Party</button>
+      </div>`);
+      banner.onclick = () => {
+        Router.go("about");
+        setTimeout(() => {
+          const mp = document.querySelector("#multiplayer-panel") || document.querySelector("#btn-create-camp")?.closest(".panel");
+          if (mp) mp.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      };
+      return banner;
+    }
     const chars = Store.list().filter(c => c.campaignId === Sync.campaign.id);
     if (!chars.length) return null;
     const items = chars.map(c => {
@@ -2905,7 +3020,16 @@
     if (typeof Sync !== "undefined") Sync.init();
 
     const pill = $("#sync-status");
-    if (pill && Store.mode === "cloud") { pill.textContent = "Synced"; pill.className = "status-pill synced"; }
+    if (pill) {
+      pill.style.cursor = "pointer";
+      pill.onclick = () => {
+        Router.go("about");
+        setTimeout(() => {
+          const mp = document.querySelector("#btn-create-camp")?.closest(".panel") || document.querySelector("#rules-search")?.closest(".panel");
+          if (mp) mp.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      };
+    }
 
     Theme.init();
     Router.init();
