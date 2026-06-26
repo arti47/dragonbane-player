@@ -129,7 +129,18 @@
 
     async ensureAuth() {
       if (!this.enabled) this.init();
-      if (!this.enabled) return false;
+      if (!this.enabled) {
+        if (typeof firebase === "undefined") {
+          this.lastAuthError = "Firebase SDK failed to load. Check internet connection or privacy ad-blocker.";
+        } else if (!window.FIREBASE_ENABLED) {
+          this.lastAuthError = "FIREBASE_ENABLED is set to false in firebase-config.js.";
+        } else if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
+          this.lastAuthError = "Firebase API keys are missing or placeholder in firebase-config.js.";
+        } else {
+          this.lastAuthError = "Cloud sync failed to initialize.";
+        }
+        return false;
+      }
       if (!this.uid && this.auth) {
         try {
           const cred = await this.auth.signInAnonymously();
@@ -137,6 +148,13 @@
           this.uid = cred.user.uid;
         } catch (e) {
           console.warn("Anonymous sign-in failed:", e);
+          this.lastAuthError = e.message || e.code || String(e);
+          let localUid = localStorage.getItem("dragonbane.localUid");
+          if (!localUid) {
+            localUid = "anon_" + Math.random().toString(36).slice(2, 11);
+            localStorage.setItem("dragonbane.localUid", localUid);
+          }
+          this.uid = localUid;
         }
       }
       return !!this.uid;
@@ -149,13 +167,28 @@
     },
 
     async createCampaign(name) {
-      if (!await this.ensureAuth()) { alert("Cloud sync is not enabled or connected."); return; }
+      if (!await this.ensureAuth()) {
+        alert(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`);
+        return;
+      }
       const id = "camp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const joinCode = this.generateJoinCode();
       const camp = { id, name: name || "Dragonbane Campaign", joinCode, createdAt: Date.now(), ownerUid: this.uid };
-      await this.db.ref(`campaigns/${id}/meta`).set(camp);
-      await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Game Master", role: "gm" });
-      await this.db.ref(`joinCodes/${joinCode}`).set(id);
+      try {
+        await this.db.ref(`campaigns/${id}/meta`).set(camp);
+        await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Game Master", role: "gm" });
+        await this.db.ref(`joinCodes/${joinCode}`).set(id);
+      } catch (err) {
+        console.error("Failed to create campaign in RTDB:", err);
+        let msg = `Database error: ${err.message || err.code || "Permission denied"}.\n\n`;
+        if (this.lastAuthError) {
+          msg += `Note: Anonymous Auth sign-in failed (${this.lastAuthError}).\n\nTo fix this:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Authentication > Sign-in method\n4. Enable 'Anonymous' and click Save.\n5. Also verify Realtime Database > Rules.`;
+        } else {
+          msg += `Check your Firebase Console > Realtime Database > Rules.`;
+        }
+        alert(msg);
+        return;
+      }
       this.campaign = { id, joinCode, name: camp.name, role: "gm" };
       localStorage.setItem("dragonbane.campaign", JSON.stringify(this.campaign));
       this.attachListeners();
@@ -165,20 +198,35 @@
     },
 
     async joinCampaign(code) {
-      if (!await this.ensureAuth()) { alert("Cloud sync is not enabled."); return; }
+      if (!await this.ensureAuth()) {
+        alert(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`);
+        return;
+      }
       const clean = String(code).trim().toLowerCase();
       if (!clean) return;
-      const snap = await this.db.ref(`joinCodes/${clean}`).once("value");
-      const id = snap.val();
-      if (!id) { alert("Invalid join code. Check the spelling and try again."); return; }
-      const metaSnap = await this.db.ref(`campaigns/${id}/meta`).once("value");
-      const meta = metaSnap.val() || { name: "Campaign" };
-      await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" });
-      this.campaign = { id, joinCode: clean, name: meta.name, role: "player" };
+      try {
+        const snap = await this.db.ref(`joinCodes/${clean}`).once("value");
+        const id = snap.val();
+        if (!id) { alert("Invalid join code. Check the spelling and try again."); return; }
+        const metaSnap = await this.db.ref(`campaigns/${id}/meta`).once("value");
+        const meta = metaSnap.val() || { name: "Campaign" };
+        await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" });
+        this.campaign = { id, joinCode: clean, name: meta.name, role: "player" };
+      } catch (err) {
+        console.error("Failed to join campaign in RTDB:", err);
+        let msg = `Database error: ${err.message || err.code || "Permission denied"}.\n\n`;
+        if (this.lastAuthError) {
+          msg += `Note: Anonymous Auth sign-in failed (${this.lastAuthError}).\n\nTo fix this:\n1. Open console.firebase.google.com\n2. Go to Build > Authentication > Sign-in method\n3. Enable 'Anonymous' and click Save.`;
+        } else {
+          msg += `Check your Firebase Console > Realtime Database > Rules.`;
+        }
+        alert(msg);
+        return;
+      }
       localStorage.setItem("dragonbane.campaign", JSON.stringify(this.campaign));
       this.attachListeners();
       this.updateHeaderStatus();
-      alert(`Joined campaign "${meta.name}"!`);
+      alert(`Joined campaign "${this.campaign.name}"!`);
       Router.go("home");
     },
 
