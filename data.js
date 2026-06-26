@@ -547,65 +547,68 @@ const DRAGONBANE = {
    * ---------------------------------------------------------------- */
   weapons: [
     // Knives (AGL)
-    { name: "Knife",            skill: "Knives", type: "melee", str: null, grip: "1H", damage: "D8",   durability: 6,  cost: "5 silver", features: ["subtle","piercing","can be thrown"] },
-    { name: "Dagger",           skill: "Knives", type: "melee", str: null, grip: "1H", damage: "D8",   durability: 9,  cost: "1 gold",   features: ["subtle","piercing","slashing","can be thrown"] },
-    { name: "Parrying Dagger",  skill: "Knives", type: "melee", str: null, grip: "1H", damage: "D6",   durability: 15, cost: "2 gold",   features: ["subtle","piercing","slashing"] },
+    { name: "Knife",            skill: "Knives", type: "melee", str: null, grip: "1H", damage: "D8",   durability: 6,  cost: "5 silver", features: ["subtle","piercing","can be thrown"], metal: true },
+    { name: "Dagger",           skill: "Knives", type: "melee", str: null, grip: "1H", damage: "D8",   durability: 9,  cost: "1 gold",   features: ["subtle","piercing","slashing","can be thrown"], metal: true },
+    { name: "Parrying Dagger",  skill: "Knives", type: "melee", str: null, grip: "1H", damage: "D6",   durability: 15, cost: "2 gold",   features: ["subtle","piercing","slashing"], metal: true },
     // Swords (STR)
-    { name: "Short Sword",      skill: "Swords", type: "melee", str: 7,    grip: "1H", damage: "D10",  durability: 12, cost: "8 gold",   features: ["piercing","slashing"] },
-    { name: "Broadsword",       skill: "Swords", type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 15, cost: "12 gold",  features: ["piercing","slashing"] },
-    { name: "Longsword",        skill: "Swords", type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: 15, cost: "25 gold",  features: ["piercing","slashing"] },
-    { name: "Greatsword",       skill: "Swords", type: "melee", str: 16,   grip: "2H", damage: "2D10", durability: 15, cost: "50 gold",  features: ["piercing","slashing"] },
-    { name: "Scimitar",         skill: "Swords", type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 12, cost: "10 gold",  features: ["toppling","slashing"] },
+    { name: "Short Sword",      skill: "Swords", type: "melee", str: 7,    grip: "1H", damage: "D10",  durability: 12, cost: "8 gold",   features: ["piercing","slashing"], metal: true },
+    { name: "Broadsword",       skill: "Swords", type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 15, cost: "12 gold",  features: ["piercing","slashing"], metal: true },
+    { name: "Longsword",        skill: "Swords", type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: 15, cost: "25 gold",  features: ["piercing","slashing"], metal: true },
+    { name: "Greatsword",       skill: "Swords", type: "melee", str: 16,   grip: "2H", damage: "2D10", durability: 15, cost: "50 gold",  features: ["piercing","slashing"], metal: true },
+    { name: "Scimitar",         skill: "Swords", type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 12, cost: "10 gold",  features: ["toppling","slashing"], metal: true },
     // Axes (STR)
-    { name: "Handaxe",          skill: "Axes",   type: "melee", str: 7,    grip: "1H", damage: "2D6",  durability: 9,  cost: "2 gold",   features: ["toppling","slashing","can be thrown"] },
-    { name: "Battleaxe",        skill: "Axes",   type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: 9,  cost: "10 gold",  features: ["toppling","slashing"] },
-    { name: "Two-Handed Axe",   skill: "Axes",   type: "melee", str: 16,   grip: "2H", damage: "2D10", durability: 9,  cost: "25 gold",  features: ["toppling","slashing"] },
+    { name: "Handaxe",          skill: "Axes",   type: "melee", str: 7,    grip: "1H", damage: "2D6",  durability: 9,  cost: "2 gold",   features: ["toppling","slashing","can be thrown"], metal: true },
+    { name: "Battleaxe",        skill: "Axes",   type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: 9,  cost: "10 gold",  features: ["toppling","slashing"], metal: true },
+    { name: "Two-Handed Axe",   skill: "Axes",   type: "melee", str: 16,   grip: "2H", damage: "2D10", durability: 9,  cost: "25 gold",  features: ["toppling","slashing"], metal: true },
     // Hammers (STR) — incl. wooden clubs (bludgeoning)
-    { name: "Mace",             skill: "Hammers",type: "melee", str: 7,    grip: "1H", damage: "2D4",  durability: 12, cost: "8 gold",   features: ["bludgeoning"] },
-    { name: "Morningstar",      skill: "Hammers",type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: 12, cost: "14 gold",  features: ["bludgeoning"] },
-    { name: "Flail",            skill: "Hammers",type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: null,cost: "16 gold", features: ["bludgeoning","toppling","cannot be used for parrying"] },
-    { name: "Warhammer, Light", skill: "Hammers",type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 12, cost: "10 gold",  features: ["bludgeoning","toppling"] },
-    { name: "Warhammer, Heavy", skill: "Hammers",type: "melee", str: 16,   grip: "2H", damage: "2D10", durability: 12, cost: "20 gold",  features: ["bludgeoning","toppling"] },
-    { name: "Wooden Club, Small",skill:"Hammers",type: "melee", str: 7,    grip: "1H", damage: "D8",   durability: 9,  cost: "1 silver", features: ["bludgeoning"] },
-    { name: "Wooden Club, Large",skill:"Hammers",type: "melee", str: 16,   grip: "2H", damage: "2D8",  durability: 12, cost: "2 silver", features: ["bludgeoning"] },
+    { name: "Mace",             skill: "Hammers",type: "melee", str: 7,    grip: "1H", damage: "2D4",  durability: 12, cost: "8 gold",   features: ["bludgeoning"], metal: true },
+    { name: "Morningstar",      skill: "Hammers",type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: 12, cost: "14 gold",  features: ["bludgeoning"], metal: true },
+    { name: "Flail",            skill: "Hammers",type: "melee", str: 13,   grip: "1H", damage: "2D8",  durability: null,cost: "16 gold", features: ["bludgeoning","toppling","cannot be used for parrying"], metal: true },
+    { name: "Warhammer, Light", skill: "Hammers",type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 12, cost: "10 gold",  features: ["bludgeoning","toppling"], metal: true },
+    { name: "Warhammer, Heavy", skill: "Hammers",type: "melee", str: 16,   grip: "2H", damage: "2D10", durability: 12, cost: "20 gold",  features: ["bludgeoning","toppling"], metal: true },
+    { name: "Wooden Club, Small",skill:"Hammers",type: "melee", str: 7,    grip: "1H", damage: "D8",   durability: 9,  cost: "1 silver", features: ["bludgeoning"], metal: false },
+    { name: "Wooden Club, Large",skill:"Hammers",type: "melee", str: 16,   grip: "2H", damage: "2D8",  durability: 12, cost: "2 silver", features: ["bludgeoning"], metal: false },
     // Spears (STR)
-    { name: "Short Spear",      skill: "Spears", type: "melee", str: 7,    grip: "1H", damage: "D10",  durability: 9,  cost: "5 silver", features: ["piercing","can be thrown"] },
-    { name: "Long Spear",       skill: "Spears", type: "melee", str: 10,   grip: "2H", damage: "2D8",  durability: 9,  cost: "1 gold",   features: ["long","piercing"] },
-    { name: "Lance",            skill: "Spears", type: "melee", str: 13,   grip: "1H", damage: "2D10", durability: 12, cost: "12 gold",  features: ["long","piercing","requires combat trained mount"] },
-    { name: "Halberd",          skill: "Spears", type: "melee", str: 13,   grip: "2H", damage: "2D8",  durability: 12, cost: "20 gold",  features: ["long","toppling","piercing","slashing"] },
-    { name: "Trident",          skill: "Spears", type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 9,  cost: "5 gold",   features: ["toppling","piercing","can be thrown"] },
+    { name: "Short Spear",      skill: "Spears", type: "melee", str: 7,    grip: "1H", damage: "D10",  durability: 9,  cost: "5 silver", features: ["piercing","can be thrown"], metal: true },
+    { name: "Long Spear",       skill: "Spears", type: "melee", str: 10,   grip: "2H", damage: "2D8",  durability: 9,  cost: "1 gold",   features: ["long","piercing"], metal: true },
+    { name: "Lance",            skill: "Spears", type: "melee", str: 13,   grip: "1H", damage: "2D10", durability: 12, cost: "12 gold",  features: ["long","piercing","requires combat trained mount"], metal: true },
+    { name: "Halberd",          skill: "Spears", type: "melee", str: 13,   grip: "2H", damage: "2D8",  durability: 12, cost: "20 gold",  features: ["long","toppling","piercing","slashing"], metal: true },
+    { name: "Trident",          skill: "Spears", type: "melee", str: 10,   grip: "1H", damage: "2D6",  durability: 9,  cost: "5 gold",   features: ["toppling","piercing","can be thrown"], metal: true },
     // Staves (AGL)
-    { name: "Staff",            skill: "Staves", type: "melee", str: 7,    grip: "2H", damage: "D8",   durability: 9,  cost: "2 silver", features: ["bludgeoning","toppling"] },
+    { name: "Staff",            skill: "Staves", type: "melee", str: 7,    grip: "2H", damage: "D8",   durability: 9,  cost: "2 silver", features: ["bludgeoning","toppling"], metal: false },
     // Brawling (STR) — unarmed & improvised
-    { name: "Unarmed",          skill: "Brawling",type:"melee", str: null, grip: "—",  damage: "D6",   durability: null,cost: "—",       features: ["bludgeoning"] },
-    { name: "Blunt Object, Light",skill:"Brawling",type:"melee",str: null, grip: "1H", damage: "D8",   durability: 3,  cost: "—",        features: ["bludgeoning","can be thrown"] },
-    { name: "Blunt Object, Heavy",skill:"Brawling",type:"melee",str: 16,   grip: "2H", damage: "2D8",  durability: 3,  cost: "—",        features: ["bludgeoning"] },
+    { name: "Unarmed",          skill: "Brawling",type:"melee", str: null, grip: "—",  damage: "D6",   durability: null,cost: "—",       features: ["bludgeoning"], metal: false },
+    { name: "Blunt Object, Light",skill:"Brawling",type:"melee",str: null, grip: "1H", damage: "D8",   durability: 3,  cost: "—",        features: ["bludgeoning","can be thrown"], metal: false },
+    { name: "Blunt Object, Heavy",skill:"Brawling",type:"melee",str: 16,   grip: "2H", damage: "2D8",  durability: 3,  cost: "—",        features: ["bludgeoning"], metal: false },
     // Ranged
-    { name: "Sling",            skill: "Slings",   type: "ranged", str: null, grip: "1H", range: 20,  damage: "D8",  durability: null,cost: "1 silver", features: ["bludgeoning","tiny item"] },
-    { name: "Short Bow",        skill: "Bows",     type: "ranged", str: 7,    grip: "2H", range: 30,  damage: "D10", durability: 3,   cost: "25 gold",  features: ["piercing","requires quiver"] },
-    { name: "Longbow",          skill: "Bows",     type: "ranged", str: 13,   grip: "2H", range: 100, damage: "D12", durability: 6,   cost: "50 gold",  features: ["piercing","requires quiver"] },
-    { name: "Crossbow, Light",  skill: "Crossbows",type: "ranged", str: 7,    grip: "2H", range: 40,  damage: "2D6", durability: 6,   cost: "75 gold",  features: ["piercing","requires quiver","no damage bonus"] },
-    { name: "Crossbow, Heavy",  skill: "Crossbows",type: "ranged", str: 13,   grip: "2H", range: 60,  damage: "2D8", durability: 9,   cost: "200 gold", features: ["piercing","requires quiver","no damage bonus"] },
-    { name: "Crossbow, Hand",   skill: "Crossbows",type: "ranged", str: 7,    grip: "1H", range: 30,  damage: "2D6", durability: 6,   cost: "90 gold",  features: ["piercing","requires quiver","no damage bonus"] },
+    { name: "Sling",            skill: "Slings",   type: "ranged", str: null, grip: "1H", range: 20,  damage: "D8",  durability: null,cost: "1 silver", features: ["bludgeoning","tiny item"], metal: false },
+    { name: "Short Bow",        skill: "Bows",     type: "ranged", str: 7,    grip: "2H", range: 30,  damage: "D10", durability: 3,   cost: "25 gold",  features: ["piercing","requires quiver"], metal: false },
+    { name: "Longbow",          skill: "Bows",     type: "ranged", str: 13,   grip: "2H", range: 100, damage: "D12", durability: 6,   cost: "50 gold",  features: ["piercing","requires quiver"], metal: false },
+    { name: "Crossbow, Light",  skill: "Crossbows",type: "ranged", str: 7,    grip: "2H", range: 40,  damage: "2D6", durability: 6,   cost: "75 gold",  features: ["piercing","requires quiver","no damage bonus"], metal: false },
+    { name: "Crossbow, Heavy",  skill: "Crossbows",type: "ranged", str: 13,   grip: "2H", range: 60,  damage: "2D8", durability: 9,   cost: "200 gold", features: ["piercing","requires quiver","no damage bonus"], metal: false },
+    { name: "Crossbow, Hand",   skill: "Crossbows",type: "ranged", str: 7,    grip: "1H", range: 30,  damage: "2D6", durability: 6,   cost: "90 gold",  features: ["piercing","requires quiver","no damage bonus"], metal: false },
     // Shields (parried using the wielded weapon skill)
-    { name: "Shield, Small",    skill: null, type: "shield", str: 7,  grip: "1H", damage: "D8", durability: 15, cost: "4 gold",  features: ["bludgeoning"] },
-    { name: "Shield, Large",    skill: null, type: "shield", str: 13, grip: "1H", damage: "D8", durability: 18, cost: "12 gold", features: ["bludgeoning"] }
+    { name: "Shield, Small",    skill: null, type: "shield", str: 7,  grip: "1H", damage: "D8", durability: 15, cost: "4 gold",  features: ["bludgeoning"], metal: false },
+    { name: "Shield, Large",    skill: null, type: "shield", str: 13, grip: "1H", damage: "D8", durability: 18, cost: "12 gold", features: ["bludgeoning"], metal: false }
   ],
 
   // Mastercrafted weapons/shields: ×10 cost, reduce STR requirement by 3,
   // increase durability by 3.
   mastercrafted: { costMultiplier: 10, strRequirementMod: -3, durabilityMod: +3 },
 
+  // `banes`: skills that take a bane while this armor is worn (structured for
+  // the dice engine). `metal`: true if it interferes with spellcasting.
   armor: [
-    { name: "Leather",         rating: 1, cost: "2 gold",   supply: "Common",   effect: null },
-    { name: "Studded Leather", rating: 2, cost: "10 gold",  supply: "Uncommon", effect: "Bane on SNEAKING rolls." },
-    { name: "Chainmail",       rating: 4, cost: "50 gold",  supply: "Uncommon", effect: "Bane on EVADE and SNEAKING rolls." },
-    { name: "Plate Armor",     rating: 6, cost: "500 gold", supply: "Rare",     effect: "Bane on ACROBATICS, EVADE, and SNEAKING rolls." }
+    { name: "Leather",         rating: 1, cost: "2 gold",   supply: "Common",   effect: null, banes: [], metal: false },
+    { name: "Studded Leather", rating: 2, cost: "10 gold",  supply: "Uncommon", effect: "Bane on SNEAKING rolls.", banes: ["Sneaking"], metal: false },
+    { name: "Chainmail",       rating: 4, cost: "50 gold",  supply: "Uncommon", effect: "Bane on EVADE and SNEAKING rolls.", banes: ["Evade","Sneaking"], metal: true },
+    { name: "Plate Armor",     rating: 6, cost: "500 gold", supply: "Rare",     effect: "Bane on ACROBATICS, EVADE, and SNEAKING rolls.", banes: ["Acrobatics","Evade","Sneaking"], metal: true }
   ],
 
+  // `rangedBane`: a worn helmet that banes all ranged attacks (applied in the dice engine).
   helmets: [
-    { name: "Open Helmet", rating: 1, cost: "12 gold",  supply: "Uncommon", effect: "Bane on AWARENESS rolls." },
-    { name: "Great Helm",  rating: 2, cost: "100 gold", supply: "Rare",     effect: "Bane on AWARENESS rolls and all ranged attacks." }
+    { name: "Open Helmet", rating: 1, cost: "12 gold",  supply: "Uncommon", effect: "Bane on AWARENESS rolls.", banes: ["Awareness"], metal: true, rangedBane: false },
+    { name: "Great Helm",  rating: 2, cost: "100 gold", supply: "Rare",     effect: "Bane on AWARENESS rolls and all ranged attacks.", banes: ["Awareness"], metal: true, rangedBane: true }
   ],
 
   /* General adventuring gear.
@@ -622,11 +625,11 @@ const DRAGONBANE = {
     { name: "Saddle Bag",      cost: "6 gold",   weight: 0,    category: "container", effect: "Increases an animal's carrying capacity by 2 (max two per animal)." },
     // Light sources
     { name: "Flint & Tinder",  cost: "5 silver", weight: 0,    category: "light", effect: "Required to light torches, candles, or lanterns, and to make a fire." },
-    { name: "Torch",           cost: "5 copper", weight: 1,    category: "light", effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch (or if used as a weapon), on 1 it goes out." },
-    { name: "Lantern",         cost: "10 gold",  weight: 1,    category: "light", effect: "Illuminates a 10 m radius. Burns up to a shift; roll D8 each stretch, on 1 it goes out (refill & relight = action)." },
-    { name: "Oil Lamp",        cost: "1 gold",   weight: 1,    category: "light", effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch, on 1 it goes out." },
+    { name: "Torch",           cost: "5 copper", weight: 1,    category: "light", lightDie: 6, effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch (or if used as a weapon), on 1 it goes out." },
+    { name: "Lantern",         cost: "10 gold",  weight: 1,    category: "light", lightDie: 8, effect: "Illuminates a 10 m radius. Burns up to a shift; roll D8 each stretch, on 1 it goes out (refill & relight = action)." },
+    { name: "Oil Lamp",        cost: "1 gold",   weight: 1,    category: "light", lightDie: 6, effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch, on 1 it goes out." },
     { name: "Lamp Oil (10 doses)", cost: "3 silver", weight: 1,category: "light", effect: "Each dose keeps an oil lamp or lantern burning up to a shift." },
-    { name: "Tallow Candle",   cost: "1 copper", weight: 0,    category: "light", effect: "Illuminates a 4 m radius. Burns up to a shift; roll D4 each stretch or if the bearer attacks/is attacked, on 1 it goes out." },
+    { name: "Tallow Candle",   cost: "1 copper", weight: 0,    category: "light", lightDie: 4, effect: "Illuminates a 4 m radius. Burns up to a shift; roll D4 each stretch or if the bearer attacks/is attacked, on 1 it goes out." },
     // Adventuring gear & trade goods
     { name: "Field Ration",    cost: "1 silver", weight: 0.25, category: "gear", effect: "Consume one per day or become hungry." },
     { name: "Sleeping Fur",    cost: "1 gold",   weight: 1,    category: "gear", effect: "Required to avoid a bane on BUSHCRAFT rolls for making camp." },
@@ -798,6 +801,26 @@ const DRAGONBANE = {
       "Weathered face"
     ]
   },
+
+  /* End-of-session advancement questions. Each "yes" lets a player mark one
+   * skill of their choice for advancement (in addition to Dragon/Demon marks). */
+  /* Fear table (D6) — rolled when a WIL roll against a fear attack fails. */
+  fearTable: [
+    { d6: 1, effect: "Paralyzed by terror — you lose your next turn." },
+    { d6: 2, effect: "Paralyzed — you can't act until you pass a WIL roll (one attempt per turn)." },
+    { d6: 3, effect: "You drop whatever you are holding and recoil a step." },
+    { d6: 4, effect: "You flee from the source of fear as fast as you can." },
+    { d6: 5, effect: "You flee and cannot willingly approach the source this scene." },
+    { d6: 6, effect: "Overcome — you act last and roll with a bane until the threat passes." }
+  ],
+
+  advancementQuestions: [
+    "Did you take part in the game session?",
+    "Did you explore a new, dangerous location?",
+    "Did you defeat one or more dangerous opponents?",
+    "Did you overcome an obstacle or solve a problem without using force?",
+    "Did you do something heroic, foolhardy, or in line with your weakness?"
+  ],
 
   /* Currency: 1 gold = 10 silver = 100 copper. Coins are tiny items;
    * 100+ coins count as 1 item per 100. */

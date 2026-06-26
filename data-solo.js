@@ -130,6 +130,19 @@ const DRAGONBANE_SOLO = {
   },
 
   /* ----------------------------------------------------------------
+   * FAIL FORWARD (solo) — instead of a hard failure, a failed roll can
+   * succeed at a cost / introduce a complication. Roll D6.
+   * ---------------------------------------------------------------- */
+  failForward: [
+    "You succeed, but a piece of equipment is lost or damaged in the process.",
+    "You succeed, but it takes far longer than planned (lose a stretch or shift).",
+    "You succeed, but draw unwanted attention or noise.",
+    "You succeed, but suffer a condition of your choice.",
+    "You succeed only partially — the goal is met, but a new problem arises.",
+    "You succeed, but lose your advantage or position for the next action."
+  ],
+
+  /* ----------------------------------------------------------------
    * SOLO ADVANCEMENT — replaces the group end-of-session system.
    * ---------------------------------------------------------------- */
   advancement: {

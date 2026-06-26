@@ -54,6 +54,13 @@
     remove(id) {
       this.save(this.list().filter((x) => x.id !== id));
       if (typeof Sync !== "undefined" && Sync.enabled) Sync.removeChar(id);
+    },
+    // Wipe locally-stored heroes and the local combat tracker (keeps theme,
+    // settings, and any active campaign connection). Used by Settings → Clear.
+    clear() {
+      localStorage.removeItem(this.KEY);
+      localStorage.removeItem("dragonbane.combat");
+      window.activeCharacterId = null;
     }
   };
 
@@ -411,6 +418,27 @@
     return h || null;
   }
 
+  // Is a heroic ability's skill requirement met by the character's current
+  // skills? Handles the rulebook req phrasings ("Acrobatics 12", "Any melee
+  // weapon skill 12", "Axes, Hammers, or Swords 12", "Any magic school 12").
+  function heroicReqMet(c, req) {
+    if (!req) return true;
+    const m = /(\d+)\s*$/.exec(req); if (!m) return true;
+    const need = parseInt(m[1], 10);
+    const head = req.slice(0, m.index).trim().toLowerCase();
+    const entries = Object.entries(c.skills || {});
+    const RANGED = ["Bows", "Crossbows", "Slings"];
+    const has = (pred) => entries.some(([n, s]) => pred(n, s) && s.level >= need);
+    if (/^any str-based melee weapon skill/.test(head)) return has((n, s) => s.kind === "weapon" && s.attribute === "STR" && !RANGED.includes(n));
+    if (/^any melee weapon skill/.test(head)) return has((n, s) => s.kind === "weapon" && !RANGED.includes(n));
+    if (/^any weapon skill/.test(head)) return has((n, s) => s.kind === "weapon");
+    if (/^any magic school/.test(head)) return has((n, s) => s.kind === "magic");
+    const names = head.replace(/\bor\b/g, ",").split(",").map((x) => x.trim()).filter(Boolean);
+    const matched = names.map((x) => entries.find(([n]) => n.toLowerCase() === x)).filter(Boolean);
+    if (matched.length) return matched.some(([, s]) => s.level >= need);
+    return true; // unknown pattern → don't block
+  }
+
   function resolveEquippedWeapons(invItems) {
     if (!invItems || !Array.isArray(invItems)) return [];
     const dbWpns = DB.weapons || [];
@@ -437,6 +465,26 @@
     return found;
   }
 
+  // Loose name normaliser shared by equipment matchers.
+  const normName = (s) => String(s || "").toLowerCase().replace(/\(×?\s*\d+\)/g, "").replace(/[\s\-_(),]/g, "");
+  // Match an inventory item name to a DB.armor / DB.helmets entry (null if none).
+  function resolveArmorItem(name) {
+    const clean = normName(name); if (!clean) return null;
+    return (DB.armor || []).find((a) => { const c = normName(a.name); return c === clean || (clean.length >= 4 && c.includes(clean)) || (c.length >= 4 && clean.includes(c)); }) || null;
+  }
+  function resolveHelmetItem(name) {
+    const clean = normName(name); if (!clean) return null;
+    return (DB.helmets || []).find((h) => { const c = normName(h.name); return c === clean || (clean.length >= 4 && c.includes(clean)) || (c.length >= 4 && clean.includes(c)); }) || null;
+  }
+  // Classify an item into an equip slot: "helmet" | "armor" | "weapon" | null.
+  // Helmet is checked before armor so "Great Helm" doesn't match armor.
+  function classifyItem(name) {
+    if (resolveHelmetItem(name)) return "helmet";
+    if (resolveArmorItem(name)) return "armor";
+    if (resolveEquippedWeapons([name]).length) return "weapon";
+    return null;
+  }
+
   /* =================================================================
    * App settings (local)
    * ================================================================= */
@@ -446,7 +494,8 @@
     get(k) { return this.load()[k]; },
     set(k, v) { const s = this.load(); s[k] = v; localStorage.setItem(this.KEY, JSON.stringify(s)); },
     bookOfMagic() { return !!this.get("bookOfMagic"); },
-    soloMode() { return !!this.get("soloMode"); }
+    soloMode() { return !!this.get("soloMode"); },
+    gmAutomation() { return !!this.get("gmAutomation"); }
   };
 
   /* =================================================================
@@ -541,7 +590,7 @@
         mageSchool: null,        // for mages: "animism" | "elementalism" | "mentalism"
         age: null,
         trained: new Set(),
-        heroic: null,
+        heroicPicks: [],
         spells: { tricks: [], known: [] }, // mage only
         gearRow: null,
         identity: { name: "", appearance: "", weakness: "", memento: "" }
@@ -668,7 +717,7 @@
         const c = el(`<button class="card ${this.s.profession === p.key ? "sel" : ""}">
           <h3>${esc(p.name)} <span class="tag">${esc(p.keyAttribute)}</span></h3>
           <div class="meta">${p.key === "mage" ? "Spellcaster — choose a school" : "Heroic ability: " + p.heroicAbilities.join(" / ")}</div></button>`);
-        c.onclick = () => { this.s.profession = p.key; if (p.key !== "mage") this.s.mageSchool = null; this.s.bardHarmonism = false; this.s.trained = new Set(); this.s.spells = { tricks: [], known: [] }; this.s.heroic = (p.heroicAbilities.length === 1 ? p.heroicAbilities[0] : null); this.render(); };
+        c.onclick = () => { this.s.profession = p.key; if (p.key !== "mage") this.s.mageSchool = null; this.s.bardHarmonism = false; this.s.trained = new Set(); this.s.spells = { tricks: [], known: [] }; this.s.heroicPicks = (p.heroicAbilities.length === 1 ? [p.heroicAbilities[0]] : []); this.render(); };
         grid.appendChild(c);
       });
       wrap.appendChild(grid);
@@ -792,23 +841,33 @@
     },
 
     /* ---- Step: Heroic ability ---- */
+    heroicCap() { return Settings.soloMode() ? 2 : 1; },
     step_heroic() {
       const wrap = el(`<div></div>`);
       const p = this.prof();
+      const cap = this.heroicCap();
+      if (!Array.isArray(this.s.heroicPicks)) this.s.heroicPicks = this.s.heroic ? [this.s.heroic] : [];
       wrap.appendChild(el(sectionTitle("Heroic ability")));
-      wrap.appendChild(el(`<p class="stat-line">Your profession grants one starting heroic ability${p.heroicAbilities.length > 1 ? " — choose one" : ""}. (Its skill requirement is waived for a starting ability.)</p>`));
+      wrap.appendChild(el(`<p class="stat-line">${cap > 1 ? `Solo: choose <b>two</b> starting heroic abilities (one profession + one extra).` : `Your profession grants one starting heroic ability${p.heroicAbilities.length > 1 ? " — choose one" : ""}.`} (Skill requirements are waived for starting abilities.) <span id="hpick-count"></span></p>`));
       const grid = el(`<div class="card-grid"></div>`);
       const pool = [...p.heroicAbilities];
       if (Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.heroicAbilities) {
         DRAGONBANE_SOLO.heroicAbilities.forEach((ha) => { if (!pool.includes(ha.name)) pool.push(ha.name); });
       }
+      const updCount = () => { const e = wrap.querySelector("#hpick-count"); if (e) e.textContent = `(${this.s.heroicPicks.length} / ${cap})`; };
       pool.forEach((name) => {
         const ab = findHeroicAbility(name) || { name, text: "" };
-        const c = el(`<button class="card ${this.s.heroic === name ? "sel" : ""}"><h3>${esc(name)} <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
-        c.onclick = () => { this.s.heroic = name; this.render(); };
+        const sel = this.s.heroicPicks.includes(name);
+        const c = el(`<button class="card ${sel ? "sel" : ""}"><h3>${esc(name)} <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
+        c.onclick = () => {
+          const i = this.s.heroicPicks.indexOf(name);
+          if (i >= 0) this.s.heroicPicks.splice(i, 1);
+          else { if (this.s.heroicPicks.length >= cap) { alert(`Choose ${cap} ${cap === 1 ? "ability" : "abilities"}.`); return; } this.s.heroicPicks.push(name); }
+          this.render();
+        };
         grid.appendChild(c);
       });
-      wrap.appendChild(grid);
+      wrap.appendChild(grid); updCount();
       return wrap;
     },
 
@@ -914,7 +973,7 @@
         if (fromProf < 6) return `At least 6 trained skills must come from your profession (you have ${fromProf}).`;
       }
       if (step === "magic") { if (s.spells.tricks.length !== 3) return "Choose exactly 3 magic tricks."; if (s.spells.known.length !== 3) return "Choose exactly 3 rank-1 spells."; }
-      if (step === "heroic" && !s.heroic) return "Choose a heroic ability.";
+      if (step === "heroic") { const cap = this.heroicCap(); if ((s.heroicPicks || []).length !== cap) return `Choose ${cap} heroic ${cap === 1 ? "ability" : "abilities"}.`; }
       if (step === "details" && !s.identity.name.trim()) return "Give your hero a name.";
       return null;
     },
@@ -926,7 +985,7 @@
       const skills = buildSkills(attrs, this.s.trained, this.s.mageSchool);
       const abilities = [];
       (kin.abilities || []).forEach((a) => abilities.push({ name: a.name, source: "kin", wp: a.wp, text: a.text }));
-      if (this.s.heroic) { const h = findHeroicAbility(this.s.heroic); abilities.push({ name: this.s.heroic, source: "profession", wp: h ? h.wp : null, text: h ? h.text : "" }); }
+      (this.s.heroicPicks || []).forEach((name) => { const h = findHeroicAbility(name); abilities.push({ name, source: "profession", wp: h ? h.wp : null, text: h ? h.text : "" }); });
       const gearRow = this.prof().gear && this.s.gearRow != null ? this.prof().gear[this.s.gearRow] : null;
       const gear = gearRow ? parseGear(gearRow.items) : { items: [], money: { gold: 0, silver: 0, copper: 0 } };
       const movement = (kin.movement || 0) + Calc.movementMod(attrs.AGL);
@@ -1085,14 +1144,28 @@
     netLabel(net) { return net > 0 ? `Boon ×${net}` : net < 0 ? `Bane ×${-net}` : "Even (1d20)"; },
     refresh(charId) { if (Sheet.id === charId) Sheet.render(); },
 
+    // Condition overflow: when all six conditions are already held and the
+    // character would gain another (e.g. by pushing), they instead lose D6 WP —
+    // or D6 HP if WP is already 0. Returns a label describing the penalty.
+    applyConditionOverflow(charId) {
+      let label = "";
+      Store.update(charId, (ch) => {
+        const d = Dice.roll("D6");
+        if ((ch.state.wp || 0) > 0) { ch.state.wp = Math.max(0, ch.state.wp - d); label = `all six conditions held → lost ${d} WP`; }
+        else { ch.state.hp = Math.max(0, ch.state.hp - d); label = `all six conditions held (WP 0) → lost ${d} HP`; }
+      });
+      return label;
+    },
+
     // ---- Skill roll ----
     skill(charId, name) {
       const c = Store.get(charId); if (!c) return;
       const sk = c.skills[name];
       const condBane = !!(DB.conditions || []).find((cn) => cn.attribute === sk.attribute && c.state.conditions[cn.key]);
-      let net = condBane ? -1 : 0;
+      const armorBane = armorBanedSkills(c).has(name);
+      let net = (condBane ? -1 : 0) + (armorBane ? -1 : 0);
       const m = modal(`Roll: ${name}`);
-      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span style="color:var(--bad)">${sk.attribute} condition → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
+      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span style="color:var(--bad)">${sk.attribute} condition → bane</span>` : ""}${armorBane ? ` · <span style="color:var(--bad)">worn armor → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
       const ctl = el(`<div class="roll-ctl"></div>`);
       const lbl = el(`<span class="net-lbl">${this.netLabel(net)}</span>`);
       const minus = el(`<button class="step">−</button>`), plus = el(`<button class="step">+</button>`);
@@ -1113,19 +1186,20 @@
         let html = `<div class="dice-faces">${r.dice.map((d) => `<span class="die ${d === r.used ? "used" : ""}">${d}</span>`).join("")}</div>`;
         html += `<p class="outcome ${success ? "ok" : "bad"}">${dragon ? "🐉 DRAGON — critical success!" : demon ? "👹 DEMON — critical failure!" : success ? "Success" : "Failure"}</p>`;
         if (dragon || demon) html += `<p class="stat-line">Advancement mark added to ${esc(name)}.</p>`;
-        if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
+        if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         result.innerHTML = html;
-        // Offer push if failed, not a demon, and conditions remain
+        // Offer push if failed and not a demon (pushing is always allowed; the
+        // cost is a chosen condition, or the overflow penalty when all six held).
         const curChar = Store.get(charId) || c;
         const curConds = curChar?.state?.conditions || {};
         const remaining = (DB.conditions || []).filter((cn) => !curConds[cn.key]);
         const hasSS = curChar?.abilities?.some((a) => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
-        if (!success && !demon && !pushedCondition && (remaining.length || hasSS)) {
+        if (!success && !demon && !pushedCondition) {
           const pushWrap = el(`<div class="push-wrap"><p class="stat-line">Push the roll? Choose a condition to suffer, then re-roll:</p></div>`);
           const cw = el(`<div class="chip-wrap"></div>`);
           remaining.forEach((cn) => {
             const chip = el(`<button class="skill-chip">${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
-            chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); this.refresh(charId); doRoll(cn.name); };
+            chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); this.refresh(charId); doRoll("gained " + cn.name); };
             cw.appendChild(chip);
           });
           if (hasSS) {
@@ -1133,7 +1207,21 @@
             chip.onclick = () => { Store.update(charId, (ch) => { ch.state.wp -= 3; }); this.refresh(charId); doRoll("Sole Survivor (−3 WP)"); };
             cw.appendChild(chip);
           }
+          if (!remaining.length) {
+            pushWrap.querySelector("p").textContent = "All six conditions held — pushing costs D6 WP (or D6 HP if WP is 0). Push and re-roll:";
+            const chip = el(`<button class="skill-chip" style="border-color:var(--bad)">⚠ Push (lose D6 WP/HP)</button>`);
+            chip.onclick = () => { const label = this.applyConditionOverflow(charId); this.refresh(charId); doRoll(label); };
+            cw.appendChild(chip);
+          }
           pushWrap.appendChild(cw); result.appendChild(pushWrap);
+        }
+        // Fail forward (solo): turn a failure into success-at-a-cost.
+        if (!success && !pushedCondition && Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && (DRAGONBANE_SOLO.failForward || []).length) {
+          const ffWrap = el(`<div class="push-wrap" style="margin-top:8px;border-top:1px dashed var(--line);padding-top:8px"></div>`);
+          const ffBtn = el(`<button class="btn ghost" style="border-color:var(--accent)">🎲 Fail forward (succeed at a cost)</button>`);
+          const ffOut = el(`<div style="margin-top:6px"></div>`);
+          ffBtn.onclick = () => { const t = DRAGONBANE_SOLO.failForward; const r = Dice.d(t.length); ffOut.innerHTML = `<p class="stat-line" style="border-left:3px solid var(--accent);padding-left:8px">D${t.length}=${r}: ${esc(t[r - 1])}</p>`; };
+          ffWrap.append(ffBtn, ffOut); result.appendChild(ffWrap);
         }
         this.refresh(charId);
       };
@@ -1244,7 +1332,27 @@
         atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ ${attr} condition bane applies</p>`));
       }
 
+      // STR-requirement bane + two-handed grip (−3 STR req). Melee weapons only.
+      let twoHandGrip = false;
+      const heroStr = c.attributes?.STR ?? 0;
+      const effStrReq = () => (weapon.str || 0) - (twoHandGrip ? 3 : 0);
+      const strShortfall = () => weapon.str != null && weapon.type !== "ranged" && heroStr < effStrReq();
+      if (weapon.str != null && weapon.type !== "ranged") {
+        const strNote = el(`<p class="warn-bane" style="margin:4px 0;display:${strShortfall() ? "block" : "none"}">⚠ STR ${heroStr} &lt; requirement ${effStrReq()} → bane</p>`);
+        const refreshStr = () => { strNote.textContent = `⚠ STR ${heroStr} < requirement ${effStrReq()} → bane`; strNote.style.display = strShortfall() ? "block" : "none"; };
+        // Two-handed grip toggle only matters for a 1H weapon (a 2H weapon is already two-handed).
+        if (weapon.grip === "1H") {
+          const gripRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Two-handed grip (−3 STR req; no shield/off-hand)</label>`);
+          gripRow.querySelector("input").onchange = (e) => { twoHandGrip = e.target.checked; refreshStr(); };
+          atkDiv.appendChild(gripRow);
+        }
+        atkDiv.appendChild(strNote);
+      }
+
       if (isRanged) {
+        if (equippedHelmet(c) && equippedHelmet(c).rangedBane) {
+          atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ Great Helm → bane on all ranged attacks</p>`));
+        }
         if (typeof c.state.combatAmmo !== "number") c.state.combatAmmo = 12;
         const pbRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
         pbRow.querySelector("input").onchange = (e) => { net += e.target.checked ? -1 : 1; upd(); };
@@ -1308,6 +1416,8 @@
         }
         let effNet = net;
         if (c.state.conditions && c.state.conditions[attr]) effNet--;
+        if (strShortfall()) effNet--;
+        if (isRanged && equippedHelmet(c) && equippedHelmet(c).rangedBane) effNet--;
         const r = this.d20net(effNet);
         const crit = r.used === 1, fumble = r.used === 20;
         const success = r.used <= target;
@@ -1318,32 +1428,36 @@
 
         let outcomeHtml = `<div style="margin-top:10px"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:1.6rem;margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:1rem;font-weight:normal">(${r.used} vs ${target})</small></p>`;
         if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
+        outcomeHtml += `</div>`;
+        out.innerHTML = outcomeHtml;
 
         if (!crit && !fumble && !isPush) {
           const curChar = Store.get(charId) || c;
           const curConds = curChar?.state?.conditions || {};
           const unchosen = (DB.conditions||[]).filter(cn => !curConds[cn.key]);
           const hasSS = curChar?.abilities?.some(a => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
-          if (unchosen.length || hasSS) {
-            const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px"></div>`);
-            pushWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (mark condition & re-roll):</p>`));
-            const cw = el(`<div class="push-conditions" style="display:flex;flex-wrap:wrap;gap:4px"></div>`);
-            unchosen.forEach(cn => {
-              const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px">${esc(cn.name)}</button>`);
-              chip.onclick = () => { Store.update(charId, ch => { ch.state.conditions[cn.key] = true; }); doRoll(true); };
-              cw.appendChild(chip);
-            });
-            if (hasSS) {
-              const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
-              chip.onclick = () => { Store.update(charId, ch => { ch.state.wp -= 3; }); doRoll(true); };
-              cw.appendChild(chip);
-            }
-            pushWrap.appendChild(cw);
-            outcomeHtml += pushWrap.outerHTML;
+          // Append real DOM nodes (not outerHTML) so the push handlers survive.
+          const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px"></div>`);
+          pushWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (${unchosen.length ? "mark a condition" : "all six held → lose D6 WP/HP"} & re-roll):</p>`));
+          const cw = el(`<div class="push-conditions" style="display:flex;flex-wrap:wrap;gap:4px"></div>`);
+          unchosen.forEach(cn => {
+            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px">${esc(cn.name)}</button>`);
+            chip.onclick = () => { Store.update(charId, ch => { ch.state.conditions[cn.key] = true; }); doRoll(true); };
+            cw.appendChild(chip);
+          });
+          if (hasSS) {
+            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
+            chip.onclick = () => { Store.update(charId, ch => { ch.state.wp -= 3; }); doRoll(true); };
+            cw.appendChild(chip);
           }
+          if (!unchosen.length) {
+            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--bad)">⚠ Push (lose D6 WP/HP)</button>`);
+            chip.onclick = () => { this.applyConditionOverflow(charId); doRoll(true); };
+            cw.appendChild(chip);
+          }
+          pushWrap.appendChild(cw);
+          out.appendChild(pushWrap);
         }
-        outcomeHtml += `</div>`;
-        out.innerHTML = outcomeHtml;
         if (!success && combatantId && !isPush) {
           Combat.advanceTurn(combatantId);
         }
@@ -1479,7 +1593,7 @@
           if (att && !att.acted) { att.acted = true; Combat.save(comb); const activeNav = document.querySelector("#app-nav button.active"); if (activeNav && activeNav.dataset.route === "party") Combat.rerender(); }
         }
       }
-      const nat = typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks;
+      const nat = (typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.npcAttackTable) || null;
       if (!nat) return;
       const roles = nat.roles || ["Melee Attacker", "Ranged Attacker", "Sneaky Attacker", "Magic Attacker"];
       const m = modal(`${npcName}: NPC Attack Table`);
@@ -1567,8 +1681,14 @@
         ${spell.range ? `<p class="stat-line" style="margin:4px 0 0 0;font-size:0.85rem"><b>Range:</b> ${esc(spell.range)} · <b>Time:</b> ${esc(spell.time || "Action")}</p>` : ""}
       </div>`);
 
-      const hasMetal = (c.gear?.armor?.name?.toLowerCase().match(/chain|plate|scale|ring|metal/)) ||
-                       (c.inventory?.items?.some(x => x.equipped && x.name?.toLowerCase().match(/sword|dagger|knife|axe|spear|mace|halberd|warhammer|scimitar|chain|plate|metal/)));
+      const _am = equippedArmor(c), _hm = equippedHelmet(c);
+      // An equipped weapon flagged metal in DB.weapons interferes with casting.
+      const _metalWpn = (c.inventory?.items || []).some((x) => {
+        if (!x.equipped) return false;
+        const w = resolveEquippedWeapons([x.name])[0];
+        return w && w.metal;
+      });
+      const hasMetal = (_am && _am.metal) || (_hm && _hm.metal) || _metalWpn;
       if (hasMetal) {
         sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Metal Restriction:</b> Wearing metal armor or holding metal weapons penalizes or blocks spellcasting.</div>`));
       }
@@ -1663,19 +1783,24 @@
           else if (roll === 7) { const dmg = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); }); html += `<p class="stat-line">Took ${dmg} damage.</p>`; }
           else if (roll === 8) { const wl = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - wl); }); html += `<p class="stat-line">Lost a further ${wl} WP.</p>`; }
         }
-        if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
+        if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
         const cur2 = Store.get(charId) || c;
         const curConds2 = cur2?.state?.conditions || {};
         const remaining = (DB.conditions || []).filter((cn) => !curConds2[cn.key]);
         const hasSS2 = cur2?.abilities?.some(a => a.name === "Sole Survivor") && (cur2?.state?.wp || 0) >= 3;
-        if (!success && !demon && !pushedCondition && (remaining.length || hasSS2)) {
-          const pushWrap = el(`<div class="push-wrap"><p class="stat-line">Push? Choose a condition, then re-roll (WP already spent):</p></div>`);
+        if (!success && !demon && !pushedCondition) {
+          const pushWrap = el(`<div class="push-wrap"><p class="stat-line">${remaining.length ? "Push? Choose a condition, then re-roll (WP already spent):" : "All six conditions held — pushing costs D6 WP/HP. Push and re-roll (WP already spent):"}</p></div>`);
           const cw = el(`<div class="chip-wrap"></div>`);
-          remaining.forEach((cn) => { const chip = el(`<button class="skill-chip">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); doCast(cn.name); }; cw.appendChild(chip); });
+          remaining.forEach((cn) => { const chip = el(`<button class="skill-chip">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); doCast("gained " + cn.name); }; cw.appendChild(chip); });
           if (hasSS2) {
             const chip = el(`<button class="skill-chip" style="border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
             chip.onclick = () => { Store.update(charId, (ch) => { ch.state.wp -= 3; }); doCast("Sole Survivor (−3 WP)"); };
+            cw.appendChild(chip);
+          }
+          if (!remaining.length) {
+            const chip = el(`<button class="skill-chip" style="border-color:var(--bad)">⚠ Push (lose D6 WP/HP)</button>`);
+            chip.onclick = () => { const label = this.applyConditionOverflow(charId); doCast(label); };
             cw.appendChild(chip);
           }
           pushWrap.appendChild(cw); out.appendChild(pushWrap);
@@ -1700,7 +1825,9 @@
     if (!c.skills) c.skills = {};
     if (!c.spells) c.spells = { tricks: [], known: [] };
     const inv = c.inventory || (c.inventory = {});
-    inv.items = (inv.items || []).map((it) => typeof it === "string" ? { name: it, weight: 1 } : { name: it?.name || "Item", weight: it?.weight == null ? 1 : it.weight });
+    inv.items = (inv.items || []).map((it) => typeof it === "string"
+      ? { name: it, weight: 1, equipped: false }
+      : { name: it?.name || "Item", weight: it?.weight == null ? 1 : it.weight, equipped: !!it?.equipped, ...(it?.durability != null ? { durability: it.durability } : {}) });
     inv.tiny = (inv.tiny || []).map((it) => typeof it === "string" ? { name: it } : it || { name: "Tiny" });
     inv.mementos = (inv.mementos || []).map((m) => typeof m === "string" ? m : m?.name || "");
     inv.money = Object.assign({ gold: 0, silver: 0, copper: 0 }, inv.money || {});
@@ -1709,9 +1836,21 @@
     if (!Array.isArray(c.companions)) c.companions = [];
     if (!Array.isArray(c.effects)) c.effects = [];
     if (typeof c.state.wpPenalty !== "number") c.state.wpPenalty = 0;
+    if (typeof c.state.weaknessCooldown !== "boolean") c.state.weaknessCooldown = false;
+    if (!c.state.teacherTrained || typeof c.state.teacherTrained !== "object") c.state.teacherTrained = {};
+    if (c.state.familiar === undefined) c.state.familiar = null;
+    if (typeof c.state.prone !== "boolean") c.state.prone = false;
+    if (!c.state.time || typeof c.state.time !== "object") c.state.time = { round: 0, stretch: 0, shift: 0 };
+    if (typeof c.state.roundRestUsed !== "boolean") c.state.roundRestUsed = false;
+    if (typeof c.state.awakeShifts !== "number") c.state.awakeShifts = 0;
+    if (!c.state.afflictions || typeof c.state.afflictions !== "object") c.state.afflictions = { cold: false, disease: null };
   }
   // Effective max WP after permanent reductions (rituals, corruption); restorable via Focused.
-  const effWpMax = (c) => Math.max(0, c.derived.wpMax - (c.state.wpPenalty || 0));
+  const abilityCount = (c, name) => (c.abilities || []).filter((a) => a.name === name).length;
+  // Effective max HP/WP: Robust adds +2 HP per pick, Focused +2 WP per pick;
+  // WP is further reduced by permanent loss (rituals/corruption).
+  const effHpMax = (c) => (c.derived.hpMax || 0) + 2 * abilityCount(c, "Robust");
+  const effWpMax = (c) => Math.max(0, (c.derived.wpMax || 0) + 2 * abilityCount(c, "Focused") - (c.state.wpPenalty || 0));
   // Does a spell summon/raise a creature (gets its own roster entry)?
   function isSummonSpell(sp) {
     const t = ((sp.name || "") + " " + (sp.text || "")).toLowerCase();
@@ -1720,8 +1859,41 @@
   // A spell worth tracking as an ongoing effect (lasting, non-instant duration).
   function isTrackableSpell(sp) { return sp.duration && !/instant/i.test(sp.duration); }
   function isConcentration(sp) { return sp.duration && /concentration/i.test(sp.duration); }
-  const encLimit = (c) => Math.ceil(c.attributes.STR / 2);
-  const encUsed = (c) => (c.inventory.items || []).reduce((t, it) => t + (Number(it.weight) || 0), 0);
+  const encLimit = (c) => Math.ceil((c.attributes.STR || 0) / 2);
+  // Read a quantity from an item ("Field Ration (×6)" → 6, or it.qty, else 1).
+  const itemQty = (it) => { const m = /\(×?\s*(\d+)\)/.exec(it.name || ""); return m ? parseInt(m[1], 10) : (Number(it.qty) || 1); };
+  // Slot-based encumbrance (rules-accurate): equipped items are exempt; rations
+  // group 4-per-slot; a quiver = 1 slot regardless of arrows; slingstones = 0;
+  // coins add 1 slot per 100 total. Heavier items consume ceil(weight) slots.
+  const encUsed = (c) => {
+    let slots = 0, rations = 0;
+    (c.inventory.items || []).forEach((it) => {
+      if (it.equipped) return; // worn armor/helmet + weapons-at-hand are exempt
+      const n = (it.name || "").toLowerCase();
+      if (/ration/.test(n)) { rations += itemQty(it); return; }
+      if (/sling.?stone|slingstone/.test(n)) return; // 0 slots
+      if (/quiver|arrows|bolts/.test(n)) { slots += 1; return; } // a quiver = 1 slot
+      slots += Math.max(0, Math.ceil(Number(it.weight) || 0));
+    });
+    slots += Math.ceil(rations / 4);
+    const money = c.inventory.money || {};
+    const coins = (money.gold || 0) + (money.silver || 0) + (money.copper || 0);
+    slots += Math.floor(coins / ((DB.currency && DB.currency.coinsPerItem) || 100));
+    return slots;
+  };
+  // The character's currently-equipped armor / helmet DB entries (for banes,
+  // metal-magic restriction, and combat armor), derived from equipped items.
+  function equippedArmor(c) { const it = (c.inventory.items || []).find((x) => x.equipped && classifyItem(x.name) === "armor"); return it ? resolveArmorItem(it.name) : null; }
+  function equippedHelmet(c) { const it = (c.inventory.items || []).find((x) => x.equipped && classifyItem(x.name) === "helmet"); return it ? resolveHelmetItem(it.name) : null; }
+  // Skills currently baned by worn armor + helmet (e.g. Plate → Acrobatics/Evade/Sneaking).
+  function armorBanedSkills(c) {
+    const set = new Set();
+    const a = equippedArmor(c); if (a) (a.banes || []).forEach((s) => set.add(s));
+    const h = equippedHelmet(c); if (h) (h.banes || []).forEach((s) => set.add(s));
+    return set;
+  }
+  // Burn-out die (4/6/8) for a light-source item, from DB.gear (null if not a light).
+  function lightDieFor(name) { const g = (DB.gear || []).find((x) => x.lightDie && normName(x.name) === normName(name)); return g ? g.lightDie : null; }
 
   const Sheet = {
     id: null,
@@ -1776,13 +1948,18 @@
       setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2600);
     },
     rest(kind) {
+      const gm = Settings.gmAutomation();
+      const cg = Store.get(this.id);
+      const deprived = gm && (cg.state.awakeShifts || 0) >= 3; // sleep deprivation blocks WP/condition recovery
       if (kind === "round") {
+        if (gm && cg.state.roundRestUsed) { this.toast("Round rest already used this shift."); return; }
+        if (deprived) { this.toast("Too sleep-deprived to recover WP — sleep (shift rest)."); return; }
         const w = Dice.roll("D6");
-        this.mutate((ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
-        this.toast(`Round rest: +${w} WP.`);
+        this.mutate((ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); if (gm) ch.state.roundRestUsed = true; });
+        this.toast(`Round rest: +${w} WP${gm ? " (used this shift)" : ""}.`);
       } else if (kind === "shift") {
-        this.mutate((ch) => { ch.state.hp = ch.derived.hpMax; ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; });
-        this.toast("Shift rest: full HP & WP, all conditions cleared.");
+        this.mutate((ch) => { ch.state.hp = effHpMax(ch); ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; if (gm) { ch.state.roundRestUsed = false; ch.state.awakeShifts = 0; } });
+        this.toast("Shift rest: full HP & WP, all conditions cleared." + (gm ? " Sleep resets deprivation." : ""));
         const cur = Store.get(this.id);
         if ((cur?.spells?.known || []).length > 0) {
           const m = modal("🧙‍♂️ Shift Rest: Prepare Grimoire Spells");
@@ -1803,8 +1980,9 @@
           m.body.appendChild(listDiv);
         }
       } else { // stretch
-        const h = Dice.roll("D6"), w = Dice.roll("D6");
-        this.mutate((ch) => { ch.state.hp = Math.min(ch.derived.hpMax, ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
+        const h = Dice.roll("D6"), w = deprived ? 0 : Dice.roll("D6");
+        this.mutate((ch) => { ch.state.hp = Math.min(effHpMax(ch), ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
+        if (deprived) { this.toast(`Stretch rest: +${h} HP. Sleep-deprived → no WP/condition recovery.`); return; }
         const cur = Store.get(this.id);
         const held = (DB.conditions || []).filter((cn) => cur.state.conditions[cn.key]);
         if (!held.length) { this.toast(`Stretch rest: +${h} HP, +${w} WP.`); return; }
@@ -1814,6 +1992,87 @@
         held.forEach((cn) => { const chip = el(`<button class="skill-chip cond-on">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(this.id, (ch) => { ch.state.conditions[cn.key] = false; }); m.close(); this.render(); }; cw.appendChild(chip); });
         m.body.appendChild(cw);
       }
+    },
+    // ---- Advanced / GM Automation (Phase 18; gated by Settings.gmAutomation) ----
+    advanceClock(unit) {
+      if (unit === "round") { this.mutate((ch) => { ch.state.time.round++; }); this.toast("Round +1."); return; }
+      if (unit === "stretch") { this.mutate((ch) => { ch.state.time.stretch++; }); this.lightStretch(); return; }
+      // shift
+      let drained = 0, dep = false;
+      this.mutate((ch) => {
+        ch.state.time.shift++;
+        ch.state.roundRestUsed = false;
+        ch.state.awakeShifts = (ch.state.awakeShifts || 0) + 1;
+        if (ch.state.awakeShifts >= 3) { dep = true; drained = Dice.roll("D6"); ch.state.wp = Math.max(0, ch.state.wp - drained); }
+      });
+      this.toast(dep ? `Shift +1 — sleep-deprived (${Store.get(this.id).state.awakeShifts} shifts): −${drained} WP.` : "Shift +1 (stayed awake — sleep with a shift rest).");
+    },
+    lightStretch() {
+      const c = Store.get(this.id);
+      const lit = (c.inventory.items || []).map((it, i) => ({ it, i })).filter((x) => x.it.lit && lightDieFor(x.it.name));
+      if (!lit.length) { this.toast("Stretch +1. No lit light sources to roll."); return; }
+      const m = modal("Light burn-out — roll each lit source");
+      m.body.appendChild(el(`<p class="stat-line">Each stretch, roll a lit source's die; on a <b>1</b> it goes out.</p>`));
+      lit.forEach(({ it, i }) => {
+        const die = lightDieFor(it.name);
+        const row = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)} <span class="tag">D${die}</span></span></div>`);
+        const out = el(`<span class="stat-line"></span>`);
+        const b = el(`<button class="step" style="width:auto;padding:0 8px">Roll D${die}</button>`);
+        b.onclick = () => { const r = Dice.d(die); if (r === 1) { this.mutate((ch) => { ch.inventory.items[i].lit = false; }); out.innerHTML = `<b style="color:var(--bad)">${r} — went out!</b>`; b.disabled = true; } else { out.innerHTML = `${r} — still burning`; } };
+        row.append(b, out); m.body.appendChild(row);
+      });
+    },
+    fearAttack() {
+      const c = Store.get(this.id);
+      const wil = c.attributes.WIL;
+      const fearless = (c.abilities || []).some((a) => a.name === "Fearless");
+      const m = modal("Fear attack — WIL roll");
+      const out = el(`<div class="roll-result"></div>`);
+      if (fearless) { m.body.append(el(`<p class="outcome ok">Fearless — you automatically resist fear (no roll).</p>`)); return; }
+      const btn = el(`<button class="btn block">Roll d20 ≤ WIL ${wil}</button>`);
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const r = Dice.d(20), ok = r <= wil;
+        if (ok) { out.innerHTML = `<p class="outcome ok">${r} vs WIL ${wil} — you resist the fear.</p>`; return; }
+        const tbl = DB.fearTable || []; const fr = Dice.d(6); const row = tbl.find((x) => x.d6 === fr) || tbl[0];
+        this.mutate((ch) => { ch.state.conditions.scared = true; });
+        out.innerHTML = `<p class="outcome bad">${r} vs WIL ${wil} — fear takes hold! You are <b>Scared</b>.</p><p class="notice" style="border-color:var(--bad)">Fear table (D6=${fr}): ${esc(row ? row.effect : "")}</p>`;
+      };
+      m.body.append(el(`<p class="stat-line">A fear attack forces a WIL roll; failure applies Scared and a fear-table result.</p>`), btn, out);
+    },
+    afflictionRoll(kind) {
+      const c = Store.get(this.id);
+      const con = c.attributes.CON;
+      const m = modal(`${kind === "cold" ? "Cold" : "Disease"} — CON roll`);
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll d20 ≤ CON ${con}</button>`);
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const r = Dice.d(20), ok = r <= con;
+        if (ok) { out.innerHTML = `<p class="outcome ok">${r} vs CON ${con} — you resist.</p>`; return; }
+        const dmg = Dice.roll("D6");
+        this.mutate((ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); ch.state.conditions.sickly = true; });
+        out.innerHTML = `<p class="outcome bad">${r} vs CON ${con} — failed! −${dmg} HP and you are <b>Sickly</b>.</p>`;
+      };
+      m.body.append(el(`<p class="stat-line">While afflicted, roll CON each interval; failure deals D6 damage and applies Sickly.</p>`), btn, out);
+    },
+    // Concentration interruption: when a concentrating caster takes damage, a
+    // WIL roll is required to maintain each active concentration effect.
+    concentrationCheck() {
+      const c = Store.get(this.id);
+      if (!Settings.gmAutomation()) return;
+      const conc = (c.effects || []).filter((fx) => fx.concentration);
+      if (!conc.length) return;
+      const wil = c.attributes.WIL;
+      const m = modal("Concentration interrupted — WIL roll");
+      m.body.appendChild(el(`<p class="stat-line">You took damage while concentrating. Roll WIL (≤ ${wil}) to maintain each effect; failure ends it.</p>`));
+      conc.forEach((fx) => {
+        const row = el(`<div class="inv-row"><span class="inv-name">${esc(fx.name)}</span></div>`);
+        const out = el(`<span class="stat-line"></span>`);
+        const b = el(`<button class="step" style="width:auto;padding:0 8px">Roll WIL</button>`);
+        b.onclick = () => { b.disabled = true; const r = Dice.d(20), ok = r <= wil; if (ok) { out.innerHTML = `${r} — maintained`; } else { this.mutate((ch) => { const i = (ch.effects || []).findIndex((e) => e.id === fx.id); if (i >= 0) ch.effects.splice(i, 1); }); out.innerHTML = `<b style="color:var(--bad)">${r} — concentration broken</b>`; } };
+        row.append(b, out); m.body.appendChild(row);
+      });
     },
     deathRoll() {
       const con = Store.get(this.id).attributes.CON;
@@ -1886,23 +2145,140 @@
       };
       sel.onchange = renderList; m.body.append(sel, listWrap); renderList();
     },
+    // Marked-skill chooser shared by the questionnaire / overcome-weakness flows.
+    // `cap` = how many unmarked skills may be picked; `picked` mutated in place.
+    markSkillPicker(picked, capFn, onChange) {
+      const wrap = el(`<div class="chip-wrap"></div>`);
+      const refresh = () => {
+        while (picked.length > capFn()) picked.pop();
+        wrap.innerHTML = "";
+        const cur = Store.get(this.id);
+        Object.keys(cur.skills).sort().forEach((n) => {
+          if (cur.skills[n].mark && !picked.includes(n)) return; // already marked elsewhere
+          const on = picked.includes(n);
+          const chip = el(`<button class="skill-chip ${on ? "on" : ""}">${esc(n)} <span class="stat-line">${cur.skills[n].level}</span></button>`);
+          chip.onclick = () => {
+            const i = picked.indexOf(n);
+            if (i >= 0) picked.splice(i, 1);
+            else { if (picked.length >= capFn()) { alert(`You can mark at most ${capFn()} skill(s) here.`); return; } picked.push(n); }
+            refresh(); if (onChange) onChange();
+          };
+          wrap.appendChild(chip);
+        });
+      };
+      refresh();
+      return { wrap, refresh };
+    },
     endSession() {
+      const qs = DB.advancementQuestions || [];
+      const m = modal("Session end — advancement");
+      m.body.appendChild(el(`<p class="stat-line">Answer the advancement questions. Each <b>Yes</b> lets you mark one unmarked skill (in addition to Dragon/Demon marks). Then roll advancement.</p>`));
+      const yesState = qs.map(() => false);
+      const yesCount = () => yesState.filter(Boolean).length;
+      const picked = [];
+      const counter = el(`<p class="stat-line"></p>`);
+      const updCounter = () => { counter.innerHTML = `<b>Yes: ${yesCount()}</b> — mark up to ${yesCount()} skill(s); chosen ${picked.length}.`; };
+      const { wrap, refresh } = this.markSkillPicker(picked, yesCount, updCounter);
+      const qWrap = el(`<div style="margin:6px 0"></div>`);
+      qs.forEach((q, i) => {
+        const row = el(`<label style="display:flex;gap:8px;margin:4px 0;cursor:pointer"><input type="checkbox"><span>${esc(q)}</span></label>`);
+        row.querySelector("input").onchange = (e) => { yesState[i] = e.target.checked; refresh(); updCounter(); };
+        qWrap.appendChild(row);
+      });
+      updCounter();
+      const rollBtn = el(`<button class="btn block" style="margin-top:10px">Mark skills &amp; roll advancement</button>`);
+      rollBtn.onclick = () => {
+        Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); });
+        m.close(); this.rollAdvancement();
+      };
+      m.body.append(qWrap, counter, el(`<p class="section-title" style="margin-top:8px"><b>Mark skills (your choice)</b></p>`), wrap, rollBtn);
+    },
+    rollAdvancement() {
       const c = Store.get(this.id);
       const marked = Object.keys(c.skills).filter((n) => c.skills[n].mark);
-      if (!marked.length) { this.toast("No advancement marks to roll."); return; }
-      const results = [];
+      if (!marked.length) { this.toast("No advancement marks to roll."); this.mutate((ch) => { ch.state.weaknessCooldown = false; }); return; }
+      const results = [], reached18 = [];
       this.mutate((ch) => {
         marked.forEach((n) => {
-          const sk = ch.skills[n]; const roll = Dice.d(20);
+          const sk = ch.skills[n]; const before = sk.level; const roll = Dice.d(20);
           const improved = roll > sk.level && sk.level < 18;
           if (improved) sk.level = Math.min(18, sk.level + 1);
           sk.mark = false;
+          if (before < 18 && sk.level === 18) reached18.push(n);
           results.push({ name: n, roll, level: sk.level, improved });
         });
+        ch.state.weaknessCooldown = false; // new session — a new weakness may be chosen
       });
-      const m = modal("Session end — advancement");
-      m.body.appendChild(el(`<p class="stat-line">For each marked skill, roll D20; if it exceeds the skill's level, the skill improves by 1 (max 18). Marks are then cleared.</p>`));
-      results.forEach((r) => m.body.appendChild(el(`<p>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--good)">improved to ${r.level}</span>` : `no change (${r.level})`}</p>`)));
+      const m = modal("Advancement");
+      m.body.appendChild(el(`<p class="stat-line">For each marked skill, roll D20; if it exceeds the skill's level, it improves by 1 (max 18).</p>`));
+      results.forEach((r) => m.body.appendChild(el(`<p>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--ok)">improved to ${r.level}</span>` : `no change (${r.level})`}</p>`)));
+      if (reached18.length) {
+        m.body.appendChild(el(`<p class="notice" style="border-color:var(--ok)">★ ${reached18.map(esc).join(", ")} reached 18 — choose a free heroic ability.</p>`));
+        const cont = el(`<button class="btn block">Choose free heroic ability${reached18.length > 1 ? ` (×${reached18.length})` : ""}</button>`);
+        cont.onclick = () => { m.close(); this.gainHeroicAbility(reached18.length); };
+        m.body.appendChild(cont);
+      }
+    },
+    // Heroic-ability picker with requirement locking. `times` = how many to pick.
+    gainHeroicAbility(times = 1) {
+      const c = Store.get(this.id);
+      const owned = new Set((c.abilities || []).map((a) => a.name));
+      const m = modal("Choose a heroic ability" + (times > 1 ? ` (${times} left)` : ""));
+      m.body.appendChild(el(`<p class="stat-line">Abilities whose skill requirement you don't meet are locked.</p>`));
+      const grid = el(`<div class="card-grid"></div>`);
+      (DB.heroicAbilities || []).forEach((ab) => {
+        if (owned.has(ab.name)) return;
+        const met = heroicReqMet(c, ab.req);
+        const card = el(`<button class="card ${met ? "" : "locked"}" style="${met ? "" : "opacity:0.5;cursor:not-allowed"}"><h3>${esc(ab.name)} ${met ? "" : "🔒"}<span class="tag">${esc(ab.req || "No req")}</span> <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
+        if (met) card.onclick = () => { this.mutate((ch) => ch.abilities.push({ name: ab.name, source: "heroic", wp: ab.wp, text: ab.text })); m.close(); this.toast("Gained " + ab.name + "."); if (times > 1) this.gainHeroicAbility(times - 1); };
+        grid.appendChild(card);
+      });
+      m.body.appendChild(grid);
+    },
+    overcomeWeakness() {
+      const c = Store.get(this.id);
+      if (!c.identity.weakness) { this.toast("No weakness to overcome."); return; }
+      const m = modal("Overcome your weakness");
+      m.body.appendChild(el(`<p class="stat-line">Acting against your weakness: gain <b>2 advancement marks</b> (mark two unmarked skills), delete the weakness, and you can't take a new one until next session.</p>`));
+      m.body.appendChild(el(`<p class="stat-line"><i>${esc(c.identity.weakness)}</i></p>`));
+      const picked = [];
+      const { wrap } = this.markSkillPicker(picked, () => 2);
+      const btn = el(`<button class="btn block" style="margin-top:8px">Overcome (mark 2 skills)</button>`);
+      btn.onclick = () => {
+        if (picked.length !== 2) { alert("Pick exactly two skills to mark."); return; }
+        this.mutate((ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); ch.identity.weakness = ""; ch.state.weaknessCooldown = true; });
+        m.close(); this.toast("Weakness overcome — 2 marks gained.");
+      };
+      m.body.append(el(`<p class="section-title"><b>Mark two skills</b></p>`), wrap, btn);
+    },
+    trainTeacher() {
+      const c = Store.get(this.id);
+      const m = modal("Train with a teacher");
+      m.body.appendChild(el(`<p class="stat-line">Spend a shift training a skill with an NPC teacher (skill 15+). You get one advancement roll now; a teacher raises you by at most +1, so each skill can be teacher-trained once.</p>`));
+      const sel = el(`<select class="input" style="width:100%;margin-bottom:8px"></select>`);
+      Object.keys(c.skills).sort().forEach((n) => { const done = c.state.teacherTrained && c.state.teacherTrained[n]; sel.appendChild(el(`<option value="${esc(n)}" ${done ? "disabled" : ""}>${esc(n)} (${c.skills[n].level})${done ? " — already trained" : ""}</option>`)); });
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll advancement (teacher)</button>`);
+      btn.onclick = () => {
+        const n = sel.value; if (!n) return;
+        if (c.state.teacherTrained && c.state.teacherTrained[n]) { alert("This teacher has already raised that skill."); return; }
+        btn.disabled = true; btn.style.opacity = "0.4";
+        let roll, improved, reached18 = false, newLvl;
+        this.mutate((ch) => { const sk = ch.skills[n]; const before = sk.level; roll = Dice.d(20); improved = roll > sk.level && sk.level < 18; if (improved) sk.level = Math.min(18, sk.level + 1); newLvl = sk.level; ch.state.teacherTrained[n] = true; if (before < 18 && sk.level === 18) reached18 = true; });
+        out.innerHTML = `<p class="outcome ${improved ? "ok" : "bad"}">Rolled ${roll} → ${improved ? `improved to ${newLvl}` : `no change (${newLvl})`}</p>`;
+        if (reached18) { const cont = el(`<button class="btn block" style="margin-top:8px">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
+      };
+      m.body.append(sel, btn, out);
+    },
+    // Solo (Phase 17): completing a mission grants 5 advancement marks.
+    soloMissionMarks() {
+      const picked = [];
+      const m = modal("Mission complete — +5 advancement marks");
+      m.body.appendChild(el(`<p class="stat-line">Solo play: on returning from a successful mission, mark 5 skills of your choice, then roll advancement.</p>`));
+      const { wrap } = this.markSkillPicker(picked, () => 5);
+      const btn = el(`<button class="btn block" style="margin-top:8px">Mark 5 &amp; roll advancement</button>`);
+      btn.onclick = () => { if (picked.length !== 5) { alert("Pick exactly 5 skills to mark."); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
+      m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
     },
     render() {
       const c = Store.get(this.id);
@@ -1954,6 +2330,8 @@
             if (ch.state.deathRolls) c.state.deathRolls = ch.state.deathRolls;
           });
           val.textContent = `${c.state[key]} / ${max}`;
+          // Concentration interruption: taking HP damage prompts a WIL roll.
+          if (key === "hp" && d < 0 && c.state.hp < prevHp) this.concentrationCheck();
           if (key === "hp" && ((prevHp <= 0 && c.state.hp > 0) || (prevHp > 0 && c.state.hp <= 0))) {
             this.render();
           }
@@ -1964,7 +2342,7 @@
         return w;
       };
       const vitals = el(`<div class="vitals"></div>`);
-      vitals.appendChild(stepper("Hit Points", c.state.hp, c.derived.hpMax, "hp", "hp"));
+      vitals.appendChild(stepper("Hit Points", c.state.hp, effHpMax(c), "hp", "hp"));
       vitals.appendChild(stepper("Willpower", c.state.wp, effWpMax(c), "wp", "wp"));
       top.appendChild(vitals);
 
@@ -1989,12 +2367,15 @@
         <div class="move-toggles">
           <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Dash: doubles pool & auto-spends Action">⚡ Dash ${c.state.isDashing ? "ON" : "OFF"}</button>
           <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted: base speed 20m">🐴 Mount</button>
+          <button type="button" class="move-btn ${c.state.prone ? "active" : ""}" title="Change position — free action (drop prone / stand up)">${c.state.prone ? "🛌 Prone" : "🧍 Stand"}</button>
           <button type="button" class="move-btn" title="Step 2m (1 grid square)">+2m</button>
-          <button type="button" class="move-btn" title="Difficult Terrain (Water/Door) → spends 4m">+4m (½)</button>
+          <button type="button" class="move-btn" title="Difficult Terrain (Water) → spends 4m">+4m (½)</button>
+          <button type="button" class="move-btn" title="Through a closed door → spends half your movement pool">🚪 Door (−½)</button>
+          <button type="button" class="move-btn" title="Leap a gap (Acrobatics if over ¼ of your movement)">🤸 Leap</button>
           <button type="button" class="move-btn" title="Reset movement turn">↺ Reset</button>
         </div>
       </div>`);
-      
+
       const moveBtns = movePanel.querySelectorAll(".move-btn");
       moveBtns[0].onclick = () => this.mutate(ch => {
         ch.state.isDashing = !ch.state.isDashing;
@@ -2007,10 +2388,18 @@
         }
       });
       moveBtns[1].onclick = () => this.mutate(ch => { ch.state.isMounted = !ch.state.isMounted; });
-      moveBtns[2].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
-      moveBtns[3].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
-      moveBtns[4].onclick = () => this.mutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
-      
+      moveBtns[2].onclick = () => this.mutate(ch => { ch.state.prone = !ch.state.prone; }); // free action
+      moveBtns[3].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 2); });
+      moveBtns[4].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + 4); });
+      moveBtns[5].onclick = () => this.mutate(ch => { ch.state.moveSpent = Math.min(calcMaxMove(), (ch.state.moveSpent || 0) + Math.ceil(calcMaxMove() / 2)); }); // door = half pool
+      moveBtns[6].onclick = () => {
+        const d = parseFloat(prompt(`Leap distance (m)? A gap longer than ¼ of your movement (${(calcMaxMove() / 4).toFixed(1)} m) needs an Acrobatics roll.`, ""));
+        if (isNaN(d) || d <= 0) return;
+        if (d > calcMaxMove() / 4) Roller.skill(this.id, "Acrobatics");
+        else this.toast(`Leap ${d} m — automatic (≤ ¼ of ${calcMaxMove()} m).`);
+      };
+      moveBtns[7].onclick = () => this.mutate(ch => { ch.state.moveSpent = 0; ch.state.isDashing = false; });
+
       top.appendChild(movePanel);
 
       // Permanent WP loss (rituals / corruption)
@@ -2031,6 +2420,43 @@
       });
       top.appendChild(restRow);
       root.appendChild(top);
+
+      // Advanced / GM Automation panel (Phase 18) — gated behind one toggle.
+      if (Settings.gmAutomation()) {
+        const t = c.state.time || { round: 0, stretch: 0, shift: 0 };
+        const gmPanel = el(`<div class="panel" style="border-left:4px solid var(--accent)"><h3>⏱️ GM Automation</h3></div>`);
+        gmPanel.appendChild(el(`<p class="stat-line">Time — Round <b>${t.round}</b> · Stretch <b>${t.stretch}</b> · Shift <b>${t.shift}</b>${c.state.awakeShifts >= 3 ? ` · <b style="color:var(--bad)">sleep-deprived (${c.state.awakeShifts} shifts)</b>` : c.state.awakeShifts ? ` · awake ${c.state.awakeShifts} shift(s)` : ""}${c.state.roundRestUsed ? " · round rest used" : ""}</p>`));
+        const clockRow = el(`<div class="rest-row"></div>`);
+        [["+ Round", "round"], ["+ Stretch", "stretch"], ["+ Shift", "shift"]].forEach(([label, unit]) => { const b = el(`<button class="btn ghost">${label}</button>`); b.onclick = () => this.advanceClock(unit); clockRow.appendChild(b); });
+        gmPanel.appendChild(clockRow);
+
+        // Light sources (toggle lit; burn-out rolls on +Stretch)
+        const lights = (c.inventory.items || []).map((it, i) => ({ it, i })).filter((x) => lightDieFor(x.it.name));
+        if (lights.length) {
+          gmPanel.appendChild(el(`<p class="stat-line" style="margin-top:6px"><b>Light sources</b> (toggle lit; burn-out rolls on “+ Stretch”)</p>`));
+          const lw = el(`<div class="chip-wrap"></div>`);
+          lights.forEach(({ it, i }) => { const chip = el(`<button class="skill-chip ${it.lit ? "on" : ""}">${it.lit ? "🔥" : "🕯️"} ${esc(it.name)} <span class="stat-line">D${lightDieFor(it.name)}</span></button>`); chip.onclick = () => this.mutate((ch) => { ch.inventory.items[i].lit = !ch.inventory.items[i].lit; }); lw.appendChild(chip); });
+          gmPanel.appendChild(lw);
+        }
+
+        // Cold & disease + fear
+        const statusRow = el(`<div class="rest-row" style="margin-top:6px"></div>`);
+        const af = c.state.afflictions || { cold: false, disease: null };
+        const coldBtn = el(`<button class="btn ghost ${af.cold ? "" : ""}" title="toggle cold; roll CON when active">${af.cold ? "❄️ Cold ON" : "❄️ Cold"}</button>`);
+        coldBtn.onclick = () => this.mutate((ch) => { ch.state.afflictions.cold = !ch.state.afflictions.cold; });
+        const coldRoll = el(`<button class="btn ghost" title="CON roll vs cold">Cold CON roll</button>`);
+        coldRoll.onclick = () => this.afflictionRoll("cold");
+        const disBtn = el(`<button class="btn ghost">${af.disease ? "🦠 Disease ON" : "🦠 Disease"}</button>`);
+        disBtn.onclick = () => this.mutate((ch) => { ch.state.afflictions.disease = ch.state.afflictions.disease ? null : { virulence: Dice.roll("3D6") }; });
+        const disRoll = el(`<button class="btn ghost" title="CON roll vs disease">Disease CON roll</button>`);
+        disRoll.onclick = () => this.afflictionRoll("disease");
+        const fearBtn = el(`<button class="btn ghost" style="border-color:var(--bad)">😱 Fear attack</button>`);
+        fearBtn.onclick = () => this.fearAttack();
+        statusRow.append(coldBtn, coldRoll, disBtn, disRoll, fearBtn);
+        gmPanel.appendChild(statusRow);
+        if (af.disease) gmPanel.appendChild(el(`<p class="stat-line">Disease virulence: <b>${af.disease.virulence}</b></p>`));
+        root.appendChild(gmPanel);
+      }
 
       // Death & dying
       if (c.state.hp <= 0) {
@@ -2068,9 +2494,20 @@
       // Skills
       const skPanel = el(`<div class="panel"><h3>Skills</h3><p class="stat-line">Tap a skill to roll it. Tap the ◦ to toggle an advancement mark (ticked on a Dragon/Demon). ⚠ = a condition banes this skill.</p></div>`);
       const markedCount = Object.values(c.skills).filter((v) => v.mark).length;
-      const advBtn = el(`<button class="btn ghost" style="margin:4px 0 10px">End session — roll advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
+      const advRow = el(`<div class="rest-row" style="margin:4px 0 10px"></div>`);
+      const advBtn = el(`<button class="btn ghost">End session — roll advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
       advBtn.onclick = () => this.endSession();
-      skPanel.appendChild(advBtn);
+      const teachBtn = el(`<button class="btn ghost" title="train a skill with an NPC teacher (skill 15+); +1 cap per teacher">Train with teacher</button>`);
+      teachBtn.onclick = () => this.trainTeacher();
+      const gainBtn = el(`<button class="btn ghost" title="gain a heroic ability (requirement-locked)">Gain heroic ability</button>`);
+      gainBtn.onclick = () => this.gainHeroicAbility(1);
+      advRow.append(advBtn, teachBtn, gainBtn);
+      if (Settings.soloMode()) {
+        const missionBtn = el(`<button class="btn ghost" title="solo: gain 5 advancement marks for a completed mission" style="border-color:var(--accent)">🏅 Mission complete (+5 marks)</button>`);
+        missionBtn.onclick = () => this.soloMissionMarks();
+        advRow.appendChild(missionBtn);
+      }
+      skPanel.appendChild(advRow);
       const skList = el(`<div class="skill-list"></div>`);
       Object.entries(c.skills).sort((x,y)=>x[0].localeCompare(y[0])).forEach(([n,v]) => {
         const baned = condByAttr[v.attribute];
@@ -2142,6 +2579,42 @@
         root.appendChild(fxPanel);
       }
 
+      // Familiar WP splitting (Phase 15) — a mage may assign up to half their
+      // max WP to a familiar; the two pools are tracked separately.
+      const isCaster = Object.values(c.skills).some((v) => v.kind === "magic") || (c.spells && c.spells.castSkill);
+      if (isCaster) {
+        const cap = Math.floor(effWpMax(c) / 2);
+        const famPanel = el(`<div class="panel"><h3>Familiar</h3><p class="stat-line">Assign up to half your max WP (${cap}) to a familiar; the pools are tracked separately.</p></div>`);
+        if (!c.state.familiar) {
+          const addRow = el(`<div class="inv-add"></div>`);
+          const fIn = el(`<input type="text" placeholder="Name your familiar…">`);
+          const fBtn = el(`<button class="btn secondary">Bind familiar</button>`);
+          const doFam = () => { const n = fIn.value.trim() || "Familiar"; this.mutate((ch) => { ch.state.familiar = { name: n, wp: 0, wpMax: Math.floor(effWpMax(ch) / 2) }; }); };
+          fBtn.onclick = doFam; fIn.onkeydown = (e) => { if (e.key === "Enter") doFam(); };
+          addRow.append(fIn, fBtn); famPanel.appendChild(addRow);
+        } else {
+          const fam = c.state.familiar;
+          const pools = el(`<div class="vitals"></div>`);
+          // Mage WP
+          const mw = el(`<div class="vital wp"><div class="vital-label">Mage WP</div></div>`);
+          mw.appendChild(el(`<div class="stepper"><span class="vital-val">${c.state.wp} / ${effWpMax(c)}</span></div>`));
+          // Familiar WP with transfer controls
+          const fw = el(`<div class="vital"><div class="vital-label">${esc(fam.name)} WP</div></div>`);
+          const fctrl = el(`<div class="stepper"></div>`);
+          const toMage = el(`<button class="step" title="return 1 WP to mage">−</button>`);
+          const fval = el(`<span class="vital-val">${fam.wp} / ${cap}</span>`);
+          const toFam = el(`<button class="step" title="move 1 WP to familiar">+</button>`);
+          toFam.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; const cp = Math.floor(effWpMax(ch) / 2); if (ch.state.wp > 0 && f.wp < cp) { ch.state.wp--; f.wp++; f.wpMax = cp; } });
+          toMage.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; if (f.wp > 0 && ch.state.wp < effWpMax(ch)) { f.wp--; ch.state.wp++; } });
+          fctrl.append(toMage, fval, toFam); fw.appendChild(fctrl);
+          pools.append(mw, fw); famPanel.appendChild(pools);
+          const rm = el(`<button class="btn ghost block" style="margin-top:8px">Release familiar (return its WP)</button>`);
+          rm.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + (f.wp || 0)); ch.state.familiar = null; });
+          famPanel.appendChild(rm);
+        }
+        root.appendChild(famPanel);
+      }
+
       // Summons & Companions (Phase 4B)
       const compPanel = el(`<div class="panel"><h3>Summons &amp; Companions</h3><p class="stat-line">Track raised undead, summoned creatures, familiars, and animal companions — each with its own HP.</p></div>`);
       (c.companions || []).forEach((cp, i) => {
@@ -2168,34 +2641,93 @@
       addComp.append(compName, compHp, compBtn); compPanel.appendChild(addComp);
       root.appendChild(compPanel);
 
-      // Inventory + encumbrance
+      // Inventory + encumbrance (slot-based, rules-accurate)
       const used = encUsed(c), limit = encLimit(c), over = used > limit;
       const invPanel = el(`<div class="panel"><h3>Inventory</h3></div>`);
-      invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":""}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>
-        <p class="stat-line">${used} / ${limit} item slots used${over?` · <b style="color:var(--bad)">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
-      const itemList = el(`<div></div>`);
-      (c.inventory.items||[]).forEach((it, i) => {
+      const coinTot = (c.inventory.money.gold||0)+(c.inventory.money.silver||0)+(c.inventory.money.copper||0);
+      const coinSlots = Math.floor(coinTot / ((DB.currency && DB.currency.coinsPerItem) || 100));
+      invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":""}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>`));
+      invPanel.appendChild(el(`<p class="stat-line">${used} / ${limit} item slots used${coinSlots?` · ${coinTot} coins → ${coinSlots} slot${coinSlots>1?"s":""}`:""}${over?` · <b style="color:var(--bad)">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
+      if (over) {
+        const strBtn = el(`<button class="btn ghost block" style="border-color:var(--bad);color:var(--bad);margin-bottom:10px">⚖ Roll STR to move (over-encumbered)</button>`);
+        strBtn.onclick = () => {
+          const m = modal("Over-encumbered — STR roll to move");
+          const out = el(`<div class="roll-result"></div>`);
+          const b = el(`<button class="btn block">Roll d20 ≤ STR ${c.attributes.STR}</button>`);
+          b.onclick = () => { b.disabled = true; b.style.opacity = "0.4"; const r = Dice.d(20); const ok = r <= c.attributes.STR; out.innerHTML = `<p class="outcome ${ok?"ok":"bad"}">${r} vs STR ${c.attributes.STR} — ${ok?"You can move this turn / travel the shift.":"You fail to move (no movement this turn / no progress this shift)."}</p>`; };
+          m.body.append(el(`<p class="stat-line">While over the encumbrance limit you must succeed a STR roll to move in combat or travel a shift.</p>`), b, out);
+        };
+        invPanel.appendChild(strBtn);
+      }
+
+      const items = c.inventory.items || [];
+      // Equip caps: 1 armor + 1 helmet + up to 3 weapons-at-hand (shields count).
+      const counts = { armor: 0, helmet: 0, weapon: 0 };
+      items.forEach((x) => { if (x.equipped) { const k = classifyItem(x.name); if (counts[k] != null) counts[k]++; } });
+      const itemRow = (it, i, isEquipped) => {
         const row = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)}</span></div>`);
+        const slot = classifyItem(it.name);
         const wpns = resolveEquippedWeapons([it]);
         wpns.forEach((wpn) => {
           const dmg = el(`<button class="step dmg" title="roll attack / damage (${esc(wpn.name)})">⚔ ${wpns.length > 1 ? esc(wpn.name) : ""}</button>`);
           dmg.onclick = () => Roller.damage(this.id, wpn);
           row.appendChild(dmg);
         });
-        const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}">`);
-        wt.onchange = () => this.mutate((ch) => { ch.inventory.items[i].weight = Math.max(0, Number(wt.value)||0); });
+        // Durability for equipped weapons/shields that have a rating.
+        if (isEquipped && slot === "weapon" && wpns[0] && wpns[0].durability != null) {
+          const max = wpns[0].durability;
+          const cur = it.durability == null ? max : it.durability;
+          const broken = cur <= 0;
+          const dctrl = el(`<span class="stepper" title="durability"></span>`);
+          const dm = el(`<button class="step">−</button>`), dv = el(`<span class="vital-val" style="min-width:52px;${broken?"color:var(--bad)":""}">${cur}/${max}${broken?" 💥":""}</span>`), dp = el(`<button class="step">+</button>`);
+          dm.onclick = () => this.mutate((ch) => { const x = ch.inventory.items[i]; x.durability = Math.max(0, (x.durability == null ? max : x.durability) - 1); });
+          dp.onclick = () => this.mutate((ch) => { const x = ch.inventory.items[i]; x.durability = Math.min(max, (x.durability == null ? max : x.durability) + 1); });
+          dctrl.append(dm, dv, dp); row.append(el(`<span class="stat-line">dur</span>`), dctrl);
+        }
+        // Equip / unequip control (only for equippable items).
+        if (slot) {
+          if (isEquipped) {
+            const un = el(`<button class="step" style="width:auto;padding:0 8px" title="unequip">Unequip</button>`);
+            un.onclick = () => this.mutate((ch) => { ch.inventory.items[i].equipped = false; });
+            row.append(el(`<span class="tag">${slot}</span>`), un);
+          } else {
+            const eq = el(`<button class="step" style="width:auto;padding:0 8px" title="equip (exempt from encumbrance)">Equip</button>`);
+            eq.onclick = () => {
+              if (slot === "armor" && counts.armor >= 1) { alert("You're already wearing armor. Unequip it first."); return; }
+              if (slot === "helmet" && counts.helmet >= 1) { alert("You're already wearing a helmet."); return; }
+              if (slot === "weapon" && counts.weapon >= 3) { alert("You can keep at most 3 weapons at hand."); return; }
+              this.mutate((ch) => { const x = ch.inventory.items[i]; x.equipped = true; if (slot === "weapon") { const w = resolveEquippedWeapons([x.name])[0]; if (w && w.durability != null && x.durability == null) x.durability = w.durability; } });
+            };
+            row.append(el(`<span class="tag" style="opacity:0.55">${slot}</span>`), eq);
+          }
+        }
+        if (!isEquipped) {
+          const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}">`);
+          wt.onchange = () => this.mutate((ch) => { ch.inventory.items[i].weight = Math.max(0, Number(wt.value)||0); });
+          row.append(el(`<span class="stat-line">wt</span>`), wt);
+        }
         const rm = el(`<button class="step rm">✕</button>`);
         rm.onclick = () => this.mutate((ch) => { ch.inventory.items.splice(i, 1); });
-        row.append(el(`<span class="stat-line">wt</span>`), wt, rm);
-        itemList.appendChild(row);
-      });
-      if (!(c.inventory.items||[]).length) itemList.appendChild(el(`<p class="stat-line">No items.</p>`));
+        row.append(rm);
+        return row;
+      };
+
+      const equippedIdx = items.map((it, i) => ({ it, i })).filter((x) => x.it.equipped);
+      const carriedIdx = items.map((it, i) => ({ it, i })).filter((x) => !x.it.equipped);
+      if (equippedIdx.length) {
+        invPanel.appendChild(el(`<p class="stat-line" style="margin:6px 0 2px"><b>Equipped</b> <span class="stat-line">(armor · helmet · up to 3 weapons-at-hand — no encumbrance)</span></p>`));
+        equippedIdx.forEach(({ it, i }) => invPanel.appendChild(itemRow(it, i, true)));
+      }
+      invPanel.appendChild(el(`<p class="stat-line" style="margin:8px 0 2px"><b>Carried</b></p>`));
+      const itemList = el(`<div></div>`);
+      carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
+      if (!carriedIdx.length) itemList.appendChild(el(`<p class="stat-line">No carried items.</p>`));
       invPanel.appendChild(itemList);
       const addRow = el(`<div class="inv-add"></div>`);
       const addName = el(`<input type="text" placeholder="Add an item…">`);
       const addWt = el(`<input type="number" class="wt" min="0" step="1" value="1" title="weight">`);
       const addBtn = el(`<button class="btn secondary">Add</button>`);
-      const doAdd = () => { const name = addName.value.trim(); if (!name) return; this.mutate((ch) => ch.inventory.items.push({ name, weight: Math.max(0, Number(addWt.value)||0) })); };
+      const doAdd = () => { const name = addName.value.trim(); if (!name) return; this.mutate((ch) => ch.inventory.items.push({ name, weight: Math.max(0, Number(addWt.value)||0), equipped: false })); };
       addBtn.onclick = doAdd; addName.onkeydown = (e) => { if (e.key === "Enter") doAdd(); };
       addRow.append(addName, addWt, addBtn); invPanel.appendChild(addRow);
 
@@ -2220,6 +2752,21 @@
       const flav = el(`<div class="panel"><h3>Character</h3>
         ${c.identity.appearance?`<p class="stat-line"><b>Appearance:</b> ${esc(c.identity.appearance)}</p>`:""}
         ${c.identity.weakness?`<p class="stat-line"><b>Weakness:</b> ${esc(c.identity.weakness)}</p>`:""}</div>`);
+      // Overcome Weakness / re-choose after cooldown.
+      if (c.identity.weakness) {
+        const owBtn = el(`<button class="btn ghost" style="border-color:var(--accent)">⚡ Overcome Weakness (+2 marks)</button>`);
+        owBtn.onclick = () => this.overcomeWeakness();
+        flav.appendChild(owBtn);
+      } else if (c.state.weaknessCooldown) {
+        flav.appendChild(el(`<p class="stat-line"><i>Weakness overcome — a new weakness can be chosen next session.</i></p>`));
+      } else {
+        const wkRow = el(`<div class="inv-add"></div>`);
+        const wkIn = el(`<input type="text" placeholder="Choose a new weakness…">`);
+        const wkBtn = el(`<button class="btn secondary">Set</button>`);
+        const doWk = () => { const v = wkIn.value.trim(); if (!v) return; this.mutate((ch) => { ch.identity.weakness = v; }); };
+        wkBtn.onclick = doWk; wkIn.onkeydown = (e) => { if (e.key === "Enter") doWk(); };
+        wkRow.append(wkIn, wkBtn); flav.appendChild(wkRow);
+      }
       const notesField = el(`<div class="form-field"><label>Notes / Journal</label></div>`);
       const notes = el(`<textarea rows="4" placeholder="Session notes, threads, loot…"></textarea>`);
       notes.value = c.notes || "";
@@ -2310,19 +2857,79 @@
       for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; }
       let idx = 0;
       const nextCard = () => idx < 10 ? cards[idx++] : Dice.d(10);
+      const heroAbil = (cb) => (cb.kind === "hero" && cb.charId) ? (Store.get(cb.charId)?.abilities || []) : [];
+      const has = (cb, name) => heroAbil(cb).some(a => a.name === name);
       const extras = [];
       s.combatants.forEach((cb) => {
-        cb.init = nextCard(); cb.done = false; cb.acted = false;
-        if (cb.kind === "hero" && cb.charId) {
-          const ch = Store.get(cb.charId);
-          if (ch && ch.abilities?.some(a => a.name === "Army of One")) {
-            extras.push({ ...cb, id: uid(), init: nextCard(), done: false, acted: false, name: `${cb.name} (Turn 2)`, isArmyOfOneSecondary: true });
-          }
+        const previousInit = cb.init;
+        if (has(cb, "Veteran") && previousInit != null) {
+          // Veteran — retain last round's card instead of drawing a new one.
+          cb.init = previousInit;
+        } else if (has(cb, "Lightning Fast")) {
+          // Lightning Fast — draw two cards and keep the lower (acts earlier).
+          cb.init = Math.min(nextCard(), nextCard());
+        } else {
+          cb.init = nextCard();
+        }
+        cb.done = false; cb.acted = false;
+        cb.prevInit = cb.init; // remembered for a Veteran retain next round
+        if (cb.kind === "hero" && cb.charId && has(cb, "Army of One")) {
+          extras.push({ ...cb, id: uid(), init: nextCard(), done: false, acted: false, prevInit: null, name: `${cb.name} (Turn 2)`, isArmyOfOneSecondary: true });
         }
       });
       s.combatants.push(...extras);
     },
     ordered(s) { return [...s.combatants].sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init)); },
+    // Voluntarily wait / swap turn order: exchange initiative cards with another
+    // willing combatant. GM-guarded.
+    swapInit(combatantId) {
+      this.guardGm(() => {
+        const s = this.load();
+        const me = s.combatants.find(c => c.id === combatantId);
+        if (!me) return;
+        const others = s.combatants.filter(c => c.id !== combatantId);
+        if (!others.length) { alert("No other combatants to swap with."); return; }
+        const m = modal(`Wait / swap — ${me.name}`);
+        const sel = el(`<select class="input" style="width:100%;margin-bottom:10px"></select>`);
+        others.forEach(o => sel.appendChild(el(`<option value="${esc(o.id)}">${esc(o.name)} (init ${o.init == null ? "–" : o.init})</option>`)));
+        const btn = el(`<button class="btn block">Swap initiative cards</button>`);
+        btn.onclick = () => {
+          this.mutate(st => {
+            const a = st.combatants.find(c => c.id === combatantId);
+            const b = st.combatants.find(c => c.id === sel.value);
+            if (a && b) { const t = a.init; a.init = b.init; b.init = t; a.done = false; b.done = false; }
+          });
+          m.close();
+        };
+        m.body.append(el(`<p class="stat-line">Exchange turn order (initiative card) with:</p>`), sel, btn);
+      });
+    },
+    // Parry / Dodge reaction: rolls the skill, consumes the turn (flips the
+    // initiative card), and on a successful dodge offers a free 2 m move.
+    reaction(combatantId, kind) {
+      const s = this.load();
+      const cb = s.combatants.find((c) => c.id === combatantId);
+      if (!cb || cb.kind !== "hero" || !cb.charId) return;
+      const ch = Store.get(cb.charId); if (!ch) return;
+      let skillName = "Evade";
+      if (kind === "parry") { const w = resolveEquippedWeapons(ch.inventory && ch.inventory.items)[0]; skillName = (w && w.skill) || "Evade"; }
+      const sk = ch.skills[skillName] || { level: 5 };
+      const m = modal(`${cb.name}: ${kind === "parry" ? "Parry" : "Dodge"} (reaction)`);
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll ${esc(skillName)} ≤ ${sk.level}</button>`);
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const r = Dice.d(20), ok = r <= sk.level;
+        this.mutate((st) => { const ref = st.combatants.find((c) => c.id === combatantId); if (ref) { ref.acted = true; ref.done = true; } });
+        out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}">${r} vs ${sk.level} — ${ok ? "Success" : "Failure"}! (the reaction consumes your upcoming action)</p>`;
+        if (ok && kind === "dodge") {
+          const mv = el(`<button class="btn secondary block" style="margin-top:8px">+2 m free move (successful dodge)</button>`);
+          mv.onclick = () => { Store.update(cb.charId, (c2) => { c2.state.moveSpent = Math.max(0, (c2.state.moveSpent || 0) - 2); }); mv.disabled = true; mv.textContent = "✓ +2 m granted"; };
+          out.appendChild(mv);
+        }
+      };
+      m.body.append(el(`<p class="stat-line">A reaction (parry/dodge) consumes your upcoming action — it flips your initiative card. You can't parry and dodge the same attack.</p>`), btn, out);
+    },
     view() {
       const s = this.load();
       const root = el(`<div></div>`);
@@ -2344,10 +2951,11 @@
         add.onclick = () => {
           if (!sel.value) return; const h = Store.get(sel.value);
           window._combatAddSelections.hero = "";
+          const hArmor = equippedArmor(h);
           this.mutate((st) => st.combatants.push({
             id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false,
-            hp: h.state.hp, maxHp: h.derived.hpMax, wp: h.state.wp, maxWp: h.derived.wpMax,
-            armor: (h.gear && h.gear.armor ? h.gear.armor.rating : 0)
+            hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h),
+            armor: hArmor ? hArmor.rating : 0
           }));
         };
         heroRow.append(sel, add); addPanel.appendChild(heroRow);
@@ -2512,6 +3120,11 @@
         };
 
         const topActions = head.querySelector(".row-top-actions");
+        if (cb.init != null && !isDefeated) {
+          const swap = el(`<button class="step" title="wait / swap initiative">⇅</button>`);
+          swap.onclick = (e) => { e.stopPropagation(); this.swapInit(cb.id); };
+          topActions.appendChild(swap);
+        }
         if (cb.kind === "hero" && cb.charId) {
           const open = el(`<button class="step" title="open sheet">↗</button>`);
           open.onclick = (e) => { e.stopPropagation(); Sheet.open(cb.charId); };
@@ -2597,6 +3210,15 @@
               });
               hDiv.appendChild(sGrid);
             }
+            // Reactions (Phase 16) — parry / dodge consume the upcoming action.
+            const reactRow = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
+            reactRow.appendChild(el(`<p class="stat-line" style="margin:0;width:100%"><b>Reactions:</b></p>`));
+            const parryB = el(`<button class="btn ghost" style="flex:1">🛡 Parry</button>`);
+            parryB.onclick = () => this.reaction(cb.id, "parry");
+            const dodgeB = el(`<button class="btn ghost" style="flex:1">🤸 Dodge</button>`);
+            dodgeB.onclick = () => this.reaction(cb.id, "dodge");
+            reactRow.append(parryB, dodgeB);
+            hDiv.appendChild(reactRow);
             if (hDiv.children.length) body.appendChild(hDiv);
           }
         } else if (cb.kind === "npc") {
@@ -2623,7 +3245,7 @@
             });
             npcDiv.appendChild(sGrid);
           }
-          if (typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks) {
+          if (Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.npcAttackTable) {
             const natBtn = el(`<button class="btn ghost block" style="margin-top:4px;border:1px dashed var(--accent)">🎲 Roll NPC Attack Table (AI Action)</button>`);
             natBtn.onclick = () => Roller.rollNpcAttackTable(cb.name, cb.id);
             npcDiv.appendChild(natBtn);
@@ -3060,6 +3682,12 @@
       const tog2 = el(`<button class="toggle ${sm ? "on" : ""}" role="switch" aria-checked="${sm}"><span class="knob"></span></button>`);
       tog2.onclick = () => { Settings.set("soloMode", !Settings.soloMode()); Router.go("about"); };
       row2.appendChild(tog2); sp.appendChild(row2);
+
+      const gm = Settings.gmAutomation();
+      const row3 = el(`<div class="toggle-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px"><div><b>Advanced / GM Automation</b><br><span class="stat-line">Reveals an optional GM panel on the sheet: time clock (rounds/stretches/shifts), round-rest once-per-shift, light burn-out, sleep deprivation, cold &amp; disease, fear attacks, and concentration interruption.</span></div></div>`);
+      const tog3 = el(`<button class="toggle ${gm ? "on" : ""}" role="switch" aria-checked="${gm}"><span class="knob"></span></button>`);
+      tog3.onclick = () => { Settings.set("gmAutomation", !Settings.gmAutomation()); Router.go("about"); };
+      row3.appendChild(tog3); sp.appendChild(row3);
 
       const syncPanel = el(`<div class="panel" id="multiplayer-panel"><h3>Multiplayer &amp; Cloud Sync</h3></div>`);
       if (!Sync.enabled) {
