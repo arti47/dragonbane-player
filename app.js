@@ -1242,7 +1242,7 @@
       
       // Bottom section: Damage Roll
       const dmgDiv = el(`<div style="margin-top:12px"></div>`);
-      const rollDmgBtn = el(`<button class="btn secondary block">Roll Damage (${esc(weapon.damage)}${bonusDie ? " +" + bonusDie : ""})</button>`);
+      const rollDmgBtn = el(`<button class="btn secondary block" disabled style="opacity:0.4;cursor:not-allowed">Roll Damage (${esc(weapon.damage)}${bonusDie ? " +" + bonusDie : ""})</button>`);
       rollDmgBtn.onclick = () => {
         const base = Dice.roll(weapon.damage);
         let tot = base; let p = `${weapon.damage} = <b>${base}</b>`;
@@ -1316,6 +1316,9 @@
         }
 
         if (crit) {
+          rollDmgBtn.disabled = false;
+          rollDmgBtn.style.opacity = "1";
+          rollDmgBtn.style.cursor = "pointer";
           rollDmgBtn.textContent = `Roll CRITICAL Damage (Double Dice: ${esc(weapon.damage)}×2${bonusDie ? " +" + bonusDie : ""})`;
           rollDmgBtn.className = "btn block";
           rollDmgBtn.style.background = "var(--ok)";
@@ -1328,7 +1331,18 @@
             out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:1.8rem;margin:0">💥 ${tot} CRITICAL DAMAGE!</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
             out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
           };
+        } else if (success) {
+          rollDmgBtn.disabled = false;
+          rollDmgBtn.style.opacity = "1";
+          rollDmgBtn.style.cursor = "pointer";
+          rollDmgBtn.textContent = `Roll Damage (${esc(weapon.damage)}${bonusDie ? " +" + bonusDie : ""})`;
+          rollDmgBtn.className = "btn secondary block";
+          rollDmgBtn.style.background = "";
+          rollDmgBtn.style.color = "";
         } else {
+          rollDmgBtn.disabled = true;
+          rollDmgBtn.style.opacity = "0.4";
+          rollDmgBtn.style.cursor = "not-allowed";
           rollDmgBtn.textContent = `Roll Damage (${esc(weapon.damage)}${bonusDie ? " +" + bonusDie : ""})`;
           rollDmgBtn.className = "btn secondary block";
           rollDmgBtn.style.background = "";
@@ -1395,16 +1409,9 @@
       const m = modal(`${npcName}: ${w.name}`);
       const out = el(`<div class="roll-result"></div>`);
       const rollBtn = el(`<button class="btn block">Roll Attack (Target ≤ ${w.skill})</button>`);
-      rollBtn.onclick = () => {
-        const d = Dice.d(20);
-        const ok = d <= w.skill;
-        const crit = d === 1; const fumble = d === 20;
-        out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="font-size:1.6rem;margin-top:12px">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : ok ? "Hit!" : "Miss!"} (rolled ${d} vs ${w.skill})</p>`;
-        if (!ok && combatantId) Combat.advanceTurn(combatantId);
-      };
-      const bodyElems = [el(`<p class="stat-line">Skill level ${w.skill} · Damage ${esc(w.damage)}${w.bonus ? " +" + esc(w.bonus) : ""}</p>`), rollBtn];
+      let dmgBtn = null;
       if (w.damage) {
-        const dmgBtn = el(`<button class="btn secondary block" style="margin-top:8px">Roll Damage (${esc(w.damage)}${w.bonus ? " +" + esc(w.bonus) : ""})</button>`);
+        dmgBtn = el(`<button class="btn secondary block" disabled style="margin-top:8px;opacity:0.4;cursor:not-allowed">Roll Damage (${esc(w.damage)}${w.bonus ? " +" + esc(w.bonus) : ""})</button>`);
         dmgBtn.onclick = () => {
           const base = Dice.roll(w.damage);
           let tot = base;
@@ -1415,8 +1422,21 @@
           out.innerHTML += `<p class="outcome ok" style="font-size:1.6rem;margin-top:12px">${tot} damage</p><p class="stat-line">${p}</p>`;
           out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
         };
-        bodyElems.push(dmgBtn);
       }
+      rollBtn.onclick = () => {
+        const d = Dice.d(20);
+        const ok = d <= w.skill;
+        const crit = d === 1; const fumble = d === 20;
+        out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="font-size:1.6rem;margin-top:12px">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : ok ? "Hit!" : "Miss!"} (rolled ${d} vs ${w.skill})</p>`;
+        if (dmgBtn) {
+          dmgBtn.disabled = !ok;
+          dmgBtn.style.opacity = ok ? "1" : "0.4";
+          dmgBtn.style.cursor = ok ? "pointer" : "not-allowed";
+        }
+        if (!ok && combatantId) Combat.advanceTurn(combatantId);
+      };
+      const bodyElems = [el(`<p class="stat-line">Skill level ${w.skill} · Damage ${esc(w.damage)}${w.bonus ? " +" + esc(w.bonus) : ""}</p>`), rollBtn];
+      if (dmgBtn) bodyElems.push(dmgBtn);
       bodyElems.push(out);
       m.body.append(...bodyElems);
     },
