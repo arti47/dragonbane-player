@@ -494,7 +494,8 @@
     get(k) { return this.load()[k]; },
     set(k, v) { const s = this.load(); s[k] = v; localStorage.setItem(this.KEY, JSON.stringify(s)); },
     bookOfMagic() { return !!this.get("bookOfMagic"); },
-    soloMode() { return !!this.get("soloMode"); }
+    soloMode() { return !!this.get("soloMode"); },
+    gmAutomation() { return !!this.get("gmAutomation"); }
   };
 
   /* =================================================================
@@ -1840,6 +1841,10 @@
     if (!c.state.teacherTrained || typeof c.state.teacherTrained !== "object") c.state.teacherTrained = {};
     if (c.state.familiar === undefined) c.state.familiar = null;
     if (typeof c.state.prone !== "boolean") c.state.prone = false;
+    if (!c.state.time || typeof c.state.time !== "object") c.state.time = { round: 0, stretch: 0, shift: 0 };
+    if (typeof c.state.roundRestUsed !== "boolean") c.state.roundRestUsed = false;
+    if (typeof c.state.awakeShifts !== "number") c.state.awakeShifts = 0;
+    if (!c.state.afflictions || typeof c.state.afflictions !== "object") c.state.afflictions = { cold: false, disease: null };
   }
   // Effective max WP after permanent reductions (rituals, corruption); restorable via Focused.
   const abilityCount = (c, name) => (c.abilities || []).filter((a) => a.name === name).length;
@@ -1888,6 +1893,8 @@
     const h = equippedHelmet(c); if (h) (h.banes || []).forEach((s) => set.add(s));
     return set;
   }
+  // Burn-out die (4/6/8) for a light-source item, from DB.gear (null if not a light).
+  function lightDieFor(name) { const g = (DB.gear || []).find((x) => x.lightDie && normName(x.name) === normName(name)); return g ? g.lightDie : null; }
 
   const Sheet = {
     id: null,
@@ -1942,13 +1949,18 @@
       setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2600);
     },
     rest(kind) {
+      const gm = Settings.gmAutomation();
+      const cg = Store.get(this.id);
+      const deprived = gm && (cg.state.awakeShifts || 0) >= 3; // sleep deprivation blocks WP/condition recovery
       if (kind === "round") {
+        if (gm && cg.state.roundRestUsed) { this.toast("Round rest already used this shift."); return; }
+        if (deprived) { this.toast("Too sleep-deprived to recover WP — sleep (shift rest)."); return; }
         const w = Dice.roll("D6");
-        this.mutate((ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
-        this.toast(`Round rest: +${w} WP.`);
+        this.mutate((ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); if (gm) ch.state.roundRestUsed = true; });
+        this.toast(`Round rest: +${w} WP${gm ? " (used this shift)" : ""}.`);
       } else if (kind === "shift") {
-        this.mutate((ch) => { ch.state.hp = effHpMax(ch); ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; });
-        this.toast("Shift rest: full HP & WP, all conditions cleared.");
+        this.mutate((ch) => { ch.state.hp = effHpMax(ch); ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; if (gm) { ch.state.roundRestUsed = false; ch.state.awakeShifts = 0; } });
+        this.toast("Shift rest: full HP & WP, all conditions cleared." + (gm ? " Sleep resets deprivation." : ""));
         const cur = Store.get(this.id);
         if ((cur?.spells?.known || []).length > 0) {
           const m = modal("🧙‍♂️ Shift Rest: Prepare Grimoire Spells");
@@ -1969,8 +1981,9 @@
           m.body.appendChild(listDiv);
         }
       } else { // stretch
-        const h = Dice.roll("D6"), w = Dice.roll("D6");
+        const h = Dice.roll("D6"), w = deprived ? 0 : Dice.roll("D6");
         this.mutate((ch) => { ch.state.hp = Math.min(effHpMax(ch), ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); });
+        if (deprived) { this.toast(`Stretch rest: +${h} HP. Sleep-deprived → no WP/condition recovery.`); return; }
         const cur = Store.get(this.id);
         const held = (DB.conditions || []).filter((cn) => cur.state.conditions[cn.key]);
         if (!held.length) { this.toast(`Stretch rest: +${h} HP, +${w} WP.`); return; }
@@ -1980,6 +1993,87 @@
         held.forEach((cn) => { const chip = el(`<button class="skill-chip cond-on">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(this.id, (ch) => { ch.state.conditions[cn.key] = false; }); m.close(); this.render(); }; cw.appendChild(chip); });
         m.body.appendChild(cw);
       }
+    },
+    // ---- Advanced / GM Automation (Phase 18; gated by Settings.gmAutomation) ----
+    advanceClock(unit) {
+      if (unit === "round") { this.mutate((ch) => { ch.state.time.round++; }); this.toast("Round +1."); return; }
+      if (unit === "stretch") { this.mutate((ch) => { ch.state.time.stretch++; }); this.lightStretch(); return; }
+      // shift
+      let drained = 0, dep = false;
+      this.mutate((ch) => {
+        ch.state.time.shift++;
+        ch.state.roundRestUsed = false;
+        ch.state.awakeShifts = (ch.state.awakeShifts || 0) + 1;
+        if (ch.state.awakeShifts >= 3) { dep = true; drained = Dice.roll("D6"); ch.state.wp = Math.max(0, ch.state.wp - drained); }
+      });
+      this.toast(dep ? `Shift +1 — sleep-deprived (${Store.get(this.id).state.awakeShifts} shifts): −${drained} WP.` : "Shift +1 (stayed awake — sleep with a shift rest).");
+    },
+    lightStretch() {
+      const c = Store.get(this.id);
+      const lit = (c.inventory.items || []).map((it, i) => ({ it, i })).filter((x) => x.it.lit && lightDieFor(x.it.name));
+      if (!lit.length) { this.toast("Stretch +1. No lit light sources to roll."); return; }
+      const m = modal("Light burn-out — roll each lit source");
+      m.body.appendChild(el(`<p class="stat-line">Each stretch, roll a lit source's die; on a <b>1</b> it goes out.</p>`));
+      lit.forEach(({ it, i }) => {
+        const die = lightDieFor(it.name);
+        const row = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)} <span class="tag">D${die}</span></span></div>`);
+        const out = el(`<span class="stat-line"></span>`);
+        const b = el(`<button class="step" style="width:auto;padding:0 8px">Roll D${die}</button>`);
+        b.onclick = () => { const r = Dice.d(die); if (r === 1) { this.mutate((ch) => { ch.inventory.items[i].lit = false; }); out.innerHTML = `<b style="color:var(--bad)">${r} — went out!</b>`; b.disabled = true; } else { out.innerHTML = `${r} — still burning`; } };
+        row.append(b, out); m.body.appendChild(row);
+      });
+    },
+    fearAttack() {
+      const c = Store.get(this.id);
+      const wil = c.attributes.WIL;
+      const fearless = (c.abilities || []).some((a) => a.name === "Fearless");
+      const m = modal("Fear attack — WIL roll");
+      const out = el(`<div class="roll-result"></div>`);
+      if (fearless) { m.body.append(el(`<p class="outcome ok">Fearless — you automatically resist fear (no roll).</p>`)); return; }
+      const btn = el(`<button class="btn block">Roll d20 ≤ WIL ${wil}</button>`);
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const r = Dice.d(20), ok = r <= wil;
+        if (ok) { out.innerHTML = `<p class="outcome ok">${r} vs WIL ${wil} — you resist the fear.</p>`; return; }
+        const tbl = DB.fearTable || []; const fr = Dice.d(6); const row = tbl.find((x) => x.d6 === fr) || tbl[0];
+        this.mutate((ch) => { ch.state.conditions.scared = true; });
+        out.innerHTML = `<p class="outcome bad">${r} vs WIL ${wil} — fear takes hold! You are <b>Scared</b>.</p><p class="notice" style="border-color:var(--bad)">Fear table (D6=${fr}): ${esc(row ? row.effect : "")}</p>`;
+      };
+      m.body.append(el(`<p class="stat-line">A fear attack forces a WIL roll; failure applies Scared and a fear-table result.</p>`), btn, out);
+    },
+    afflictionRoll(kind) {
+      const c = Store.get(this.id);
+      const con = c.attributes.CON;
+      const m = modal(`${kind === "cold" ? "Cold" : "Disease"} — CON roll`);
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll d20 ≤ CON ${con}</button>`);
+      btn.onclick = () => {
+        btn.disabled = true; btn.style.opacity = "0.4";
+        const r = Dice.d(20), ok = r <= con;
+        if (ok) { out.innerHTML = `<p class="outcome ok">${r} vs CON ${con} — you resist.</p>`; return; }
+        const dmg = Dice.roll("D6");
+        this.mutate((ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); ch.state.conditions.sickly = true; });
+        out.innerHTML = `<p class="outcome bad">${r} vs CON ${con} — failed! −${dmg} HP and you are <b>Sickly</b>.</p>`;
+      };
+      m.body.append(el(`<p class="stat-line">While afflicted, roll CON each interval; failure deals D6 damage and applies Sickly.</p>`), btn, out);
+    },
+    // Concentration interruption: when a concentrating caster takes damage, a
+    // WIL roll is required to maintain each active concentration effect.
+    concentrationCheck() {
+      const c = Store.get(this.id);
+      if (!Settings.gmAutomation()) return;
+      const conc = (c.effects || []).filter((fx) => fx.concentration);
+      if (!conc.length) return;
+      const wil = c.attributes.WIL;
+      const m = modal("Concentration interrupted — WIL roll");
+      m.body.appendChild(el(`<p class="stat-line">You took damage while concentrating. Roll WIL (≤ ${wil}) to maintain each effect; failure ends it.</p>`));
+      conc.forEach((fx) => {
+        const row = el(`<div class="inv-row"><span class="inv-name">${esc(fx.name)}</span></div>`);
+        const out = el(`<span class="stat-line"></span>`);
+        const b = el(`<button class="step" style="width:auto;padding:0 8px">Roll WIL</button>`);
+        b.onclick = () => { b.disabled = true; const r = Dice.d(20), ok = r <= wil; if (ok) { out.innerHTML = `${r} — maintained`; } else { this.mutate((ch) => { const i = (ch.effects || []).findIndex((e) => e.id === fx.id); if (i >= 0) ch.effects.splice(i, 1); }); out.innerHTML = `<b style="color:var(--bad)">${r} — concentration broken</b>`; } };
+        row.append(b, out); m.body.appendChild(row);
+      });
     },
     deathRoll() {
       const con = Store.get(this.id).attributes.CON;
@@ -2237,6 +2331,8 @@
             if (ch.state.deathRolls) c.state.deathRolls = ch.state.deathRolls;
           });
           val.textContent = `${c.state[key]} / ${max}`;
+          // Concentration interruption: taking HP damage prompts a WIL roll.
+          if (key === "hp" && d < 0 && c.state.hp < prevHp) this.concentrationCheck();
           if (key === "hp" && ((prevHp <= 0 && c.state.hp > 0) || (prevHp > 0 && c.state.hp <= 0))) {
             this.render();
           }
@@ -2325,6 +2421,43 @@
       });
       top.appendChild(restRow);
       root.appendChild(top);
+
+      // Advanced / GM Automation panel (Phase 18) — gated behind one toggle.
+      if (Settings.gmAutomation()) {
+        const t = c.state.time || { round: 0, stretch: 0, shift: 0 };
+        const gmPanel = el(`<div class="panel" style="border-left:4px solid var(--accent)"><h3>⏱️ GM Automation</h3></div>`);
+        gmPanel.appendChild(el(`<p class="stat-line">Time — Round <b>${t.round}</b> · Stretch <b>${t.stretch}</b> · Shift <b>${t.shift}</b>${c.state.awakeShifts >= 3 ? ` · <b style="color:var(--bad)">sleep-deprived (${c.state.awakeShifts} shifts)</b>` : c.state.awakeShifts ? ` · awake ${c.state.awakeShifts} shift(s)` : ""}${c.state.roundRestUsed ? " · round rest used" : ""}</p>`));
+        const clockRow = el(`<div class="rest-row"></div>`);
+        [["+ Round", "round"], ["+ Stretch", "stretch"], ["+ Shift", "shift"]].forEach(([label, unit]) => { const b = el(`<button class="btn ghost">${label}</button>`); b.onclick = () => this.advanceClock(unit); clockRow.appendChild(b); });
+        gmPanel.appendChild(clockRow);
+
+        // Light sources (toggle lit; burn-out rolls on +Stretch)
+        const lights = (c.inventory.items || []).map((it, i) => ({ it, i })).filter((x) => lightDieFor(x.it.name));
+        if (lights.length) {
+          gmPanel.appendChild(el(`<p class="stat-line" style="margin-top:6px"><b>Light sources</b> (toggle lit; burn-out rolls on “+ Stretch”)</p>`));
+          const lw = el(`<div class="chip-wrap"></div>`);
+          lights.forEach(({ it, i }) => { const chip = el(`<button class="skill-chip ${it.lit ? "on" : ""}">${it.lit ? "🔥" : "🕯️"} ${esc(it.name)} <span class="stat-line">D${lightDieFor(it.name)}</span></button>`); chip.onclick = () => this.mutate((ch) => { ch.inventory.items[i].lit = !ch.inventory.items[i].lit; }); lw.appendChild(chip); });
+          gmPanel.appendChild(lw);
+        }
+
+        // Cold & disease + fear
+        const statusRow = el(`<div class="rest-row" style="margin-top:6px"></div>`);
+        const af = c.state.afflictions || { cold: false, disease: null };
+        const coldBtn = el(`<button class="btn ghost ${af.cold ? "" : ""}" title="toggle cold; roll CON when active">${af.cold ? "❄️ Cold ON" : "❄️ Cold"}</button>`);
+        coldBtn.onclick = () => this.mutate((ch) => { ch.state.afflictions.cold = !ch.state.afflictions.cold; });
+        const coldRoll = el(`<button class="btn ghost" title="CON roll vs cold">Cold CON roll</button>`);
+        coldRoll.onclick = () => this.afflictionRoll("cold");
+        const disBtn = el(`<button class="btn ghost">${af.disease ? "🦠 Disease ON" : "🦠 Disease"}</button>`);
+        disBtn.onclick = () => this.mutate((ch) => { ch.state.afflictions.disease = ch.state.afflictions.disease ? null : { virulence: Dice.roll("3D6") }; });
+        const disRoll = el(`<button class="btn ghost" title="CON roll vs disease">Disease CON roll</button>`);
+        disRoll.onclick = () => this.afflictionRoll("disease");
+        const fearBtn = el(`<button class="btn ghost" style="border-color:var(--bad)">😱 Fear attack</button>`);
+        fearBtn.onclick = () => this.fearAttack();
+        statusRow.append(coldBtn, coldRoll, disBtn, disRoll, fearBtn);
+        gmPanel.appendChild(statusRow);
+        if (af.disease) gmPanel.appendChild(el(`<p class="stat-line">Disease virulence: <b>${af.disease.virulence}</b></p>`));
+        root.appendChild(gmPanel);
+      }
 
       // Death & dying
       if (c.state.hp <= 0) {
@@ -3550,6 +3683,12 @@
       const tog2 = el(`<button class="toggle ${sm ? "on" : ""}" role="switch" aria-checked="${sm}"><span class="knob"></span></button>`);
       tog2.onclick = () => { Settings.set("soloMode", !Settings.soloMode()); Router.go("about"); };
       row2.appendChild(tog2); sp.appendChild(row2);
+
+      const gm = Settings.gmAutomation();
+      const row3 = el(`<div class="toggle-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px"><div><b>Advanced / GM Automation</b><br><span class="stat-line">Reveals an optional GM panel on the sheet: time clock (rounds/stretches/shifts), round-rest once-per-shift, light burn-out, sleep deprivation, cold &amp; disease, fear attacks, and concentration interruption.</span></div></div>`);
+      const tog3 = el(`<button class="toggle ${gm ? "on" : ""}" role="switch" aria-checked="${gm}"><span class="knob"></span></button>`);
+      tog3.onclick = () => { Settings.set("gmAutomation", !Settings.gmAutomation()); Router.go("about"); };
+      row3.appendChild(tog3); sp.appendChild(row3);
 
       const syncPanel = el(`<div class="panel" id="multiplayer-panel"><h3>Multiplayer &amp; Cloud Sync</h3></div>`);
       if (!Sync.enabled) {

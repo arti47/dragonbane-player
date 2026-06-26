@@ -507,48 +507,48 @@ data-solo.js: failForward[]
 > single **"Advanced / GM Automation"** toggle in **Settings & About** (same
 > pattern as Book of Magic / Solo Mode). Add `Settings.gmAutomation()` →
 > `!!get("gmAutomation")`. Keep the default player UI uncluttered.
-- [ ] **Add the shared toggle.**
+- [x] **Add the shared toggle.** ✅ `Settings.gmAutomation()` + an "Advanced / GM Automation" toggle row in Settings & About; all Phase-18 UI checks it.
   - Target: `app.js` · `Settings` (add `gmAutomation()`); `Screens.about` settings panel (new toggle row).
   - Behavior/UI: A toggle row "Advanced / GM Automation" with a one-line description listing what it enables. All Phase-18 UI checks `Settings.gmAutomation()` before rendering.
   - Schema: `settings.gmAutomation: boolean` (default false) in `dragonbane.settings`.
   - Acceptance: Toggling it on reveals all Phase-18 panels; off hides them.
-- [ ] **Global time dashboard (Rounds / Stretches / Shifts).**
+- [x] **Global time dashboard (Rounds / Stretches / Shifts).** ✅ A GM panel shows `state.time` with +Round/+Stretch/+Shift buttons (`Sheet.advanceClock`); +Shift drives sleep, +Stretch drives light burn-out.
   - Rule: Time scales — Round ≈ 10s, Stretch (several minutes), Shift ≈ 6h (Morning/Day/Evening/Night).
   - Target: `app.js` · new panel (Sheet or a small header widget) gated by the toggle.
   - Behavior/UI: Counters/steppers for rounds, stretches, and shift-of-day; advancing a shift can trigger dependent systems (light, sleep, round-rest reset).
   - Schema: `state.time: { round: 0, stretch: 0, shift: 0 }` (default zeros) or a campaign-level clock.
   - Acceptance: Advancing the clock updates counters and (when present) drives the systems below.
-- [ ] **Round rest "once per shift" enforcement.**
+- [x] **Round rest "once per shift" enforcement.** ✅ `rest("round")` sets `state.roundRestUsed` and blocks a second round rest until a shift rest / +Shift clears it.
   - Rule: Round rest (+D6 WP) can be used only once per shift.
   - Target: `app.js` · `Sheet.rest("round")`.
   - Behavior/UI: After a round rest, disable it until a Shift rest or the time dashboard advances a shift; show "used this shift".
   - Schema: `state.roundRestUsed: boolean` (default false), cleared on shift rest / shift advance.
   - Acceptance: Two round rests in a row → second is blocked until a shift passes.
-- [ ] **Light-source burn-out.**
+- [x] **Light-source burn-out.** ✅ Added `lightDie` to `DB.gear` light entries; lit items (`items[].lit`, toggled in the GM panel) roll their die on +Stretch (`Sheet.lightStretch`) — a 1 extinguishes.
   - Rule: Each stretch, roll the light's die (Torch D6, Oil Lamp D6, Lantern D8, Candle D4); on a 1 it goes out (`data.js` gear effects).
   - Target: `app.js` · light items in inventory + the time dashboard.
   - Behavior/UI: For carried/lit light sources, each elapsed stretch prompts the correct die; on a 1 mark it extinguished. Add structured `lightDie` to `DB.gear` light entries.
   - Schema: add `lightDie: 4|6|8` to light gear in `data.js`; `inventory.items[].lit: boolean`.
   - Acceptance: A lit torch prompts a D6 each stretch; rolling 1 marks it out.
-- [ ] **Sleep deprivation.**
+- [x] **Sleep deprivation.** ✅ +Shift increments `state.awakeShifts`; at ≥3 it drains D6 WP per shift and `rest()` blocks WP/condition recovery; a shift rest resets it.
   - Rule: Missing sleep for 3 shifts blocks WP and condition healing and drains D6 WP per awake shift; reaching 0 WP forces an un-wakeable sleep.
   - Target: `app.js` · time dashboard + `Sheet`.
   - Behavior/UI: Track awake-shifts; at ≥3, block WP/condition recovery in `rest()` and deduct D6 WP per shift advance; at WP 0 show "forced sleep". Sleeping (a shift rest) resets the counter.
   - Schema: `state.awakeShifts: number` (default 0).
   - Acceptance: Advance 3 awake shifts → healing blocked + D6 WP drained per shift; sleeping resets it.
-- [ ] **Cold & disease trackers.**
+- [x] **Cold & disease trackers.** ✅ `state.afflictions` cold/disease(virulence 3D6) toggles + `Sheet.afflictionRoll` CON checks (failure → D6 damage + Sickly).
   - Rule: Cold/disease prompt recurring CON rolls; failure deals D6 damage and/or applies *Sickly*. (Disease has a virulence/duration.)
   - Target: `app.js` · `Sheet` (status section) + time dashboard.
   - Behavior/UI: "Cold" and "Disease" toggles; while active, each relevant interval prompts a CON `Roller.skill`-style check; on failure apply D6 damage and the *Sickly* condition. Disease tracks a virulence value.
   - Schema: `state.afflictions: { cold: boolean, disease: { virulence: number }|null }` (default `{cold:false, disease:null}`).
   - Acceptance: Enable Cold → CON-roll prompt; failing deals D6 and sets Sickly.
-- [ ] **Fear attacks + fear table.**
+- [x] **Fear attacks + fear table.** ✅ Added `DB.fearTable`; `Sheet.fearAttack` rolls WIL (Fearless auto-resists), failure sets Scared + a D6 fear-table result.
   - Rule: A fear attack forces a WIL roll; failure applies *Scared* and a result on the fear table (Paralysis / Fleeing / Rage).
   - Target: `app.js` · `Sheet`/`Combat`; add a `fearTable` to `data.js`.
   - Behavior/UI: A "Fear attack" button → WIL `Roller.skill` check; on failure set *Scared* and roll/show the fear-table outcome.
   - Schema: add `fearTable: [...]` to `data.js`.
   - Acceptance: Trigger a fear attack → WIL roll; failure sets Scared and shows a fear-table result.
-- [ ] **Concentration interruption.**
+- [x] **Concentration interruption.** ✅ The sheet HP stepper calls `Sheet.concentrationCheck` on damage (gmAutomation): a WIL roll per concentration effect, failure ends it.
   - Rule: A concentration spell is broken (WIL roll to maintain) if the caster takes damage or suffers fear while concentrating.
   - Target: `app.js` · HP-decrement paths (`Sheet` stepper ~line 1943, `Combat` `doHp`, damage applier) check active concentration effects (`c.effects[].concentration`).
   - Behavior/UI: When a concentrating character takes damage/fear, prompt a WIL roll; on failure end the matching concentration effect.
@@ -561,6 +561,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Phase 18 (Advanced GM Automation) COMPLETE — entire §7B roadmap done.** Added `Settings.gmAutomation()` + a shared "Advanced / GM Automation" toggle that reveals a GM panel on the sheet: a time clock (`state.time`, `advanceClock`), round-rest once-per-shift (`state.roundRestUsed`), light burn-out (`DB.gear[].lightDie` + `items[].lit`, `lightStretch`), sleep deprivation (`state.awakeShifts` ≥3 → D6 WP drain + blocked recovery), cold & disease (`state.afflictions` + `afflictionRoll`), fear attacks (`DB.fearTable` + `fearAttack`), and concentration interruption (HP-damage → `concentrationCheck` WIL roll). Verified headless (clock advances, sleep-deprived at 3 shifts, fear→Scared+table, light burn modal on +Stretch, 0 errors). SW cache v36. |
 | 2026-06-26 | **Phase 17 (Solo Completion) COMPLETE.** Added a Solo-only "🏅 Mission complete (+5 marks)" button (`Sheet.soloMissionMarks`) that marks 5 chosen skills then rolls advancement. Refactored the wizard heroic step to `heroicPicks[]` with `heroicCap()` = 2 in Solo / 1 otherwise (validation + build updated) so a solo character gets a second free heroic ability at creation. Added `DRAGONBANE_SOLO.failForward` (D6 complication table) with a "Fail forward" button on failed Solo skill rolls. Verified headless (mission +5, fail-forward complication, full non-solo wizard creates a hero with its ability, 0 errors). SW cache v35. |
 | 2026-06-26 | **Phase 16 (Movement & Reactions) COMPLETE.** Movement panel gains a prone/stand free-action toggle (`state.prone`), a "🚪 Door (−½)" button (spends ⌈pool/2⌉), and a "🤸 Leap" button (Acrobatics roll when distance > movement/4, else auto). Added `Combat.reaction` with 🛡 Parry / 🤸 Dodge buttons on hero combat cards: rolls the skill, consumes the turn (acted+done → card flip), and offers a +2 m free move on a successful dodge. Verified headless (Door 14→7, prone toggle, dodge success marks Acted, 0 errors). SW cache v34. |
 | 2026-06-26 | **Phase 15 (Vitals & Magic Extras) COMPLETE.** Robust/Focused now auto-adjust max HP/WP: added `abilityCount` + `effHpMax` and updated `effWpMax` (+2 per pick), wired through the HP/WP steppers, rest, and combat-add (`derived.hpMax`→`effHpMax`). Added a caster-only **Familiar** panel (`state.familiar`): bind a familiar (cap ⌊maxWP/2⌋), transfer WP between the mage and familiar pools with independent steppers, and release to return its WP. Verified headless (Focused 18→20, Robust 11→13, familiar transfer drains mage pool, 0 errors). SW cache v33. |

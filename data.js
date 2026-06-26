@@ -625,11 +625,11 @@ const DRAGONBANE = {
     { name: "Saddle Bag",      cost: "6 gold",   weight: 0,    category: "container", effect: "Increases an animal's carrying capacity by 2 (max two per animal)." },
     // Light sources
     { name: "Flint & Tinder",  cost: "5 silver", weight: 0,    category: "light", effect: "Required to light torches, candles, or lanterns, and to make a fire." },
-    { name: "Torch",           cost: "5 copper", weight: 1,    category: "light", effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch (or if used as a weapon), on 1 it goes out." },
-    { name: "Lantern",         cost: "10 gold",  weight: 1,    category: "light", effect: "Illuminates a 10 m radius. Burns up to a shift; roll D8 each stretch, on 1 it goes out (refill & relight = action)." },
-    { name: "Oil Lamp",        cost: "1 gold",   weight: 1,    category: "light", effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch, on 1 it goes out." },
+    { name: "Torch",           cost: "5 copper", weight: 1,    category: "light", lightDie: 6, effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch (or if used as a weapon), on 1 it goes out." },
+    { name: "Lantern",         cost: "10 gold",  weight: 1,    category: "light", lightDie: 8, effect: "Illuminates a 10 m radius. Burns up to a shift; roll D8 each stretch, on 1 it goes out (refill & relight = action)." },
+    { name: "Oil Lamp",        cost: "1 gold",   weight: 1,    category: "light", lightDie: 6, effect: "Illuminates a 10 m radius. Burns up to a shift; roll D6 each stretch, on 1 it goes out." },
     { name: "Lamp Oil (10 doses)", cost: "3 silver", weight: 1,category: "light", effect: "Each dose keeps an oil lamp or lantern burning up to a shift." },
-    { name: "Tallow Candle",   cost: "1 copper", weight: 0,    category: "light", effect: "Illuminates a 4 m radius. Burns up to a shift; roll D4 each stretch or if the bearer attacks/is attacked, on 1 it goes out." },
+    { name: "Tallow Candle",   cost: "1 copper", weight: 0,    category: "light", lightDie: 4, effect: "Illuminates a 4 m radius. Burns up to a shift; roll D4 each stretch or if the bearer attacks/is attacked, on 1 it goes out." },
     // Adventuring gear & trade goods
     { name: "Field Ration",    cost: "1 silver", weight: 0.25, category: "gear", effect: "Consume one per day or become hungry." },
     { name: "Sleeping Fur",    cost: "1 gold",   weight: 1,    category: "gear", effect: "Required to avoid a bane on BUSHCRAFT rolls for making camp." },
@@ -804,6 +804,16 @@ const DRAGONBANE = {
 
   /* End-of-session advancement questions. Each "yes" lets a player mark one
    * skill of their choice for advancement (in addition to Dragon/Demon marks). */
+  /* Fear table (D6) — rolled when a WIL roll against a fear attack fails. */
+  fearTable: [
+    { d6: 1, effect: "Paralyzed by terror — you lose your next turn." },
+    { d6: 2, effect: "Paralyzed — you can't act until you pass a WIL roll (one attempt per turn)." },
+    { d6: 3, effect: "You drop whatever you are holding and recoil a step." },
+    { d6: 4, effect: "You flee from the source of fear as fast as you can." },
+    { d6: 5, effect: "You flee and cannot willingly approach the source this scene." },
+    { d6: 6, effect: "Overcome — you act last and roll with a bane until the threat passes." }
+  ],
+
   advancementQuestions: [
     "Did you take part in the game session?",
     "Did you explore a new, dangerous location?",
