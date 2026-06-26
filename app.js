@@ -79,12 +79,15 @@
         return;
       }
       try {
+        const customUrl = localStorage.getItem("dragonbane.customDbUrl");
+        const cfg = { ...window.FIREBASE_CONFIG };
+        if (customUrl) cfg.databaseURL = customUrl;
         if (!firebase.apps.length) {
-          this.app = firebase.initializeApp(window.FIREBASE_CONFIG);
+          this.app = firebase.initializeApp(cfg);
         } else {
           this.app = firebase.app();
         }
-        this.db = firebase.database();
+        this.db = customUrl ? this.app.database(customUrl) : firebase.database();
         this.auth = firebase.auth();
         try { if (window.FIREBASE_CONFIG?.storageBucket && !window.FIREBASE_CONFIG.storageBucket.includes("YOUR_PROJECT")) this.storage = firebase.storage(); } catch (_) { this.storage = null; }
         this.enabled = true;
@@ -189,13 +192,20 @@
         ]), "create campaign");
       } catch (err) {
         console.error("Failed to create campaign in RTDB:", err);
-        let msg = `Database error:\n${err.message || err.code || "Permission denied"}\n\n`;
         if (err.message && err.message.includes("timed out")) {
-          msg += `To fix timeout:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Realtime Database\n4. Click 'Create Database' if not created yet.\n5. Check Rules tab.`;
+          const curUrl = localStorage.getItem("dragonbane.customDbUrl") || window.FIREBASE_CONFIG?.databaseURL || "";
+          const newUrl = prompt(
+            `Database Connection Timed Out!\n\nYour app attempted to connect to:\n${curUrl}\n\nIf your database was created outside US Central (e.g. Europe or Asia), Firebase assigns a regional URL ending in .firebasedatabase.app.\n\nTo fix instantly:\n1. Open console.firebase.google.com > Realtime Database > Data tab.\n2. Copy the exact URL shown at the top of the database tree.\n3. Paste it below and click OK to reconnect:`,
+            curUrl
+          );
+          if (newUrl && newUrl.trim() && newUrl.trim() !== curUrl) {
+            localStorage.setItem("dragonbane.customDbUrl", newUrl.trim());
+            alert("Updated Database URL! Reloading app to connect...");
+            window.location.reload();
+          }
         } else {
-          msg += `Check your Firebase Console > Realtime Database > Rules tab.`;
+          alert(`Database error:\n${err.message || err.code || "Permission denied"}\n\nCheck your Firebase Console > Realtime Database > Rules tab.`);
         }
-        alert(msg);
         return;
       }
       this.campaign = { id, joinCode, name: camp.name, role: "gm" };
