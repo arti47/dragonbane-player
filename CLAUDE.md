@@ -317,7 +317,8 @@ data-solo.js: failForward[]
 > These themed phases close the gap between the current app and a fully
 > rules-accurate *Dragonbane* player tracker (see the feature audit, 2026-06-26).
 > **Ordering is by rules-impact** (highest-accuracy wins first); each phase has a
-> **Priority** label. **None are started yet** (`- [ ]`).
+> **Priority** label. **All phases below (10–19) are now COMPLETE** (`- [x]`); the
+> per-item specs are retained as documentation of what was built.
 >
 > **How to read each item (full implementation spec):** every feature lists
 > **Rule** (the canonical Dragonbane mechanic + exact numbers), **Target** (the
