@@ -2639,7 +2639,12 @@
       const doMutate = (fn) => {
         Store.update(c.id, fn);
         if (typeof onChange === "function") onChange();
-        if (typeof Combat !== "undefined" && $("#app-nav button[data-route='party']")?.classList.contains("active")) {
+        // Only re-render the combat tracker when it is actually on screen (e.g.
+        // the movement modal opened over it). When the character SHEET is shown
+        // — even with the nav still on "party" after opening the sheet from
+        // combat — re-rendering combat would replace the sheet, making the
+        // movement buttons look unresponsive.
+        if (typeof Combat !== "undefined" && document.querySelector("#screen .combat-row")) {
           Combat.rerender();
         }
       };
