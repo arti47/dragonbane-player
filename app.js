@@ -2196,6 +2196,7 @@
       return { wrap, refresh };
     },
     endSession() {
+      if (Settings.soloMode()) { this.soloMissionMarks(); return; }
       const qs = DB.advancementQuestions || [];
       const m = modal("Session end — advancement");
       m.body.appendChild(el(`<p class="stat-line">Answer the advancement questions. Each <b>Yes</b> lets you mark one unmarked skill (in addition to Dragon/Demon marks). Then roll advancement.</p>`));
@@ -2295,6 +2296,46 @@
         if (reached18) { const cont = el(`<button class="btn block" style="margin-top:8px">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
       };
       m.body.append(sel, btn, out);
+    },
+    studyLibrary() {
+      const c = Store.get(this.id);
+      const knowSkills = ["Beast Lore", "Myths & Legends", "Languages"];
+      const sel = el(`<select class="input" style="width:100%;margin-bottom:8px"></select>`);
+      knowSkills.forEach((n) => { if (c.skills[n]) sel.appendChild(el(`<option value="${esc(n)}">${esc(n)} (${c.skills[n].level})</option>`)); });
+      const m = modal("Study in prestigious library");
+      m.body.appendChild(el(`<p class="stat-line">Spend a shift studying in a prestigious library (like the Guild of Tomes in Arkand) to get an immediate advancement roll in specific knowledge skills.</p>`));
+      const out = el(`<div class="roll-result"></div>`);
+      const btn = el(`<button class="btn block">Roll advancement (study)</button>`);
+      btn.onclick = () => {
+        const n = sel.value; if (!n) return;
+        btn.disabled = true; btn.style.opacity = "0.4";
+        let roll, improved, reached18 = false, newLvl;
+        this.mutate((ch) => { const sk = ch.skills[n]; const before = sk.level; roll = Dice.d(20); improved = roll > sk.level && sk.level < 18; if (improved) sk.level = Math.min(18, sk.level + 1); newLvl = sk.level; if (before < 18 && sk.level === 18) reached18 = true; });
+        out.innerHTML = `<p class="outcome ${improved ? "ok" : "bad"}">Rolled ${roll} → ${improved ? `improved to ${newLvl}` : `no change (${newLvl})`}</p>`;
+        if (reached18) { const cont = el(`<button class="btn block" style="margin-top:8px">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
+      };
+      m.body.append(sel, btn, out);
+    },
+    replacementCatchup() {
+      const picked = [];
+      const m = modal("Catch up after death — Replacement PC");
+      m.body.appendChild(el(`<p class="stat-line">In Dragonbane, replacement characters catch up by getting <b>one extra advancement roll per session played</b> by the group so far, plus starting with the same number of Heroic Abilities.</p>`));
+      const countInput = el(`<input type="number" min="1" max="100" value="1" style="width:80px;padding:6px;font-size:1rem;margin-left:8px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)">`);
+      const countRow = el(`<div style="margin:10px 0;display:flex;align-items:center"><label style="font-weight:600">Sessions played so far:</label></div>`);
+      countRow.appendChild(countInput);
+      const capFn = () => Math.max(1, parseInt(countInput.value || "1", 10));
+      const { wrap, refresh } = this.markSkillPicker(picked, capFn);
+      countInput.oninput = () => refresh();
+      const rollBtn = el(`<button class="btn block" style="margin-top:10px">Mark skills &amp; roll catch-up advancement</button>`);
+      rollBtn.onclick = () => {
+        const n = capFn();
+        if (picked.length !== n) { alert(`Please pick exactly ${n} skill(s) to mark.`); return; }
+        Store.update(this.id, (ch) => { picked.forEach((s) => { if (ch.skills[s]) ch.skills[s].mark = true; }); });
+        m.close(); this.rollAdvancement();
+      };
+      const abBtn = el(`<button class="btn ghost block" style="margin-top:10px;border-color:var(--gold)">Catch up Heroic Abilities</button>`);
+      abBtn.onclick = () => { m.close(); this.gainHeroicAbility(capFn()); };
+      m.body.append(countRow, el(`<p class="section-title"><b>Choose skills for catch-up advancement</b></p>`), wrap, rollBtn, abBtn);
     },
     // Solo (Phase 17): completing a mission grants 5 advancement marks.
     soloMissionMarks() {
@@ -2529,15 +2570,19 @@
       const skPanel = el(`<div class="panel"><h3>Skills</h3><p class="stat-line">Tap a skill to roll it. Tap the ◦ to toggle an advancement mark (ticked on a Dragon/Demon). ⚠ = a condition banes this skill.</p></div>`);
       const markedCount = Object.values(c.skills).filter((v) => v.mark).length;
       const advRow = el(`<div class="rest-row" style="margin:4px 0 10px"></div>`);
-      const advBtn = el(`<button class="btn ghost">End session — roll advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
+      const advBtn = el(`<button class="btn ghost">End session — advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
       advBtn.onclick = () => this.endSession();
-      const teachBtn = el(`<button class="btn ghost" title="train a skill with an NPC teacher (skill 15+); +1 cap per teacher">Train with teacher</button>`);
+      const teachBtn = el(`<button class="btn ghost" title="train a skill with an NPC teacher (skill 15+); +1 cap per teacher">Train teacher</button>`);
       teachBtn.onclick = () => this.trainTeacher();
-      const gainBtn = el(`<button class="btn ghost" title="gain a heroic ability (requirement-locked)">Gain heroic ability</button>`);
+      const studyBtn = el(`<button class="btn ghost" title="study in a prestigious library: advancement roll in Beast Lore, Myths & Legends, or Languages">📖 Study library</button>`);
+      studyBtn.onclick = () => this.studyLibrary();
+      const gainBtn = el(`<button class="btn ghost" title="gain a heroic ability (requirement-locked)">Gain ability</button>`);
       gainBtn.onclick = () => this.gainHeroicAbility(1);
-      advRow.append(advBtn, teachBtn, gainBtn);
+      const catchupBtn = el(`<button class="btn ghost" title="replacement PC catch-up: extra advancement roll per session played">💀 Catch up (Death)</button>`);
+      catchupBtn.onclick = () => this.replacementCatchup();
+      advRow.append(advBtn, teachBtn, studyBtn, gainBtn, catchupBtn);
       if (Settings.soloMode()) {
-        const missionBtn = el(`<button class="btn ghost" title="solo: gain 5 advancement marks for a completed mission" style="border-color:var(--accent)">🏅 Mission complete (+5 marks)</button>`);
+        const missionBtn = el(`<button class="btn ghost" title="solo: gain 5 advancement marks for a completed mission" style="border-color:var(--accent)">🏅 Mission (+5 marks)</button>`);
         missionBtn.onclick = () => this.soloMissionMarks();
         advRow.appendChild(missionBtn);
       }
