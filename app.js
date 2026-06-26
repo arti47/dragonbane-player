@@ -1215,7 +1215,7 @@
       const card = el(`<div class="magic-auto-card" style="margin-top:12px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:rgba(255,255,255,0.03)"></div>`);
       const hdr = el(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"></div>`);
       hdr.innerHTML = `<b style="color:var(--accent)">✨ VTT Spell Resolution: ${esc(spell.name)} (PL ${pl})</b>`;
-      const skipBtn = el(`<button class="btn ghost step" style="font-size:11px;padding:2px 6px">Skip Auto</button>`);
+      const skipBtn = el(`<button class="skill-chip quick-chip" title="Skip automatic resolution">Skip Auto</button>`);
       skipBtn.onclick = () => { card.innerHTML = `<p class="stat-line">Automation skipped. Resolve effects manually.</p>`; };
       hdr.appendChild(skipBtn);
       card.appendChild(hdr);
@@ -1226,13 +1226,13 @@
         dWrap.innerHTML = `<b style="color:#ffd700;display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
         const bRow = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
         
-        const bDbl = el(`<button class="btn step" style="font-size:11px;border-color:#ffd700">💥 Double Effect</button>`);
+        const bDbl = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Double Damage or Healing dice">💥 Double</button>`);
         bDbl.onclick = () => { plMult = 2; bDbl.style.background = "#ffd700"; bDbl.style.color = "#000"; alert("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
         
-        const bRef = el(`<button class="btn step" style="font-size:11px;border-color:#ffd700">✨ Refund WP (+${cost})</button>`);
+        const bRef = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Refund ${cost} WP">✨ Refund</button>`);
         bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min((ch.derived?.wpMax||20), (ch.state.wp||0) + cost); }); Roller.refresh(charId); bRef.disabled = true; alert(`Refunded ${cost} WP!`); };
         
-        const bFree = el(`<button class="btn step" style="font-size:11px;border-color:#ffd700">⚡ Free Spell Cast</button>`);
+        const bFree = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Cast another spell without spending an action">⚡ Free Cast</button>`);
         bFree.onclick = () => { alert("Free Follow-Up Spell unlocked! You may immediately cast another spell without spending an action."); };
         
         bRow.append(bDbl, bRef, bFree);
@@ -1251,7 +1251,7 @@
         const tSel = el(`<select class="input" style="width:160px"></select>`);
         allRoster.forEach(h => tSel.appendChild(el(`<option value="${h.id}">${esc(h.name)} (${h.state?.hp||0}/${h.derived?.hpMax||10} HP)</option>`)));
         const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice formula">`);
-        const btn = el(`<button class="btn solid step" style="background:var(--ok);color:#000">💚 Heal</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#000" title="Apply Healing">💚 Heal</button>`);
         btn.onclick = () => {
           const tid = tSel.value;
           const formula = dIn.value.trim() || `${pl}D6`;
@@ -1288,7 +1288,7 @@
         
         const rBot = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
-        const btn = el(`<button class="btn solid step" style="background:var(--bad);color:#fff">💥 Strike</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Strike target">💥 Strike</button>`);
         btn.onclick = () => {
           const dist = Number(distIn.value)||0;
           const maxR = this.getRangeLimit(spell);
@@ -1326,7 +1326,7 @@
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Worn Armor Mitigates</label>`);
         const rBot = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
-        const btn = el(`<button class="btn solid step" style="background:var(--bad);color:#fff">💥 Blast AoE</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Blast all checked targets">💥 Blast AoE</button>`);
         btn.onclick = () => {
           let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`);
           if (plMult === 2) dmg *= 2;
@@ -1353,7 +1353,7 @@
         const st = SUMMON_STATS[sKey];
         const row = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
         row.innerHTML = `<p class="notice" style="font-size:12px"><b>Summon Stats (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
-        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Spawn Entity</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Add companion entity to sheet and combat tracker">+ Spawn</button>`);
         btn.onclick = () => {
           const sName = `${spell.name} (${char.name || "Caster"})`;
           Store.update(charId, ch => {
@@ -1383,7 +1383,7 @@
       } else if (cat === "rune") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.innerHTML = `<span class="stat-line">Inscribed dormant Rune:</span>`;
-        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Inscribe Rune</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Inscribe dormant rune">+ Rune</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => {
             ch.effects = ch.effects || [];
@@ -1399,7 +1399,7 @@
         row.innerHTML = `<span class="stat-line">Curse Target:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
         opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)}</option>`)));
-        const btn = el(`<button class="btn solid step" style="background:#9370db;color:#fff">🧿 Hex Target</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:#9370db;color:#fff;border:none" title="Hex curse selected target">🧿 Hex</button>`);
         btn.onclick = () => {
           const tid = tSel.value;
           let o = opps.find(x => x.id === tid);
@@ -1415,7 +1415,7 @@
       } else if (cat === "illusion") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.innerHTML = `<span class="stat-line">Active Illusion (DC ${10+pl}):</span>`;
-        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Create Illusion</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Create active illusion">+ Illusion</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => {
             ch.effects = ch.effects || [];
@@ -1431,7 +1431,7 @@
         row.innerHTML = `<span class="stat-line">Haste Hero:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
         heroes.forEach(h => tSel.appendChild(el(`<option value="${h.id}">${esc(h.name)}</option>`)));
-        const btn = el(`<button class="btn step" style="border-color:#00ffff;color:#00ffff">⚡ Grant 2nd Initiative</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:#00ffff;color:#00ffff" title="Grant second initiative turn in tracker">⚡ Grant Turn</button>`);
         btn.onclick = () => {
           const hid = tSel.value;
           let h = heroes.find(x => x.id === hid);
@@ -1449,7 +1449,7 @@
         row.innerHTML = `<span class="stat-line">Slow/Debuff Enemy:</span>`;
         const tSel = el(`<select class="input" style="width:140px"></select>`);
         opps.forEach(o => tSel.appendChild(el(`<option value="${o.id}">${esc(o.name)}</option>`)));
-        const btn = el(`<button class="btn step" style="border-color:var(--bad)">⏳ Auto Resist & Debuff</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--bad);color:var(--bad)" title="Automatically roll resistance save and apply debuff">⏳ Auto Debuff</button>`);
         btn.onclick = () => {
           const tid = tSel.value;
           let o = opps.find(x => x.id === tid);
@@ -1473,7 +1473,7 @@
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         const isConc = (spell.duration || "").toLowerCase().includes("concentration");
         row.innerHTML = `<span class="stat-line">Utility / Buff (${spell.duration || "Instant"}):</span>`;
-        const btn = el(`<button class="btn step" style="border-color:var(--accent)">+ Apply Effect</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Apply spell buff or utility effect to character sheet">+ Apply</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => {
             ch.effects = ch.effects || [];
@@ -2086,7 +2086,7 @@
           </div>`);
           const btnsWrap = pWrap.querySelector("div:nth-child(2)");
           [4, 6, 8, 10, 12, 20].forEach(d => {
-            const db = el(`<button class="btn step small" style="flex:1;min-width:36px;border-color:var(--bad);color:var(--bad)">D${d}</button>`);
+            const db = el(`<button class="skill-chip quick-chip" style="flex:1;border-color:var(--bad);color:var(--bad)">D${d}</button>`);
             db.onclick = () => {
               const roll = Dice.d(d);
               Store.update(charId, ch => {
@@ -3713,7 +3713,7 @@
             ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:#f7eed6;border-color:var(--accent)">now</span>' : ""}
             ${isDefeated ? '<span class="tag" style="background:var(--bad);color:#fff">💀 DEFEATED</span>' : ""}
             ${isDyingHero ? '<span class="tag" style="background:var(--bad);color:#fff">🩸 DYING (0 HP)</span>' : ""}
-            <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto"></div>
+            <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end"></div>
             <span style="font-weight:bold;font-size:1.15rem;color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
           </div>
         </div>`);
@@ -3721,7 +3721,7 @@
         const quickWrap = head.querySelector(".quick-attacks");
         if (!isDefeated) {
           if (cb.kind === "monster" && cb.attacks && cb.attacks.length) {
-            const d6Quick = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px;background:var(--ok);color:#fff;border:none">🎲 Attack</button>`);
+            const d6Quick = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#fff;border:none" title="Roll monster attack">🎲 Atk</button>`);
             d6Quick.onclick = (e) => {
               e.stopPropagation();
               const d6 = Dice.d(6);
@@ -3731,7 +3731,7 @@
             };
             quickWrap.appendChild(d6Quick);
           } else if (isDyingHero) {
-            const drBtn = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px;border-color:var(--bad);color:var(--bad)">💀 Death roll</button>`);
+            const drBtn = el(`<button class="skill-chip quick-chip" style="border-color:var(--bad);color:var(--bad)" title="Make Death Roll">💀 Roll</button>`);
             drBtn.onclick = (e) => { e.stopPropagation(); Sheet.deathRollModal(cb.charId); };
             quickWrap.appendChild(drBtn);
           } else if (cb.kind === "hero" && cb.charId) {
@@ -3740,25 +3740,25 @@
               const baseMv = h.derived?.movement || 10;
               const maxMv = (h.state?.isMounted ? 20 : baseMv) * (h.state?.isDashing ? 2 : 1) * (h.abilities?.some(x=>x.name==="Longstrider")?2:1);
               const remMv = Math.max(0, maxMv - (h.state?.moveSpent || 0));
-              const mvBtn = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px;border-color:var(--accent);color:var(--accent)">🏃 Move ${remMv}m/${maxMv}m</button>`);
+              const mvBtn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Movement: ${remMv}m / ${maxMv}m (click to manage)">🏃 ${remMv}m</button>`);
               mvBtn.onclick = (e) => { e.stopPropagation(); Sheet.movementModal(cb.charId); };
               quickWrap.appendChild(mvBtn);
             }
             const hWeapons = resolveEquippedWeapons(h && h.inventory && h.inventory.items);
             if (hWeapons[0]) {
               const w0 = hWeapons[0];
-              const hQuick = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px">⚔️ ${esc(w0.name)}</button>`);
+              const hQuick = el(`<button class="skill-chip quick-chip" title="Attack with ${esc(w0.name)}">⚔️ ${esc(w0.name)}</button>`);
               hQuick.onclick = (e) => { e.stopPropagation(); Roller.heroWeaponAttack(cb.charId, w0, cb.id); };
               quickWrap.appendChild(hQuick);
             }
           } else if (cb.kind === "npc" && cb.weapons && cb.weapons[0]) {
             const nw0 = cb.weapons[0];
-            const nQuick = el(`<button class="btn step" style="font-size:0.95rem;padding:4px 10px">⚔️ ${esc(nw0.name)}</button>`);
+            const nQuick = el(`<button class="skill-chip quick-chip" title="Attack with ${esc(nw0.name)}">⚔️ ${esc(nw0.name)}</button>`);
             nQuick.onclick = (e) => { e.stopPropagation(); Roller.npcAttack(cb.name, nw0, cb.id); };
             quickWrap.appendChild(nQuick);
           }
 
-          const actedBadge = el(`<button class="skill-chip ${cb.acted ? "picked" : ""}" style="font-size:0.85rem;padding:3px 8px">${cb.acted ? "Acted ✓" : "Turn [ ]"}</button>`);
+          const actedBadge = el(`<button class="skill-chip quick-chip ${cb.acted ? "picked" : ""}" title="Toggle whether character has acted this round">${cb.acted ? "Done ✓" : "Turn [ ]"}</button>`);
           actedBadge.onclick = (e) => {
             e.stopPropagation();
             this.guardGm(() => this.mutate(st => {
