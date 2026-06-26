@@ -360,7 +360,7 @@ data-solo.js: failForward[]
   - Behavior/UI: In `draw`, for each hero combatant, look up `Store.get(charId).abilities`. *Veteran*: if the combatant has a stored `init` from last round and the ability, keep it (skip a new card). *Lightning Fast*: deal two cards and keep the lower (better) one, marking it used for the round. Document interaction order (Veteran resolves before dealing new cards).
   - Schema: combatant gains `prevInit: number|null` (default null) so Veteran can retain across rounds.
   - Acceptance: Add a Veteran hero, draw, Next Round → same card retained. Add a Lightning Fast hero → two cards considered, best kept (observe via repeated draws trending low).
-- [ ] **Turn swap / wait.**
+- [x] **Turn swap / wait.** ✅ `Combat.swapInit` + a `⇅` row button let the GM exchange initiative cards between any two combatants (re-sorts the order, clears their done flags).
   - Rule: A combatant may voluntarily act later, swapping turn order with a willing other combatant (initiative-card swap).
   - Target: `app.js` · `Combat.view` combatant row actions; `Combat.mutate`.
   - Behavior/UI: Add a "Wait / Swap" control on a combatant row that lets the GM pick another combatant to swap `init` values with (re-sorts the order). GM-guarded via `Combat.guardGm`.
@@ -368,7 +368,7 @@ data-solo.js: failForward[]
   - Acceptance: Two combatants; swap → their initiative numbers and ordering exchange.
 
 ### Phase 12 — Conditions & Status Accuracy (Priority: HIGH)
-- [ ] **Condition overflow (all six held).**
+- [x] **Condition overflow (all six held).** ✅ Added `Roller.applyConditionOverflow` (−D6 WP, or −D6 HP if WP 0) and wired it into the push flows of `Roller.skill`, `Roller.heroWeaponAttack`, and `Roller.cast`: pushing is now always allowed on a failed non-demon roll, and when all six conditions are held it applies the D6 penalty instead of a new condition. Also fixed a latent bug where `heroWeaponAttack`'s push chips were appended via `outerHTML` (dropping their click handlers) — now appended as live DOM nodes.
   - Rule: You cannot hold the same condition twice. If you already have all six conditions and would gain another, instead lose D6 WP (or D6 HP if WP is already 0).
   - Target: `app.js` · the push flows in `Roller.skill`, `Roller.heroWeaponAttack`, `Roller.cast`; and the Conditions toggles in `Sheet.render` (~line 2060).
   - Behavior/UI: When a push/effect would add a condition but all six are set, skip the picker and instead roll D6: if `wp > 0` subtract from WP, else subtract from HP; show the result ("All conditions held → −${n} WP"). Pushing remains allowed in this state (it currently blocks once all six are held — change to apply the D6 penalty instead).

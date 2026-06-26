@@ -1092,6 +1092,19 @@
     netLabel(net) { return net > 0 ? `Boon ×${net}` : net < 0 ? `Bane ×${-net}` : "Even (1d20)"; },
     refresh(charId) { if (Sheet.id === charId) Sheet.render(); },
 
+    // Condition overflow: when all six conditions are already held and the
+    // character would gain another (e.g. by pushing), they instead lose D6 WP —
+    // or D6 HP if WP is already 0. Returns a label describing the penalty.
+    applyConditionOverflow(charId) {
+      let label = "";
+      Store.update(charId, (ch) => {
+        const d = Dice.roll("D6");
+        if ((ch.state.wp || 0) > 0) { ch.state.wp = Math.max(0, ch.state.wp - d); label = `all six conditions held → lost ${d} WP`; }
+        else { ch.state.hp = Math.max(0, ch.state.hp - d); label = `all six conditions held (WP 0) → lost ${d} HP`; }
+      });
+      return label;
+    },
+
     // ---- Skill roll ----
     skill(charId, name) {
       const c = Store.get(charId); if (!c) return;
@@ -1120,24 +1133,31 @@
         let html = `<div class="dice-faces">${r.dice.map((d) => `<span class="die ${d === r.used ? "used" : ""}">${d}</span>`).join("")}</div>`;
         html += `<p class="outcome ${success ? "ok" : "bad"}">${dragon ? "🐉 DRAGON — critical success!" : demon ? "👹 DEMON — critical failure!" : success ? "Success" : "Failure"}</p>`;
         if (dragon || demon) html += `<p class="stat-line">Advancement mark added to ${esc(name)}.</p>`;
-        if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
+        if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         result.innerHTML = html;
-        // Offer push if failed, not a demon, and conditions remain
+        // Offer push if failed and not a demon (pushing is always allowed; the
+        // cost is a chosen condition, or the overflow penalty when all six held).
         const curChar = Store.get(charId) || c;
         const curConds = curChar?.state?.conditions || {};
         const remaining = (DB.conditions || []).filter((cn) => !curConds[cn.key]);
         const hasSS = curChar?.abilities?.some((a) => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
-        if (!success && !demon && !pushedCondition && (remaining.length || hasSS)) {
+        if (!success && !demon && !pushedCondition) {
           const pushWrap = el(`<div class="push-wrap"><p class="stat-line">Push the roll? Choose a condition to suffer, then re-roll:</p></div>`);
           const cw = el(`<div class="chip-wrap"></div>`);
           remaining.forEach((cn) => {
             const chip = el(`<button class="skill-chip">${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
-            chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); this.refresh(charId); doRoll(cn.name); };
+            chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); this.refresh(charId); doRoll("gained " + cn.name); };
             cw.appendChild(chip);
           });
           if (hasSS) {
             const chip = el(`<button class="skill-chip" style="border-color:var(--accent)">💫 Sole Survivor <span class="stat-line">−3 WP</span></button>`);
             chip.onclick = () => { Store.update(charId, (ch) => { ch.state.wp -= 3; }); this.refresh(charId); doRoll("Sole Survivor (−3 WP)"); };
+            cw.appendChild(chip);
+          }
+          if (!remaining.length) {
+            pushWrap.querySelector("p").textContent = "All six conditions held — pushing costs D6 WP (or D6 HP if WP is 0). Push and re-roll:";
+            const chip = el(`<button class="skill-chip" style="border-color:var(--bad)">⚠ Push (lose D6 WP/HP)</button>`);
+            chip.onclick = () => { const label = this.applyConditionOverflow(charId); this.refresh(charId); doRoll(label); };
             cw.appendChild(chip);
           }
           pushWrap.appendChild(cw); result.appendChild(pushWrap);
@@ -1343,32 +1363,36 @@
 
         let outcomeHtml = `<div style="margin-top:10px"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:1.6rem;margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:1rem;font-weight:normal">(${r.used} vs ${target})</small></p>`;
         if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
+        outcomeHtml += `</div>`;
+        out.innerHTML = outcomeHtml;
 
         if (!crit && !fumble && !isPush) {
           const curChar = Store.get(charId) || c;
           const curConds = curChar?.state?.conditions || {};
           const unchosen = (DB.conditions||[]).filter(cn => !curConds[cn.key]);
           const hasSS = curChar?.abilities?.some(a => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
-          if (unchosen.length || hasSS) {
-            const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px"></div>`);
-            pushWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (mark condition & re-roll):</p>`));
-            const cw = el(`<div class="push-conditions" style="display:flex;flex-wrap:wrap;gap:4px"></div>`);
-            unchosen.forEach(cn => {
-              const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px">${esc(cn.name)}</button>`);
-              chip.onclick = () => { Store.update(charId, ch => { ch.state.conditions[cn.key] = true; }); doRoll(true); };
-              cw.appendChild(chip);
-            });
-            if (hasSS) {
-              const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
-              chip.onclick = () => { Store.update(charId, ch => { ch.state.wp -= 3; }); doRoll(true); };
-              cw.appendChild(chip);
-            }
-            pushWrap.appendChild(cw);
-            outcomeHtml += pushWrap.outerHTML;
+          // Append real DOM nodes (not outerHTML) so the push handlers survive.
+          const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px"></div>`);
+          pushWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (${unchosen.length ? "mark a condition" : "all six held → lose D6 WP/HP"} & re-roll):</p>`));
+          const cw = el(`<div class="push-conditions" style="display:flex;flex-wrap:wrap;gap:4px"></div>`);
+          unchosen.forEach(cn => {
+            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px">${esc(cn.name)}</button>`);
+            chip.onclick = () => { Store.update(charId, ch => { ch.state.conditions[cn.key] = true; }); doRoll(true); };
+            cw.appendChild(chip);
+          });
+          if (hasSS) {
+            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
+            chip.onclick = () => { Store.update(charId, ch => { ch.state.wp -= 3; }); doRoll(true); };
+            cw.appendChild(chip);
           }
+          if (!unchosen.length) {
+            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--bad)">⚠ Push (lose D6 WP/HP)</button>`);
+            chip.onclick = () => { this.applyConditionOverflow(charId); doRoll(true); };
+            cw.appendChild(chip);
+          }
+          pushWrap.appendChild(cw);
+          out.appendChild(pushWrap);
         }
-        outcomeHtml += `</div>`;
-        out.innerHTML = outcomeHtml;
         if (!success && combatantId && !isPush) {
           Combat.advanceTurn(combatantId);
         }
@@ -1688,19 +1712,24 @@
           else if (roll === 7) { const dmg = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); }); html += `<p class="stat-line">Took ${dmg} damage.</p>`; }
           else if (roll === 8) { const wl = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - wl); }); html += `<p class="stat-line">Lost a further ${wl} WP.</p>`; }
         }
-        if (pushedCondition) html += `<p class="stat-line">Pushed — gained <b>${esc(pushedCondition)}</b>.</p>`;
+        if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
         const cur2 = Store.get(charId) || c;
         const curConds2 = cur2?.state?.conditions || {};
         const remaining = (DB.conditions || []).filter((cn) => !curConds2[cn.key]);
         const hasSS2 = cur2?.abilities?.some(a => a.name === "Sole Survivor") && (cur2?.state?.wp || 0) >= 3;
-        if (!success && !demon && !pushedCondition && (remaining.length || hasSS2)) {
-          const pushWrap = el(`<div class="push-wrap"><p class="stat-line">Push? Choose a condition, then re-roll (WP already spent):</p></div>`);
+        if (!success && !demon && !pushedCondition) {
+          const pushWrap = el(`<div class="push-wrap"><p class="stat-line">${remaining.length ? "Push? Choose a condition, then re-roll (WP already spent):" : "All six conditions held — pushing costs D6 WP/HP. Push and re-roll (WP already spent):"}</p></div>`);
           const cw = el(`<div class="chip-wrap"></div>`);
-          remaining.forEach((cn) => { const chip = el(`<button class="skill-chip">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); doCast(cn.name); }; cw.appendChild(chip); });
+          remaining.forEach((cn) => { const chip = el(`<button class="skill-chip">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); doCast("gained " + cn.name); }; cw.appendChild(chip); });
           if (hasSS2) {
             const chip = el(`<button class="skill-chip" style="border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
             chip.onclick = () => { Store.update(charId, (ch) => { ch.state.wp -= 3; }); doCast("Sole Survivor (−3 WP)"); };
+            cw.appendChild(chip);
+          }
+          if (!remaining.length) {
+            const chip = el(`<button class="skill-chip" style="border-color:var(--bad)">⚠ Push (lose D6 WP/HP)</button>`);
+            chip.onclick = () => { const label = this.applyConditionOverflow(charId); doCast(label); };
             cw.appendChild(chip);
           }
           pushWrap.appendChild(cw); out.appendChild(pushWrap);
@@ -2358,6 +2387,30 @@
       s.combatants.push(...extras);
     },
     ordered(s) { return [...s.combatants].sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init)); },
+    // Voluntarily wait / swap turn order: exchange initiative cards with another
+    // willing combatant. GM-guarded.
+    swapInit(combatantId) {
+      this.guardGm(() => {
+        const s = this.load();
+        const me = s.combatants.find(c => c.id === combatantId);
+        if (!me) return;
+        const others = s.combatants.filter(c => c.id !== combatantId);
+        if (!others.length) { alert("No other combatants to swap with."); return; }
+        const m = modal(`Wait / swap — ${me.name}`);
+        const sel = el(`<select class="input" style="width:100%;margin-bottom:10px"></select>`);
+        others.forEach(o => sel.appendChild(el(`<option value="${esc(o.id)}">${esc(o.name)} (init ${o.init == null ? "–" : o.init})</option>`)));
+        const btn = el(`<button class="btn block">Swap initiative cards</button>`);
+        btn.onclick = () => {
+          this.mutate(st => {
+            const a = st.combatants.find(c => c.id === combatantId);
+            const b = st.combatants.find(c => c.id === sel.value);
+            if (a && b) { const t = a.init; a.init = b.init; b.init = t; a.done = false; b.done = false; }
+          });
+          m.close();
+        };
+        m.body.append(el(`<p class="stat-line">Exchange turn order (initiative card) with:</p>`), sel, btn);
+      });
+    },
     view() {
       const s = this.load();
       const root = el(`<div></div>`);
@@ -2547,6 +2600,11 @@
         };
 
         const topActions = head.querySelector(".row-top-actions");
+        if (cb.init != null && !isDefeated) {
+          const swap = el(`<button class="step" title="wait / swap initiative">⇅</button>`);
+          swap.onclick = (e) => { e.stopPropagation(); this.swapInit(cb.id); };
+          topActions.appendChild(swap);
+        }
         if (cb.kind === "hero" && cb.charId) {
           const open = el(`<button class="step" title="open sheet">↗</button>`);
           open.onclick = (e) => { e.stopPropagation(); Sheet.open(cb.charId); };
