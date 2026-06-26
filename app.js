@@ -1473,7 +1473,15 @@
       return { dice: two, used: net > 0 ? Math.min(...two) : Math.max(...two) };
     },
     netLabel(net) { return net > 0 ? `Boon ×${net}` : net < 0 ? `Bane ×${-net}` : "Even (1d20)"; },
-    refresh(charId) { if (Sheet.id === charId) Sheet.render(); },
+    refresh(charId) {
+      // Only re-render the character sheet when it is actually the mounted
+      // screen (window.activeCharacterId tracks the open sheet). Otherwise — e.g.
+      // when casting from the Combat tracker — re-render combat for the vitals,
+      // never replace the current screen with the sheet (that hijacked the view).
+      if (Sheet.id === charId && window.activeCharacterId === charId) { Sheet.render(); return; }
+      const active = document.querySelector("#app-nav button.active");
+      if (active && active.dataset.route === "party" && typeof Combat !== "undefined") Combat.rerender();
+    },
 
     // Condition overflow: when all six conditions are already held and the
     // character would gain another (e.g. by pushing), they instead lose D6 WP —
