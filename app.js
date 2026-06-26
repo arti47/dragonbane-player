@@ -589,7 +589,7 @@
         mageSchool: null,        // for mages: "animism" | "elementalism" | "mentalism"
         age: null,
         trained: new Set(),
-        heroic: null,
+        heroicPicks: [],
         spells: { tricks: [], known: [] }, // mage only
         gearRow: null,
         identity: { name: "", appearance: "", weakness: "", memento: "" }
@@ -716,7 +716,7 @@
         const c = el(`<button class="card ${this.s.profession === p.key ? "sel" : ""}">
           <h3>${esc(p.name)} <span class="tag">${esc(p.keyAttribute)}</span></h3>
           <div class="meta">${p.key === "mage" ? "Spellcaster — choose a school" : "Heroic ability: " + p.heroicAbilities.join(" / ")}</div></button>`);
-        c.onclick = () => { this.s.profession = p.key; if (p.key !== "mage") this.s.mageSchool = null; this.s.bardHarmonism = false; this.s.trained = new Set(); this.s.spells = { tricks: [], known: [] }; this.s.heroic = (p.heroicAbilities.length === 1 ? p.heroicAbilities[0] : null); this.render(); };
+        c.onclick = () => { this.s.profession = p.key; if (p.key !== "mage") this.s.mageSchool = null; this.s.bardHarmonism = false; this.s.trained = new Set(); this.s.spells = { tricks: [], known: [] }; this.s.heroicPicks = (p.heroicAbilities.length === 1 ? [p.heroicAbilities[0]] : []); this.render(); };
         grid.appendChild(c);
       });
       wrap.appendChild(grid);
@@ -840,23 +840,33 @@
     },
 
     /* ---- Step: Heroic ability ---- */
+    heroicCap() { return Settings.soloMode() ? 2 : 1; },
     step_heroic() {
       const wrap = el(`<div></div>`);
       const p = this.prof();
+      const cap = this.heroicCap();
+      if (!Array.isArray(this.s.heroicPicks)) this.s.heroicPicks = this.s.heroic ? [this.s.heroic] : [];
       wrap.appendChild(el(sectionTitle("Heroic ability")));
-      wrap.appendChild(el(`<p class="stat-line">Your profession grants one starting heroic ability${p.heroicAbilities.length > 1 ? " — choose one" : ""}. (Its skill requirement is waived for a starting ability.)</p>`));
+      wrap.appendChild(el(`<p class="stat-line">${cap > 1 ? `Solo: choose <b>two</b> starting heroic abilities (one profession + one extra).` : `Your profession grants one starting heroic ability${p.heroicAbilities.length > 1 ? " — choose one" : ""}.`} (Skill requirements are waived for starting abilities.) <span id="hpick-count"></span></p>`));
       const grid = el(`<div class="card-grid"></div>`);
       const pool = [...p.heroicAbilities];
       if (Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.heroicAbilities) {
         DRAGONBANE_SOLO.heroicAbilities.forEach((ha) => { if (!pool.includes(ha.name)) pool.push(ha.name); });
       }
+      const updCount = () => { const e = wrap.querySelector("#hpick-count"); if (e) e.textContent = `(${this.s.heroicPicks.length} / ${cap})`; };
       pool.forEach((name) => {
         const ab = findHeroicAbility(name) || { name, text: "" };
-        const c = el(`<button class="card ${this.s.heroic === name ? "sel" : ""}"><h3>${esc(name)} <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
-        c.onclick = () => { this.s.heroic = name; this.render(); };
+        const sel = this.s.heroicPicks.includes(name);
+        const c = el(`<button class="card ${sel ? "sel" : ""}"><h3>${esc(name)} <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
+        c.onclick = () => {
+          const i = this.s.heroicPicks.indexOf(name);
+          if (i >= 0) this.s.heroicPicks.splice(i, 1);
+          else { if (this.s.heroicPicks.length >= cap) { alert(`Choose ${cap} ${cap === 1 ? "ability" : "abilities"}.`); return; } this.s.heroicPicks.push(name); }
+          this.render();
+        };
         grid.appendChild(c);
       });
-      wrap.appendChild(grid);
+      wrap.appendChild(grid); updCount();
       return wrap;
     },
 
@@ -962,7 +972,7 @@
         if (fromProf < 6) return `At least 6 trained skills must come from your profession (you have ${fromProf}).`;
       }
       if (step === "magic") { if (s.spells.tricks.length !== 3) return "Choose exactly 3 magic tricks."; if (s.spells.known.length !== 3) return "Choose exactly 3 rank-1 spells."; }
-      if (step === "heroic" && !s.heroic) return "Choose a heroic ability.";
+      if (step === "heroic") { const cap = this.heroicCap(); if ((s.heroicPicks || []).length !== cap) return `Choose ${cap} heroic ${cap === 1 ? "ability" : "abilities"}.`; }
       if (step === "details" && !s.identity.name.trim()) return "Give your hero a name.";
       return null;
     },
@@ -974,7 +984,7 @@
       const skills = buildSkills(attrs, this.s.trained, this.s.mageSchool);
       const abilities = [];
       (kin.abilities || []).forEach((a) => abilities.push({ name: a.name, source: "kin", wp: a.wp, text: a.text }));
-      if (this.s.heroic) { const h = findHeroicAbility(this.s.heroic); abilities.push({ name: this.s.heroic, source: "profession", wp: h ? h.wp : null, text: h ? h.text : "" }); }
+      (this.s.heroicPicks || []).forEach((name) => { const h = findHeroicAbility(name); abilities.push({ name, source: "profession", wp: h ? h.wp : null, text: h ? h.text : "" }); });
       const gearRow = this.prof().gear && this.s.gearRow != null ? this.prof().gear[this.s.gearRow] : null;
       const gear = gearRow ? parseGear(gearRow.items) : { items: [], money: { gold: 0, silver: 0, copper: 0 } };
       const movement = (kin.movement || 0) + Calc.movementMod(attrs.AGL);
@@ -1203,6 +1213,14 @@
             cw.appendChild(chip);
           }
           pushWrap.appendChild(cw); result.appendChild(pushWrap);
+        }
+        // Fail forward (solo): turn a failure into success-at-a-cost.
+        if (!success && !pushedCondition && Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && (DRAGONBANE_SOLO.failForward || []).length) {
+          const ffWrap = el(`<div class="push-wrap" style="margin-top:8px;border-top:1px dashed var(--line);padding-top:8px"></div>`);
+          const ffBtn = el(`<button class="btn ghost" style="border-color:var(--accent)">🎲 Fail forward (succeed at a cost)</button>`);
+          const ffOut = el(`<div style="margin-top:6px"></div>`);
+          ffBtn.onclick = () => { const t = DRAGONBANE_SOLO.failForward; const r = Dice.d(t.length); ffOut.innerHTML = `<p class="stat-line" style="border-left:3px solid var(--accent);padding-left:8px">D${t.length}=${r}: ${esc(t[r - 1])}</p>`; };
+          ffWrap.append(ffBtn, ffOut); result.appendChild(ffWrap);
         }
         this.refresh(charId);
       };
@@ -2159,6 +2177,16 @@
       };
       m.body.append(sel, btn, out);
     },
+    // Solo (Phase 17): completing a mission grants 5 advancement marks.
+    soloMissionMarks() {
+      const picked = [];
+      const m = modal("Mission complete — +5 advancement marks");
+      m.body.appendChild(el(`<p class="stat-line">Solo play: on returning from a successful mission, mark 5 skills of your choice, then roll advancement.</p>`));
+      const { wrap } = this.markSkillPicker(picked, () => 5);
+      const btn = el(`<button class="btn block" style="margin-top:8px">Mark 5 &amp; roll advancement</button>`);
+      btn.onclick = () => { if (picked.length !== 5) { alert("Pick exactly 5 skills to mark."); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
+      m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
+    },
     render() {
       const c = Store.get(this.id);
       if (!c) { Router.go("home"); return; }
@@ -2342,6 +2370,11 @@
       const gainBtn = el(`<button class="btn ghost" title="gain a heroic ability (requirement-locked)">Gain heroic ability</button>`);
       gainBtn.onclick = () => this.gainHeroicAbility(1);
       advRow.append(advBtn, teachBtn, gainBtn);
+      if (Settings.soloMode()) {
+        const missionBtn = el(`<button class="btn ghost" title="solo: gain 5 advancement marks for a completed mission" style="border-color:var(--accent)">🏅 Mission complete (+5 marks)</button>`);
+        missionBtn.onclick = () => this.soloMissionMarks();
+        advRow.appendChild(missionBtn);
+      }
       skPanel.appendChild(advRow);
       const skList = el(`<div class="skill-list"></div>`);
       Object.entries(c.skills).sort((x,y)=>x[0].localeCompare(y[0])).forEach(([n,v]) => {

@@ -483,19 +483,19 @@ data-solo.js: failForward[]
   - Acceptance: Use Dodge in combat → the combatant's turn is consumed; on success a +2m option appears.
 
 ### Phase 17 — Solo Completion (Priority: MEDIUM)
-- [ ] **Solo "+5 Advancement Marks" mission button.**
+- [x] **Solo "+5 Advancement Marks" mission button.** ✅ `Sheet.soloMissionMarks` (Skills panel, Solo-only) marks 5 chosen skills then runs `rollAdvancement`.
   - Rule (solo): On completing a mission, gain 5 advancement marks to assign to skills of your choice (replaces the group end-of-session marking). See `DRAGONBANE_SOLO.advancement`.
   - Target: `app.js` · `SoloMode.view` and/or `Sheet` (visible when `Settings.soloMode()`).
   - Behavior/UI: A "Mission complete: +5 marks" button that lets the player tick 5 unmarked skills, then optionally run the advancement roll. Hidden when Solo Mode is off.
   - Schema: none (reuses skill `mark`).
   - Acceptance: With Solo Mode on, press the button → assign 5 marks → advancement roll uses them.
-- [ ] **Solo: one extra free Heroic Ability at creation.**
+- [x] **Solo: one extra free Heroic Ability at creation.** ✅ Wizard refactored to `heroicPicks[]` with cap = `heroicCap()` (2 in Solo, 1 otherwise); validation/build updated. Verified a non-solo wizard run creates a hero with its ability.
   - Rule (solo): A solo character gets one additional free heroic ability at creation.
   - Target: `app.js` · `Wizard.step_heroic` / `Wizard.build` (and Pregens if relevant). Currently solo abilities are merely added to the choice pool (still one pick).
   - Behavior/UI: When `Settings.soloMode()`, allow selecting **two** heroic abilities at creation (one normal + one extra), both added to `abilities[]`. Update validation to require the correct count.
   - Schema: none.
   - Acceptance: With Solo Mode on, the wizard heroic step accepts two abilities; both appear on the created sheet.
-- [ ] **Solo "failing forward".**
+- [x] **Solo "failing forward".** ✅ Added `DRAGONBANE_SOLO.failForward` (D6 table); `Roller.skill` shows a "🎲 Fail forward" button on a failed Solo roll that rolls a complication.
   - Rule (solo): Instead of hard failure, solo play converts failed skill checks into mishaps/complications (e.g. lose an item rather than fall to your death).
   - Target: `app.js` · `Roller.skill` (and optionally cast/attack) when `Settings.soloMode()`.
   - Behavior/UI: On a failed (non-demon) solo roll, after the push option, offer a "Fail forward" suggestion that rolls a complication (reuse `DRAGONBANE_SOLO.dragonDemonEffects` demon column or a new solo complication table in `data-solo.js`).
@@ -561,6 +561,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Phase 17 (Solo Completion) COMPLETE.** Added a Solo-only "🏅 Mission complete (+5 marks)" button (`Sheet.soloMissionMarks`) that marks 5 chosen skills then rolls advancement. Refactored the wizard heroic step to `heroicPicks[]` with `heroicCap()` = 2 in Solo / 1 otherwise (validation + build updated) so a solo character gets a second free heroic ability at creation. Added `DRAGONBANE_SOLO.failForward` (D6 complication table) with a "Fail forward" button on failed Solo skill rolls. Verified headless (mission +5, fail-forward complication, full non-solo wizard creates a hero with its ability, 0 errors). SW cache v35. |
 | 2026-06-26 | **Phase 16 (Movement & Reactions) COMPLETE.** Movement panel gains a prone/stand free-action toggle (`state.prone`), a "🚪 Door (−½)" button (spends ⌈pool/2⌉), and a "🤸 Leap" button (Acrobatics roll when distance > movement/4, else auto). Added `Combat.reaction` with 🛡 Parry / 🤸 Dodge buttons on hero combat cards: rolls the skill, consumes the turn (acted+done → card flip), and offers a +2 m free move on a successful dodge. Verified headless (Door 14→7, prone toggle, dodge success marks Acted, 0 errors). SW cache v34. |
 | 2026-06-26 | **Phase 15 (Vitals & Magic Extras) COMPLETE.** Robust/Focused now auto-adjust max HP/WP: added `abilityCount` + `effHpMax` and updated `effWpMax` (+2 per pick), wired through the HP/WP steppers, rest, and combat-add (`derived.hpMax`→`effHpMax`). Added a caster-only **Familiar** panel (`state.familiar`): bind a familiar (cap ⌊maxWP/2⌋), transfer WP between the mage and familiar pools with independent steppers, and release to return its WP. Verified headless (Focused 18→20, Robust 11→13, familiar transfer drains mage pool, 0 errors). SW cache v33. |
 | 2026-06-26 | **Phase 14 (Advancement & Identity) COMPLETE.** Added the 5 official `advancementQuestions` to `data.js`. Rewrote `Sheet.endSession` into a questionnaire-first flow (each Yes → mark one unmarked skill) that calls a new `rollAdvancement`; skills reaching 18 prompt a free heroic ability. Added `Sheet.overcomeWeakness` (+2 marks, clear weakness, `state.weaknessCooldown`), `Sheet.trainTeacher` (one capped advancement roll via `state.teacherTrained`), and `Sheet.gainHeroicAbility` with requirement locking via a new `heroicReqMet` parser. UI: Train-with-teacher + Gain-heroic-ability buttons in the Skills panel; Overcome-Weakness / set-new-weakness controls in the Character panel. Verified headless (overcome → 2 marks + cooldown, questionnaire → advancement, picker 22/43 locked, 0 errors). SW cache v32. |
