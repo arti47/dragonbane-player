@@ -354,7 +354,7 @@ data-solo.js: failForward[]
   - Behavior/UI: When the relevant skill (or a ranged attack) is rolled and the matching armor/helmet is equipped (Phase 13 equip slot), start at bane −1 with a note. Great Helm's "all ranged attacks" applies in `heroWeaponAttack` when `isRanged`.
   - Schema: add `banes: string[]` to `DB.armor` and `DB.helmets`; reads `inventory.equipped` (Phase 13).
   - Acceptance: Hero in Plate rolling Evade opens at Bane ×1; in leather, no bane.
-- [ ] **Initiative: Lightning Fast & Veteran.**
+- [x] **Initiative: Lightning Fast & Veteran.** ✅ `Combat.draw` retains `prevInit` for *Veteran* (keeps last round's card) and draws two cards keeping the lower for *Lightning Fast*; *Army of One* secondary still gets its own fresh card.
   - Rule: *Lightning Fast* — when drawing initiative, draw two cards and keep one (once per round). *Veteran* — at round start, keep your previous round's card instead of drawing.
   - Target: `app.js` · `Combat.draw` (~line 2307). Currently only *Army of One* is handled.
   - Behavior/UI: In `draw`, for each hero combatant, look up `Store.get(charId).abilities`. *Veteran*: if the combatant has a stored `init` from last round and the ability, keep it (skip a new card). *Lightning Fast*: deal two cards and keep the lower (better) one, marking it used for the round. Document interaction order (Veteran resolves before dealing new cards).

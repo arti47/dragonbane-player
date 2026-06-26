@@ -2335,14 +2335,24 @@
       for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; }
       let idx = 0;
       const nextCard = () => idx < 10 ? cards[idx++] : Dice.d(10);
+      const heroAbil = (cb) => (cb.kind === "hero" && cb.charId) ? (Store.get(cb.charId)?.abilities || []) : [];
+      const has = (cb, name) => heroAbil(cb).some(a => a.name === name);
       const extras = [];
       s.combatants.forEach((cb) => {
-        cb.init = nextCard(); cb.done = false; cb.acted = false;
-        if (cb.kind === "hero" && cb.charId) {
-          const ch = Store.get(cb.charId);
-          if (ch && ch.abilities?.some(a => a.name === "Army of One")) {
-            extras.push({ ...cb, id: uid(), init: nextCard(), done: false, acted: false, name: `${cb.name} (Turn 2)`, isArmyOfOneSecondary: true });
-          }
+        const previousInit = cb.init;
+        if (has(cb, "Veteran") && previousInit != null) {
+          // Veteran — retain last round's card instead of drawing a new one.
+          cb.init = previousInit;
+        } else if (has(cb, "Lightning Fast")) {
+          // Lightning Fast — draw two cards and keep the lower (acts earlier).
+          cb.init = Math.min(nextCard(), nextCard());
+        } else {
+          cb.init = nextCard();
+        }
+        cb.done = false; cb.acted = false;
+        cb.prevInit = cb.init; // remembered for a Veteran retain next round
+        if (cb.kind === "hero" && cb.charId && has(cb, "Army of One")) {
+          extras.push({ ...cb, id: uid(), init: nextCard(), done: false, acted: false, prevInit: null, name: `${cb.name} (Turn 2)`, isArmyOfOneSecondary: true });
         }
       });
       s.combatants.push(...extras);
