@@ -166,6 +166,13 @@
       return `${pick()}-${pick()}-${pick()}`;
     },
 
+    timeoutRace(promise, actionName) {
+      return Promise.race([
+        promise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error(`Realtime Database connection timed out during '${actionName}'.\n\nThe database is not responding or doesn't exist yet.`)), 6000))
+      ]);
+    },
+
     async createCampaign(name) {
       if (!await this.ensureAuth()) {
         alert(`Cloud sync could not connect:\n\n${this.lastAuthError || "Check firebase-config.js setup."}`);
@@ -175,16 +182,18 @@
       const joinCode = this.generateJoinCode();
       const camp = { id, name: name || "Dragonbane Campaign", joinCode, createdAt: Date.now(), ownerUid: this.uid };
       try {
-        await this.db.ref(`campaigns/${id}/meta`).set(camp);
-        await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Game Master", role: "gm" });
-        await this.db.ref(`joinCodes/${joinCode}`).set(id);
+        await this.timeoutRace(Promise.all([
+          this.db.ref(`campaigns/${id}/meta`).set(camp),
+          this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Game Master", role: "gm" }),
+          this.db.ref(`joinCodes/${joinCode}`).set(id)
+        ]), "create campaign");
       } catch (err) {
         console.error("Failed to create campaign in RTDB:", err);
-        let msg = `Database error: ${err.message || err.code || "Permission denied"}.\n\n`;
-        if (this.lastAuthError) {
-          msg += `Note: Anonymous Auth sign-in failed (${this.lastAuthError}).\n\nTo fix this:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Authentication > Sign-in method\n4. Enable 'Anonymous' and click Save.\n5. Also verify Realtime Database > Rules.`;
+        let msg = `Database error:\n${err.message || err.code || "Permission denied"}\n\n`;
+        if (err.message && err.message.includes("timed out")) {
+          msg += `To fix timeout:\n1. Open console.firebase.google.com\n2. Select project '${window.FIREBASE_CONFIG?.projectId || "dragonbane-rpg-party"}'\n3. Go to Build > Realtime Database\n4. Click 'Create Database' if not created yet.\n5. Check Rules tab.`;
         } else {
-          msg += `Check your Firebase Console > Realtime Database > Rules.`;
+          msg += `Check your Firebase Console > Realtime Database > Rules tab.`;
         }
         alert(msg);
         return;
@@ -205,20 +214,20 @@
       const clean = String(code).trim().toLowerCase();
       if (!clean) return;
       try {
-        const snap = await this.db.ref(`joinCodes/${clean}`).once("value");
+        const snap = await this.timeoutRace(this.db.ref(`joinCodes/${clean}`).once("value"), "verify join code");
         const id = snap.val();
-        if (!id) { alert("Invalid join code. Check the spelling and try again."); return; }
-        const metaSnap = await this.db.ref(`campaigns/${id}/meta`).once("value");
+        if (!id) { alert("Invalid join code. Check spelling and try again."); return; }
+        const metaSnap = await this.timeoutRace(this.db.ref(`campaigns/${id}/meta`).once("value"), "fetch campaign info");
         const meta = metaSnap.val() || { name: "Campaign" };
-        await this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" });
+        await this.timeoutRace(this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" }), "join campaign");
         this.campaign = { id, joinCode: clean, name: meta.name, role: "player" };
       } catch (err) {
         console.error("Failed to join campaign in RTDB:", err);
-        let msg = `Database error: ${err.message || err.code || "Permission denied"}.\n\n`;
-        if (this.lastAuthError) {
-          msg += `Note: Anonymous Auth sign-in failed (${this.lastAuthError}).\n\nTo fix this:\n1. Open console.firebase.google.com\n2. Go to Build > Authentication > Sign-in method\n3. Enable 'Anonymous' and click Save.`;
+        let msg = `Database error:\n${err.message || err.code || "Permission denied"}\n\n`;
+        if (err.message && err.message.includes("timed out")) {
+          msg += `To fix timeout:\n1. Open console.firebase.google.com\n2. Go to Build > Realtime Database\n3. Ensure database exists and check Rules tab.`;
         } else {
-          msg += `Check your Firebase Console > Realtime Database > Rules.`;
+          msg += `Check your Firebase Console > Realtime Database > Rules tab.`;
         }
         alert(msg);
         return;
@@ -245,6 +254,7 @@
       const provider = new firebase.auth.GoogleAuthProvider();
       this.user.linkWithPopup(provider).then((res) => {
         this.user = res.user;
+        this.uid = res.user.uid;
         alert("Linked to Google account: " + (res.user.displayName || res.user.email));
         Router.go("about");
       }).catch((err) => {
@@ -2922,8 +2932,8 @@
         if (!Sync.campaign) {
           const createRow = el(`<div style="margin-top:8px"><button class="btn secondary block" id="btn-create-camp">⚡ Create New Party Campaign</button></div>`);
           createRow.querySelector("#btn-create-camp").onclick = () => {
-            const n = prompt("Enter a Campaign / Party Name:");
-            if (n) Sync.createCampaign(n);
+            const n = prompt("Enter a Campaign / Party Name:", "Misty Vale Adventurers");
+            if (n !== null) Sync.createCampaign(n.trim() || "Dragonbane Campaign");
           };
           const joinRow = el(`<div style="display:flex;gap:8px;margin-top:8px">
             <input type="text" id="join-code" class="input" placeholder="Join Code (e.g. VALE42)" style="flex:1;text-transform:uppercase">
