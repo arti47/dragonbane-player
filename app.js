@@ -54,6 +54,13 @@
     remove(id) {
       this.save(this.list().filter((x) => x.id !== id));
       if (typeof Sync !== "undefined" && Sync.enabled) Sync.removeChar(id);
+    },
+    // Wipe locally-stored heroes and the local combat tracker (keeps theme,
+    // settings, and any active campaign connection). Used by Settings → Clear.
+    clear() {
+      localStorage.removeItem(this.KEY);
+      localStorage.removeItem("dragonbane.combat");
+      window.activeCharacterId = null;
     }
   };
 
@@ -1479,7 +1486,7 @@
           if (att && !att.acted) { att.acted = true; Combat.save(comb); const activeNav = document.querySelector("#app-nav button.active"); if (activeNav && activeNav.dataset.route === "party") Combat.rerender(); }
         }
       }
-      const nat = typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks;
+      const nat = (typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.npcAttackTable) || null;
       if (!nat) return;
       const roles = nat.roles || ["Melee Attacker", "Ranged Attacker", "Sneaky Attacker", "Magic Attacker"];
       const m = modal(`${npcName}: NPC Attack Table`);
@@ -2623,7 +2630,7 @@
             });
             npcDiv.appendChild(sGrid);
           }
-          if (typeof DB !== "undefined" && DB.solo && DB.solo.npcAttacks) {
+          if (Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.npcAttackTable) {
             const natBtn = el(`<button class="btn ghost block" style="margin-top:4px;border:1px dashed var(--accent)">🎲 Roll NPC Attack Table (AI Action)</button>`);
             natBtn.onclick = () => Roller.rollNpcAttackTable(cb.name, cb.id);
             npcDiv.appendChild(natBtn);

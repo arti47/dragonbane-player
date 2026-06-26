@@ -310,13 +310,13 @@ data-solo.js: failForward[]
 > read them from the data libraries (add a table there if one is missing).
 
 ### Phase 10 — Bug Fixes (Priority: CRITICAL — these are broken behaviors)
-- [ ] **Fix dead `DB.solo` references (solo NPC attack table never shows in combat).**
+- [x] **Fix dead `DB.solo` references (solo NPC attack table never shows in combat).** ✅ Repointed `Roller.rollNpcAttackTable` and the `Combat.view` NPC-card gate to `DRAGONBANE_SOLO.npcAttackTable`; combat button now gated by `Settings.soloMode()`.
   - Rule: N/A (code bug). The solo NPC Attack Table lives in `DRAGONBANE_SOLO.npcAttackTable`, not `DRAGONBANE.solo`.
   - Target: `app.js` · `Roller.rollNpcAttackTable` (~line 1482) and `Combat.view` (~line 2626). Both guard on `DB.solo && DB.solo.npcAttacks`, which is always `undefined`.
   - Behavior/UI: Replace the guard/data source with `DRAGONBANE_SOLO.npcAttackTable` (and its `.rows` / `.roles`). The "🎲 Roll NPC Attack Table (AI Action)" button on NPC combat cards must render and roll correctly. Only show it when Solo Mode is enabled (`Settings.soloMode()`), to match the Solo-tab gating.
   - Schema: none.
   - Acceptance: With Solo Mode on, add a custom NPC in Combat, open its card → the AI-action button appears and rolling a role returns a row from `data-solo.js`.
-- [ ] **Add missing `Store.clear()` (the "Clear all storage" button throws).**
+- [x] **Add missing `Store.clear()` (the "Clear all storage" button throws).** ✅ Added `Store.clear()` (removes characters + combat keys, resets `activeCharacterId`; keeps theme/settings/campaign).
   - Rule: N/A (code bug).
   - Target: `app.js` · `Store` object (~line 22). `Screens.about` (~line 3108) calls `Store.clear()` which does not exist.
   - Behavior/UI: Implement `clear()` to remove the characters key, combat key, campaign key, and settings as appropriate (at minimum `localStorage.removeItem(this.KEY)` + `localStorage.removeItem("dragonbane.combat")`), then let the existing `Router.go("home")` run. Do not wipe theme unless intended.
@@ -559,6 +559,7 @@ data-solo.js: failForward[]
 
 | Date | Changes |
 |---|---|
+| 2026-06-26 | **Phase 10 (Bug Fixes) started — 2 of 4 done.** Fixed dead `DB.solo` references (the solo NPC Attack Table AI roller now resolves `DRAGONBANE_SOLO.npcAttackTable`; the combat-card button is gated by Solo Mode). Added the missing `Store.clear()` so Settings → "Clear all storage" works instead of throwing. The remaining two Phase 10 fixes (metal-magic check, hero-armor-always-0) are deferred — they depend on the Phase 13 equipped-item slots. SW cache v27. |
 | 2026-06-26 | **Rules-Accuracy Completion roadmap added (§7B).** From a full feature audit against the *Dragonbane* core/expansion rules, documented every missing/partial feature as nine themed phases (Phase 10 Bug Fixes → Phase 18 Advanced GM Automation), ordered by rules-impact with Priority labels and full implementation specs (rule · target file/function · behavior/UI · schema · acceptance). Added §2.9 (planned-features summary) and §6.1 (planned schema additions). Docs only — no code changes yet. GM-side automations gated behind one shared "Advanced / GM Automation" toggle; encumbrance specced as a full slot-system rebuild. |
 | 2026-06-24 | Extracted canonical scope (§1, §3) from raw conversation logs. Initial `CLAUDE.md`. |
 | 2026-06-24 | Created `data.js` rules library (Attributes, conditions, 6 kin, 30 skills, 10 professions, 44 heroic abilities, 4 schools of spells, full equipment). **Phase 0 COMPLETE.** |
