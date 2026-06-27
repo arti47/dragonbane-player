@@ -232,7 +232,7 @@ inventory.items[].lit        : boolean            // Phase 18 light sources
 combatant.prevInit     : number | null = null     // Phase 11 Veteran retention
 settings.gmAutomation  : boolean = false          // Phase 18 shared toggle
 
-// New data-library tables (single source of truth — never hardcode in app.js):
+// New data-library tables (single source of truth — never hardcode in the src/ modules):
 data.js: armor[].banes[], helmets[].banes[], armor/weapons[].metal,
          gear[].lightDie, advancementQuestions[], fearTable[]
 data-solo.js: failForward[]
@@ -359,8 +359,8 @@ data-solo.js: failForward[]
 > `CACHE_VERSION` in `service-worker.js` whenever cached files change.
 >
 > **Single source of truth:** all rules numbers belong in `data.js` /
-> `data-magic.js` / `data-solo.js`. Do not hardcode rules values in `app.js` —
-> read them from the data libraries (add a table there if one is missing).
+> `data-magic.js` / `data-solo.js`. Do not hardcode rules values in the `src/`
+> modules — read them from the data libraries (add a table there if one is missing).
 
 ### Phase 10 — Bug Fixes (Priority: CRITICAL — these are broken behaviors)
 - [x] **Fix dead `DB.solo` references (solo NPC attack table never shows in combat).** ✅ Repointed `Roller.rollNpcAttackTable` and the `Combat.view` NPC-card gate to `DRAGONBANE_SOLO.npcAttackTable`; combat button now gated by `Settings.soloMode()`.
