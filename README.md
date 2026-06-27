@@ -58,7 +58,29 @@ Any static host works (Firebase Hosting, Netlify, GitHub Pages, Cloudflare Pages
 | `firebase-config.js` | Firebase regional RTDB config and storage flags |
 | `database.rules.json` | Firebase Realtime Database security rules |
 | `manifest.json`, `service-worker.js`, `icon.svg` | PWA: installable + offline caching |
+| `tests/` + `package.json` | Dev-only headless regression harness (not shipped with the app) |
 | `CLAUDE.md` | Full spec, data model, roadmap, and changelog |
+
+## Development & testing
+
+The app ships as a **dependency-free static PWA** — just serve the folder (e.g.
+`python3 -m http.server`) and open it; there is no build step. The `src/*.js`
+files are native ES modules loaded directly by the browser.
+
+A headless regression suite lives under `tests/` (Playwright + Chromium). It is
+**dev-only** — not part of the deployed app.
+
+```bash
+npm install        # installs playwright-core (dev dependency)
+npm test           # boots the app headless and runs all specs
+node tests/run.js spillage   # run only matching spec(s)
+```
+
+The suite (`tests/specs/`) covers: app boot + ES-module wiring (`smoke`),
+mobile text-overflow at 360/390px (`spillage`), rules-accurate derived stats
+(`derivation`), spell-cast modals (`cast`), and slot-based encumbrance
+(`inventory`). It prints a per-area pass/fail summary and exits non-zero on any
+failure. If Chromium isn't auto-detected, point to it with `CHROMIUM_BIN=/path/to/chrome`.
 
 ## License / content
 
