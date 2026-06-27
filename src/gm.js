@@ -137,13 +137,6 @@ export const GM = {
       ref.appendChild(d6Table("Demon fumble — ranged (D6)", DB.demonRanged));
       ref.appendChild(d6Table("Fear table (D6)", DB.fearTable));
       ref.appendChild(d6Table("Leaving the adventure site (D6)", DB.leavingSite));
-      // Typical NPC quick-stats (from the app's own NPC library).
-      if (npcs.length) {
-        const d = el(`<details class="rule-accordion"><summary>Typical NPC quick-stats</summary></details>`);
-        const wrap = el(`<div style="padding:6px 2px"></div>`);
-        npcs.slice(0, 12).forEach((n) => wrap.appendChild(el(`<p class="stat-line" style="margin:2px 0"><b>${esc(n.name)}</b> — HP ${n.hp}${n.wp ? ` · WP ${n.wp}` : ""}${n.armor ? ` · Armor ${n.armor}` : ""}</p>`)));
-        d.appendChild(wrap); ref.appendChild(d);
-      }
       root.appendChild(ref);
 
       return root;
