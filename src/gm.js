@@ -9,7 +9,7 @@ import { $, DB, Dice, el, esc, sectionTitle, uid } from './core.js';
 import { Store } from './store.js';
 import { Sync } from './sync.js';
 import { Settings } from './settings.js';
-import { modal, showToast, promptModal } from './ui.js';
+import { modal, showToast, promptModal, confirmModal } from './ui.js';
 import { effHpMax, effWpMax } from './derived.js';
 import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
@@ -94,13 +94,44 @@ export const GM = {
       addRow("Rulebook NPC / animal", npcs, "npc");
       root.appendChild(dPanel);
 
+      // ---- Broadcast to players ---------------------------------------
+      const bPanel = el(`<div class="panel"><h3>📢 Message players</h3></div>`);
+      if (Sync.isGm()) {
+        const ta = el(`<textarea class="modal-input" rows="2" placeholder="Type a message to push to all players…" aria-label="Message to players"></textarea>`);
+        const send = el(`<button class="btn block">Send to players</button>`);
+        send.onclick = () => { if (Sync.pushBroadcast(ta.value)) ta.value = ""; };
+        bPanel.append(ta, send);
+        if ((Sync.broadcast || []).length) {
+          const clear = el(`<button class="btn ghost" style="margin-top:6px">Clear feed (${Sync.broadcast.length})</button>`);
+          clear.onclick = async () => { if (await confirmModal("Clear the GM message feed for all players?", { title: "Clear feed", okText: "Clear", danger: true })) Sync.clearBroadcast(); };
+          bPanel.appendChild(clear);
+        }
+      } else {
+        bPanel.appendChild(el(`<p class="stat-line">Create or join a campaign as the GM (Settings → Multiplayer) to push messages and table rolls to players' devices.</p>`));
+      }
+      root.appendChild(bPanel);
+
       // ---- GM reference (the official screen's aids) -------------------
-      const ref = el(`<div class="panel"><h3>GM reference</h3></div>`);
+      const ref = el(`<div class="panel"><h3>GM reference</h3><p class="stat-line">Roll a table privately; “📢 Push” reveals the result to players (synced GM only).</p></div>`);
       const d6Table = (title, rows) => {
         const d = el(`<details class="rule-accordion"><summary>${esc(title)}</summary></details>`);
-        const ul = el(`<div style="padding:6px 2px"></div>`);
-        (rows || []).forEach((x) => ul.appendChild(el(`<p class="stat-line" style="margin:2px 0"><b>${x.d6}</b> — ${esc(x.effect)}</p>`)));
-        d.appendChild(ul); return d;
+        const inner = el(`<div style="padding:6px 2px"></div>`);
+        const rollBtn = el(`<button class="btn secondary" style="margin-bottom:6px">🎲 Roll</button>`);
+        const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
+        rollBtn.onclick = () => {
+          const r = Dice.d(6);
+          const row = (rows || []).find((x) => x.d6 === r) || {};
+          out.innerHTML = "";
+          out.appendChild(el(`<p class="outcome" style="margin:4px 0;font-size:1.05rem"><b>D6: ${r}</b> — ${esc(row.effect || "")}</p>`));
+          if (Sync.isGm()) {
+            const push = el(`<button class="btn ghost" style="border-color:var(--accent)">📢 Push to players</button>`);
+            push.onclick = () => Sync.pushBroadcast(`${title} (D6: ${r}) — ${row.effect || ""}`);
+            out.appendChild(push);
+          }
+        };
+        inner.append(rollBtn, out);
+        (rows || []).forEach((x) => inner.appendChild(el(`<p class="stat-line" style="margin:2px 0"><b>${x.d6}</b> — ${esc(x.effect)}</p>`)));
+        d.appendChild(inner); return d;
       };
       ref.appendChild(d6Table("Demon fumble — melee (D6)", DB.demonMelee));
       ref.appendChild(d6Table("Demon fumble — ranged (D6)", DB.demonRanged));

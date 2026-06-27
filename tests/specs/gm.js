@@ -52,6 +52,27 @@ module.exports = {
     t.ok("drop-into-combat pickers present", screen.dropSelects >= 1);
     t.ok("GM reference tables render (incl. fumble tables)", screen.refTables >= 4);
 
+    // Reference tables roll and output an entry
+    const rolled = await page.evaluate(() => {
+      const d = document.querySelector(".screen-gm details.rule-accordion");
+      if (!d) return null;
+      d.open = true;
+      const btn = [...d.querySelectorAll("button")].find((b) => /Roll/.test(b.textContent));
+      if (!btn) return null;
+      btn.click();
+      const out = d.querySelector(".roll-result");
+      return out ? out.textContent : null;
+    });
+    t.ok("table Roll button outputs a D6 entry", !!rolled && /D6:\s*[1-6]/.test(rolled));
+
+    // Broadcast panel shows the not-synced hint when local (no Firebase in tests)
+    const broadcast = await page.evaluate(() => {
+      const h = [...document.querySelectorAll(".screen-gm .panel")].find((p) => /Message players/.test(p.textContent));
+      return h ? h.textContent : null;
+    });
+    t.ok("broadcast panel present", !!broadcast);
+    t.ok("broadcast shows campaign hint when not synced", /campaign/i.test(broadcast || ""));
+
     // Hand out a condition and confirm it persists to the character
     await page.evaluate(() => [...document.querySelectorAll(".gm-row button")].find((b) => /Condition/.test(b.textContent))?.click());
     await page.waitForTimeout(150);

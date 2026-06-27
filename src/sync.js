@@ -20,6 +20,10 @@ export const Sync = {
     campaign: null, // { id, joinCode, name, role }
     combatRef: null,
     charsRef: null,
+    broadcastRef: null,
+    broadcast: [],            // [{ id, text, ts, from }] — GM → players feed (last 30)
+    _broadcastSeen: null,     // Set of message ids already seen (suppresses toast on initial load)
+    isGm() { return !!(this.campaign && this.campaign.role === "gm"); },
 
     init() {
       if (!window.FIREBASE_ENABLED || typeof firebase === "undefined" || !window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
@@ -269,11 +273,47 @@ export const Sync = {
           Router.go("home");
         }
       });
+
+      // GM → players broadcast feed.
+      this._broadcastSeen = null;
+      this.broadcastRef = this.db.ref(`campaigns/${id}/broadcast`).limitToLast(30);
+      this.broadcastRef.on("value", (snap) => {
+        const list = [];
+        snap.forEach((m) => { const v = m.val() || {}; list.push({ id: m.key, text: v.text || "", ts: v.ts || 0, from: v.from || "" }); });
+        list.sort((a, b) => a.ts - b.ts);
+        this.broadcast = list;
+        const firstLoad = this._broadcastSeen === null;
+        const seen = this._broadcastSeen || new Set();
+        // Toast only genuinely-new messages from someone else (not on initial load, not your own).
+        if (!firstLoad) {
+          list.forEach((msg) => { if (!seen.has(msg.id) && msg.from !== this.uid) showToast("📢 GM: " + msg.text); });
+        }
+        this._broadcastSeen = new Set(list.map((m) => m.id));
+        // Refresh the GM-messages panel if a sheet is open.
+        if (window.activeCharacterId && Store.get(window.activeCharacterId) && $("#screen .wiz-progress")) Sheet.render();
+      });
     },
 
     detachListeners() {
       if (this.combatRef) { this.combatRef.off(); this.combatRef = null; }
       if (this.charsRef) { this.charsRef.off(); this.charsRef = null; }
+      if (this.broadcastRef) { this.broadcastRef.off(); this.broadcastRef = null; }
+      this.broadcast = []; this._broadcastSeen = null;
+    },
+
+    // GM pushes a message (or a rolled table result) to all players in the campaign.
+    pushBroadcast(text) {
+      text = String(text || "").trim();
+      if (!text) return false;
+      if (!this.enabled || !this.db || !this.isGm()) { showToast("Only a campaign GM (synced) can push to players.", "warn"); return false; }
+      this.db.ref(`campaigns/${this.campaign.id}/broadcast`).push({ text, ts: Date.now(), from: this.uid }).catch(() => {});
+      showToast("Sent to players.", "success");
+      return true;
+    },
+
+    clearBroadcast() {
+      if (!this.enabled || !this.db || !this.isGm()) return;
+      this.db.ref(`campaigns/${this.campaign.id}/broadcast`).remove().catch(() => {});
     },
 
     pushChar(charObj) {

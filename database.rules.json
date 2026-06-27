@@ -21,6 +21,10 @@
         "combat": {
           ".read": true,
           ".write": true
+        },
+        "broadcast": {
+          ".read": true,
+          ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm'"
         }
       }
     },

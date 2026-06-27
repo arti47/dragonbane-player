@@ -680,6 +680,18 @@ export const Sheet = {
         </div>`));
       }
 
+      // GM messages feed (only in a synced campaign) — pushed by the GM.
+      if (Sync && Sync.campaign && (Sync.broadcast || []).length) {
+        const feed = el(`<details class="panel" open><summary style="cursor:pointer;font-weight:600">📢 GM messages <span class="stat-line">(${Sync.broadcast.length})</span></summary></details>`);
+        const list = el(`<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>`);
+        Sync.broadcast.slice().reverse().forEach((m) => {
+          const when = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+          list.appendChild(el(`<div style="padding:6px 8px;background:var(--bg);border-left:3px solid var(--accent);border-radius:4px"><span class="stat-line" style="float:right">${esc(when)}</span>${esc(m.text)}</div>`));
+        });
+        feed.appendChild(list);
+        root.appendChild(feed);
+      }
+
       // Identity + derived + HP/WP
       const top = el(`<div class="panel"></div>`);
       const portUrl = c.identity.portraitUrl;
