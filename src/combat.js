@@ -139,7 +139,7 @@ export const Combat = {
       if (kind === "parry") { const w = resolveEquippedWeapons(ch.inventory && ch.inventory.items)[0]; skillName = (w && w.skill) || "Evade"; }
       const sk = ch.skills[skillName] || { level: 5 };
       const m = modal(`${cb.name}: ${kind === "parry" ? "Parry" : "Dodge"} (reaction)`);
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const btn = el(`<button class="btn block">Roll ${esc(skillName)} ≤ ${sk.level}</button>`);
       btn.onclick = () => {
         btn.disabled = true; btn.style.opacity = "0.4";
@@ -365,16 +365,16 @@ export const Combat = {
 
         const topActions = head.querySelector(".row-top-actions");
         if (cb.init != null && !isDefeated) {
-          const swap = el(`<button class="step" title="wait / swap initiative">⇅</button>`);
+          const swap = el(`<button class="step" title="wait / swap initiative" aria-label="Wait or swap initiative">⇅</button>`);
           swap.onclick = (e) => { e.stopPropagation(); this.swapInit(cb.id); };
           topActions.appendChild(swap);
         }
         if (cb.kind === "hero" && cb.charId) {
-          const open = el(`<button class="step" title="open sheet">↗</button>`);
+          const open = el(`<button class="step" title="open sheet" aria-label="Open character sheet">↗</button>`);
           open.onclick = (e) => { e.stopPropagation(); Sheet.open(cb.charId); };
           topActions.appendChild(open);
         }
-        const rm = el(`<button class="step rm">✕</button>`);
+        const rm = el(`<button class="step rm" aria-label="Remove combatant">✕</button>`);
         rm.onclick = (e) => { e.stopPropagation(); this.mutate((st) => { st.combatants = st.combatants.filter((c) => c.id !== cb.id); }); };
         topActions.appendChild(rm);
 

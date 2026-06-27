@@ -146,7 +146,7 @@ export const Sheet = {
       const wil = c.attributes.WIL;
       const fearless = (c.abilities || []).some((a) => a.name === "Fearless");
       const m = modal("Fear attack — WIL roll");
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       if (fearless) { m.body.append(el(`<p class="outcome ok">Fearless — you automatically resist fear (no roll).</p>`)); return; }
       const btn = el(`<button class="btn block">Roll d20 ≤ WIL ${wil}</button>`);
       btn.onclick = () => {
@@ -163,7 +163,7 @@ export const Sheet = {
       const c = Store.get(this.id);
       const con = c.attributes.CON;
       const m = modal(`${kind === "cold" ? "Cold" : "Disease"} — CON roll`);
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const btn = el(`<button class="btn block">Roll d20 ≤ CON ${con}</button>`);
       btn.onclick = () => {
         btn.disabled = true; btn.style.opacity = "0.4";
@@ -599,7 +599,7 @@ export const Sheet = {
       m.body.appendChild(el(`<p class="stat-line">Spend a shift training a skill with an NPC teacher (skill 15+). You get one advancement roll now; a teacher raises you by at most +1, so each skill can be teacher-trained once.</p>`));
       const sel = el(`<select class="input" style="width:100%;margin-bottom:8px"></select>`);
       Object.keys(c.skills).sort().forEach((n) => { const done = c.state.teacherTrained && c.state.teacherTrained[n]; sel.appendChild(el(`<option value="${esc(n)}" ${done ? "disabled" : ""}>${esc(n)} (${c.skills[n].level})${done ? " — already trained" : ""}</option>`)); });
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const btn = el(`<button class="btn block">Roll advancement (teacher)</button>`);
       btn.onclick = () => {
         const n = sel.value; if (!n) return;
@@ -619,7 +619,7 @@ export const Sheet = {
       knowSkills.forEach((n) => { if (c.skills[n]) sel.appendChild(el(`<option value="${esc(n)}">${esc(n)} (${c.skills[n].level})</option>`)); });
       const m = modal("Study in prestigious library");
       m.body.appendChild(el(`<p class="stat-line">Spend a shift studying in a prestigious library (like the Guild of Tomes in Arkand) to get an immediate advancement roll in specific knowledge skills.</p>`));
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const btn = el(`<button class="btn block">Roll advancement (study)</button>`);
       btn.onclick = () => {
         const n = sel.value; if (!n) return;
@@ -703,9 +703,9 @@ export const Sheet = {
       const stepper = (label, cur, max, key, cls) => {
         const w = el(`<div class="vital ${cls}"><div class="vital-label">${label}</div></div>`);
         const ctrl = el(`<div class="stepper"></div>`);
-        const minus = el(`<button class="step" type="button">−</button>`);
-        const val = el(`<span class="vital-val">${cur} / ${max}</span>`);
-        const plus = el(`<button class="step" type="button">+</button>`);
+        const minus = el(`<button class="step" type="button" aria-label="Decrease ${label}">−</button>`);
+        const val = el(`<span class="vital-val" role="status" aria-live="polite">${cur} / ${max}</span>`);
+        const plus = el(`<button class="step" type="button" aria-label="Increase ${label}">+</button>`);
         const doStep = (d) => {
           const prevHp = c.state.hp;
           Store.update(this.id, ch => {
@@ -853,8 +853,8 @@ export const Sheet = {
       Object.entries(c.skills).sort((x,y)=>x[0].localeCompare(y[0])).forEach(([n,v]) => {
         const baned = condByAttr[v.attribute];
         const row = el(`<div class="skill-row ${v.trained?"trained":""}">
-          <button class="mark ${v.mark?"marked":""}" title="advancement mark">${v.mark?"●":"◦"}</button>
-          <button class="sk-name rollable">${esc(n)} <span class="stat-line">${v.attribute}${baned?" ⚠":""}</span></button>
+          <button class="mark ${v.mark?"marked":""}" title="advancement mark" aria-label="${v.mark?"Remove":"Add"} advancement mark for ${esc(n)}" aria-pressed="${v.mark?"true":"false"}">${v.mark?"●":"◦"}</button>
+          <button class="sk-name rollable" aria-label="Roll ${esc(n)} (${v.attribute}), skill ${v.level}">${esc(n)} <span class="stat-line">${v.attribute}${baned?" ⚠":""}</span></button>
           <b class="sk-lvl">${v.level}</b></div>`);
         row.querySelector(".mark").onclick = () => this.mutate((ch) => { ch.skills[n].mark = !ch.skills[n].mark; });
         row.querySelector(".sk-name").onclick = () => Roller.skill(this.id, n);
@@ -908,7 +908,7 @@ export const Sheet = {
         if (!(c.effects || []).length) fxPanel.appendChild(el(`<p class="stat-line">Nothing active. Use “+ Track” on a lasting spell, or add one below.</p>`));
         (c.effects || []).forEach((fx, i) => {
           const row = el(`<div class="comp-row"><div class="comp-info"><b>${esc(fx.name)}</b> ${fx.concentration ? '<span class="tag">Concentration</span>' : fx.notes ? `<span class="tag">${esc(fx.notes)}</span>` : ""}</div></div>`);
-          const rm = el(`<button class="step rm" title="end effect">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.effects.splice(i, 1));
+          const rm = el(`<button class="step rm" title="end effect" aria-label="End effect">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.effects.splice(i, 1));
           row.appendChild(rm); fxPanel.appendChild(row);
         });
         const addFx = el(`<div class="inv-add"></div>`);
@@ -969,7 +969,7 @@ export const Sheet = {
         }
         const sethp = el(`<button class="step" title="set max HP">HP</button>`);
         sethp.onclick = async () => { const raw = await promptModal(`Max HP for ${cp.name}?`, { title: "Set max HP", inputType: "number", defaultValue: cp.hpMax || "", okText: "Set" }); if (raw == null) return; const n = parseInt(raw, 10); if (!isNaN(n)) this.mutate((ch) => { ch.companions[i].hpMax = Math.max(0, n); ch.companions[i].hp = Math.max(0, n); }); };
-        const rm = el(`<button class="step rm">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.companions.splice(i, 1));
+        const rm = el(`<button class="step rm" aria-label="Remove companion">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.companions.splice(i, 1));
         row.append(sethp, rm);
         compPanel.appendChild(row);
       });
@@ -993,7 +993,7 @@ export const Sheet = {
         const strBtn = el(`<button class="btn ghost block" style="border-color:var(--bad);color:var(--bad);margin-bottom:10px">⚖ Roll STR to move (over-encumbered)</button>`);
         strBtn.onclick = () => {
           const m = modal("Over-encumbered — STR roll to move");
-          const out = el(`<div class="roll-result"></div>`);
+          const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
           const b = el(`<button class="btn block">Roll d20 ≤ STR ${c.attributes.STR}</button>`);
           b.onclick = () => { b.disabled = true; b.style.opacity = "0.4"; const r = Dice.d(20); const ok = r <= c.attributes.STR; out.innerHTML = `<p class="outcome ${ok?"ok":"bad"}">${r} vs STR ${c.attributes.STR} — ${ok?"You can move this turn / travel the shift.":"You fail to move (no movement this turn / no progress this shift)."}</p>`; };
           m.body.append(el(`<p class="stat-line">While over the encumbrance limit you must succeed a STR roll to move in combat or travel a shift.</p>`), b, out);
@@ -1010,7 +1010,7 @@ export const Sheet = {
         const slot = classifyItem(it.name);
         const wpns = resolveEquippedWeapons([it]);
         wpns.forEach((wpn) => {
-          const dmg = el(`<button class="step dmg" title="roll attack / damage (${esc(wpn.name)})">⚔ ${wpns.length > 1 ? esc(wpn.name) : ""}</button>`);
+          const dmg = el(`<button class="step dmg" title="roll attack / damage (${esc(wpn.name)})" aria-label="Roll attack or damage with ${esc(wpn.name)}">⚔ ${wpns.length > 1 ? esc(wpn.name) : ""}</button>`);
           dmg.onclick = () => Roller.damage(this.id, wpn);
           row.appendChild(dmg);
         });
@@ -1052,7 +1052,7 @@ export const Sheet = {
           useBtn.onclick = () => SpellAutomation.usePotion(this.id, it, i);
           row.append(useBtn);
         }
-        const rm = el(`<button class="step rm">✕</button>`);
+        const rm = el(`<button class="step rm" aria-label="Remove ${esc(it.name)}">✕</button>`);
         rm.onclick = () => this.mutate((ch) => { ch.inventory.items.splice(i, 1); });
         row.append(rm);
         return row;

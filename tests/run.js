@@ -12,7 +12,7 @@ const path = require("path");
 const serve = require("./serve");
 const { launch } = require("./browser");
 
-const SPECS = ["smoke", "spillage", "derivation", "cast", "inventory"];
+const SPECS = ["smoke", "spillage", "derivation", "cast", "inventory", "a11y"];
 
 function recorder() {
   const r = { pass: 0, fail: 0, fails: [] };

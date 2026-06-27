@@ -10,13 +10,19 @@ export function init() {
     const pill = $("#sync-status");
     if (pill) {
       pill.style.cursor = "pointer";
-      pill.onclick = () => {
+      // Make the clickable status pill operable by keyboard (it's a <span>).
+      pill.setAttribute("role", "button");
+      pill.setAttribute("tabindex", "0");
+      pill.setAttribute("aria-label", "Data storage mode — open multiplayer settings");
+      const activate = () => {
         Router.go("about");
         setTimeout(() => {
           const mp = document.querySelector("#btn-create-camp")?.closest(".panel") || document.querySelector("#rules-search")?.closest(".panel");
           if (mp) mp.scrollIntoView({ behavior: "smooth" });
         }, 100);
       };
+      pill.onclick = activate;
+      pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); } };
     }
 
     Theme.init();

@@ -57,7 +57,7 @@ export const Roller = {
       plus.onclick = () => { net++; lbl.textContent = this.netLabel(net); };
       ctl.append(el(`<span class="stat-line">Boon / Bane</span>`), minus, lbl, plus);
       const rollBtn = el(`<button class="btn block" style="margin-top:12px">Roll d20</button>`);
-      const result = el(`<div class="roll-result"></div>`);
+      const result = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doRoll = (pushedCondition) => {
         if (!pushedCondition) {
           rollBtn.disabled = true; rollBtn.style.opacity = "0.4"; rollBtn.style.cursor = "not-allowed";
@@ -190,7 +190,7 @@ export const Roller = {
       const isRanged = weapon.type === "ranged" || (weapon.features || []).some(f => /quiver|arrow|bolt|sling/i.test(f));
 
       const m = modal(`${c.identity.name || "Hero"}: ${weapon.name}`);
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       
       // Top section: Attack Roll
       const atkDiv = el(`<div class="panel" style="margin-bottom:12px;background:var(--card-bg);padding:12px"></div>`);
@@ -404,7 +404,7 @@ export const Roller = {
       }
       const title = d6Roll ? `${monsterName}: 🎲 Rolled ${d6Roll} → ${atk.name}` : `${monsterName}: ${atk.name}`;
       const m = modal(title);
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const bodyElems = [];
       if (d6Roll) {
         bodyElems.push(el(`<p class="stat-line" style="font-size:1.2rem;color:var(--ok);margin:0 0 8px 0"><b>🎲 Rolled ${d6Roll} on Monster Attack Table!</b></p>`));
@@ -435,7 +435,7 @@ export const Roller = {
         }
       }
       const m = modal(`${npcName}: ${w.name}`);
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const rollBtn = el(`<button class="btn block">Roll Attack (Target ≤ ${w.skill})</button>`);
       let dmgBtn = null;
       if (w.damage) {
@@ -522,7 +522,7 @@ export const Roller = {
       skillRow.querySelector("#sm").onclick = () => { skillLvl = Math.max(1, skillLvl - 1); skillRow.querySelector("#slvl").textContent = skillLvl; };
       skillRow.querySelector("#sp").onclick = () => { skillLvl = Math.min(20, skillLvl + 1); skillRow.querySelector("#slvl").textContent = skillLvl; };
 
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       
       const d20Btn = el(`<button class="btn secondary block" style="margin-bottom:8px">🎲 Roll D20 Magic Check (vs PC Target)</button>`);
       d20Btn.onclick = () => {
@@ -623,7 +623,7 @@ export const Roller = {
       }
 
       if (isTrick) {
-        const out = el(`<div class="roll-result"></div>`);
+        const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
         const btn = el(`<button class="btn block">Cast (1 WP, auto-success)</button>`);
         btn.onclick = () => {
           if (c.state.wp < 1) { out.innerHTML = `<p class="outcome bad">Not enough WP.</p>`; return; }
@@ -654,7 +654,7 @@ export const Roller = {
       </label>`);
 
       const castBtn = el(`<button class="btn block" style="margin-top:12px">Cast</button>`);
-      const out = el(`<div class="roll-result"></div>`);
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doCast = (pushedCondition) => {
         if (!pushedCondition) {
           castBtn.disabled = true; castBtn.style.opacity = "0.4"; castBtn.style.cursor = "not-allowed";

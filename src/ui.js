@@ -2,15 +2,19 @@
    See CLAUDE.md §5 for the module map. */
 import { $, Dice, el, esc } from './core.js';
 
+let __modalSeq = 0;
 export function modal(title) {
+    const titleId = "modal-title-" + (++__modalSeq);
     const back = el(`<div class="modal-back"></div>`);
-    const card = el(`<div class="modal-card"></div>`);
-    card.appendChild(el(`<div class="modal-head"><h3>${esc(title)}</h3></div>`));
-    const x = el(`<button class="icon-btn modal-x" aria-label="Close">✕</button>`);
+    const card = el(`<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="${titleId}" tabindex="-1"></div>`);
+    card.appendChild(el(`<div class="modal-head"><h3 id="${titleId}">${esc(title)}</h3></div>`));
+    const x = el(`<button class="icon-btn modal-x" aria-label="Close dialog">✕</button>`);
     card.querySelector(".modal-head").appendChild(x);
     const body = el(`<div class="modal-body"></div>`);
     card.appendChild(body);
     back.appendChild(card);
+    // Remember what had focus so it can be restored when the dialog closes.
+    const prevFocus = document.activeElement;
     document.body.appendChild(back);
     // Size the overlay to the *visible* viewport (excludes the mobile browser
     // toolbar), so the bottom-anchored sheet never slips off-screen. Falls back
@@ -24,9 +28,30 @@ export function modal(title) {
     };
     fit();
     if (vv) { vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); }
-    const close = () => { if (vv) { vv.removeEventListener("resize", fit); vv.removeEventListener("scroll", fit); } back.remove(); if (typeof back._onClose === "function") back._onClose(); };
+    const focusables = () => [...card.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((n) => !n.disabled && n.offsetParent !== null);
+    const close = () => {
+      if (vv) { vv.removeEventListener("resize", fit); vv.removeEventListener("scroll", fit); }
+      document.removeEventListener("keydown", onKey, true);
+      back.remove();
+      // Restore focus to the control that opened the dialog (a11y).
+      if (prevFocus && typeof prevFocus.focus === "function" && document.contains(prevFocus)) prevFocus.focus();
+      if (typeof back._onClose === "function") back._onClose();
+    };
+    // Escape closes; Tab is trapped within the dialog (a11y).
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); close(); return; }
+      if (e.key !== "Tab") return;
+      const f = focusables();
+      if (!f.length) { e.preventDefault(); card.focus(); return; }
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey, true);
     back.onclick = (e) => { if (e.target === back) close(); };
     x.onclick = close;
+    // Move focus into the dialog (first focusable, else the card itself).
+    requestAnimationFrame(() => { const f = focusables(); (f[0] || card).focus(); });
     return { body, close, back };
   }
 

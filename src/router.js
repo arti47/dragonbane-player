@@ -20,8 +20,12 @@ export const Router = {
       screen.innerHTML = "";
       const screenFn = Screens[route] || Screens.home;
       screen.appendChild(screenFn.call(Screens)); // bind `this` = Screens for screen methods
-      document.querySelectorAll("#app-nav button").forEach((b) =>
-        b.classList.toggle("active", b.dataset.route === route));
+      document.querySelectorAll("#app-nav button").forEach((b) => {
+        const on = b.dataset.route === route;
+        b.classList.toggle("active", on);
+        if (on) b.setAttribute("aria-current", "page");
+        else b.removeAttribute("aria-current");
+      });
       window.scrollTo(0, 0);
     },
     init() {
