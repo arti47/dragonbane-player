@@ -27,7 +27,7 @@ module.exports = {
   name: "spillage",
   async run({ baseURL, newPage, t }) {
     for (const vw of [360, 390]) {
-      const page = await newPage({ soloMode: true, bookOfMagic: true, gmAutomation: true }, { width: vw, height: 850 });
+      const page = await newPage({ soloMode: true, bookOfMagic: true, gmAutomation: true, gmScreen: true }, { width: vw, height: 850 });
       page.on("dialog", (d) => d.accept("3"));
       await page.goto(baseURL + "/index.html", { waitUntil: "load" });
       await page.waitForTimeout(300);
@@ -73,6 +73,11 @@ module.exports = {
       await check("solo");
       await page.evaluate(() => document.querySelector("#app-nav button[data-route='about']")?.click()); await page.waitForTimeout(150);
       await check("about");
+
+      // GM screen (party panel + reference tables open)
+      await page.evaluate(() => document.querySelector("#app-nav button[data-route='gm']")?.click()); await page.waitForTimeout(150);
+      await page.evaluate(() => document.querySelectorAll(".screen-gm details").forEach((d) => (d.open = true))); await page.waitForTimeout(150);
+      await check("gm-screen");
 
       // Cast modal over the mage sheet
       await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click()); await page.waitForTimeout(100);

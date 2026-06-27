@@ -3,6 +3,7 @@
 import { $ } from './core.js';
 import { Settings } from './settings.js';
 import { Screens } from './screens.js';
+import { GM } from './gm.js';
 import { init } from './main.js';
 
 export const Router = {
@@ -12,9 +13,17 @@ export const Router = {
         this.go("home");
         return;
       }
+      if (route === "gm" && !GM.enabled()) {
+        this.go("home");
+        return;
+      }
       const soloNav = document.querySelector("#app-nav button[data-route='solo']");
       if (soloNav) {
         soloNav.style.display = Settings.soloMode() ? "" : "none";
+      }
+      const gmNav = document.querySelector("#app-nav button[data-route='gm']");
+      if (gmNav) {
+        gmNav.style.display = GM.enabled() ? "" : "none";
       }
       const screen = $("#screen");
       screen.innerHTML = "";

@@ -316,6 +316,16 @@ export const Roller = {
         outcomeHtml += `</div>`;
         out.innerHTML = outcomeHtml;
 
+        // Demon (nat 20) on a weapon attack → roll the fumble table (melee vs ranged).
+        if (fumble) {
+          const tbl = isRanged ? (DB.demonRanged || []) : (DB.demonMelee || []);
+          if (tbl.length) {
+            const fr = Dice.d(6);
+            const row = tbl.find((x) => x.d6 === fr) || tbl[0];
+            out.appendChild(el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px;border-left:3px solid var(--bad)"><p class="stat-line" style="margin:0"><b>👿 ${isRanged ? "Ranged" : "Melee"} fumble (D6: ${fr})</b> — ${esc(row.effect)}</p></div>`));
+          }
+        }
+
         if (!crit && !fumble && !isPush) {
           const curChar = Store.get(charId) || c;
           const curConds = curChar?.state?.conditions || {};

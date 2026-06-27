@@ -814,6 +814,34 @@ const DRAGONBANE = {
     { d6: 6, effect: "Overcome — you act last and roll with a bane until the threat passes." }
   ],
 
+  /* Demon (natural 20) fumble on a melee attack (D6). */
+  demonMelee: [
+    { d6: 1, effect: "You drop your weapon at your feet — picking it up is an action." },
+    { d6: 2, effect: "You leave yourself open: the enemy gets a free attack that can't be dodged or parried." },
+    { d6: 3, effect: "Your weapon lodges in something — a STR roll (an action) is needed to pull it free." },
+    { d6: 4, effect: "You fling your weapon D3+3 metres away; retrieving it costs a move and an action." },
+    { d6: 5, effect: "You damage your weapon: it takes a bane on every use until an artisan repairs it." },
+    { d6: 6, effect: "You hit yourself — roll the weapon's damage, but with no damage bonus." }
+  ],
+  /* Demon (natural 20) fumble on a ranged attack (D6). */
+  demonRanged: [
+    { d6: 1, effect: "You drop your weapon at your feet — picking it up is an action." },
+    { d6: 2, effect: "You run out of ammunition and must restock before firing again (re-roll for slings/thrown)." },
+    { d6: 3, effect: "Your shot hits a valuable or important item nearby (GM decides what)." },
+    { d6: 4, effect: "You break your weapon: it takes a bane on every use until an artisan repairs it." },
+    { d6: 5, effect: "You accidentally hit a random ally — roll damage as normal, including the damage bonus." },
+    { d6: 6, effect: "You hit yourself — roll the weapon's damage, but with no damage bonus." }
+  ],
+  /* Consequence for leaving a cleared adventure site (D6) — GM aid. */
+  leavingSite: [
+    { d6: 1, effect: "Enemies from the site follow the party and strike at an opportune moment." },
+    { d6: 2, effect: "The site's foes get reinforcements — fallen enemies are replaced twofold." },
+    { d6: 3, effect: "Someone else arrives and loots the site's treasure before the party returns." },
+    { d6: 4, effect: "Nothing happens." },
+    { d6: 5, effect: "Nothing happens." },
+    { d6: 6, effect: "Nothing happens." }
+  ],
+
   advancementQuestions: [
     "Did you take part in the game session?",
     "Did you explore a new, dangerous location?",

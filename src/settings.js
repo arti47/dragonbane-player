@@ -9,7 +9,8 @@ export const Settings = {
     set(k, v) { const s = this.load(); s[k] = v; localStorage.setItem(this.KEY, JSON.stringify(s)); },
     bookOfMagic() { return !!this.get("bookOfMagic"); },
     soloMode() { return !!this.get("soloMode"); },
-    gmAutomation() { return !!this.get("gmAutomation"); }
+    gmAutomation() { return !!this.get("gmAutomation"); },
+    gmScreen() { return !!this.get("gmScreen"); }
   };
 
   /* =================================================================
