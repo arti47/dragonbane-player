@@ -1,0 +1,12 @@
+{
+  "name": "dragonbane-player",
+  "version": "1.0.0",
+  "description": "Player-facing character app for the Dragonbane TTRPG. The app itself ships as a dependency-free static PWA (src/*.js ES modules); this package.json only declares the dev-only headless test harness.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

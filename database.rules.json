@@ -1,0 +1,37 @@
+{
+  "rules": {
+    "joinCodes": {
+      ".read": true,
+      "$code": {
+        ".write": "!data.exists() || auth !== null"
+      }
+    },
+    "campaigns": {
+      "$campaignId": {
+        "meta": {
+          ".read": true,
+          ".write": "!data.exists() || data.child('ownerUid').val() === auth.uid || auth !== null"
+        },
+        "members": {
+          ".read": true,
+          "$uid": {
+            ".write": "auth !== null && (auth.uid === $uid || root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm')"
+          }
+        },
+        "combat": {
+          ".read": true,
+          ".write": true
+        },
+        "broadcast": {
+          ".read": true,
+          ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm'"
+        }
+      }
+    },
+    "characters": {
+      ".indexOn": ["campaignId", "owner"],
+      ".read": true,
+      ".write": true
+    }
+  }
+}

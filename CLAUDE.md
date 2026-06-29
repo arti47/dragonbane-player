@@ -1,0 +1,873 @@
+# Dragonbane Player App
+
+A player-facing character app for the **Dragonbane** fantasy tabletop RPG (Free League), built to run on **phone, browser, and computer** with a real-time shared party. Based **solely on the Dragonbane core rules** (no campaign- or setting-specific content).
+
+> **IMPORTANT — keep this file in sync.** This `CLAUDE.md` is the canonical description of the app. **Every time any edit is made to the code, this file MUST be updated in the same change** (features, architecture, data model, file list, changelog, and roadmap status). Treat a code change with a stale `CLAUDE.md` as incomplete. This project is destined for GitHub, so this file doubles as the repository's primary documentation.
+
+---
+
+## 1. Overview
+
+| | |
+|---|---|
+| **Game** | Dragonbane (Free League) — core rules only |
+| **Audience** | Players (player-facing tool, not a GM screen) |
+| **Platforms** | Phone, browser, desktop (installable PWA) |
+| **Core job** | Character **creation wizard** + full in-play **tracker** |
+| **Multiplayer** | Multiple characters + real-time **shared party** view |
+| **Backend** | Firebase (Realtime DB/Firestore + Storage), offline-capable |
+| **Offline** | Installable PWA; read/edit own sheet offline, syncs when online |
+| **Theme** | Dragonbane parchment/ink look (default) + light/dark toggle |
+
+---
+
+## 2. Feature Specification
+
+### 2.1 Character Creation Wizard
+- Roll/assign the six attributes (**4D6, drop lowest**; assign-as-rolled then swap two), scale **3–18**.
+- Choose **kin** (Human, Halfling, Dwarf, Elf, Mallard, Wolfkin) — applies innate ability and base movement.
+- Choose **profession** — sets starting trained skills, starting gear, and one starting heroic ability (Mage gets magic instead).
+- Choose **age** (Young / Adult / Old) — applies attribute modifiers and number of trained skills (6+2 / 6+4 / 6+6).
+- Auto-derive all derived stats and skill base chances (see §3).
+- Validates a legal character per the rules before finishing.
+
+### 2.2 Dice Engine (full)
+- **d20 roll-under** per skill; reports success/failure.
+- **Dragon (natural 1)** = critical success; **Demon (natural 20)** = critical failure.
+- **Boons / Banes** — roll 2D20, keep best (boon) / worst (bane).
+- **Pushing** a failed roll — re-roll once; auto-applies a **condition** of the player's choice (enforces "can't pick a condition you already have"; blocks pushing once all six are held).
+- **Weapon damage** rolls with the correct STR/AGL **damage bonus** auto-added.
+
+### 2.3 Rules Library & Compendiums (baked in — `data.js`)
+The full Dragonbane core game data organized into searchable accordion categories (`<details class="rule-accordion">`) with live text filter:
+- All **6 kin** + innate abilities (and base movement).
+- All **professions** with trained-skill lists and starting gear/equipment.
+- All **30 core skills** with governing attribute (+ secondary/magic skills).
+- All **heroic abilities** (requirements, WP cost, effect).
+- All **spells** across the three schools: **Animism, Elementalism, Mentalism** (+ magic tricks, rank 0).
+- **Wilderness Journeys & Travel compendium** — Shifts time measurement (~6h each), camp/rest Bushcraft rules, foraging, and D6 Mishap Table (also accessible in Solo tab).
+- **Core Gameplay Loop & Stages compendium** — Time scales (10s combat rounds vs 6h wilderness shifts), combat stage sequence, and D20 pushing rules.
+
+### 2.4 In-Play Tracking (deepest tier)
+- **Conditions** — the six (Exhausted/STR, Sickly/CON, Dazed/AGL, Angry/INT, Scared/WIL, Disheartened/CHA) with their **roll penalties auto-applied** to the relevant attribute/skill rolls.
+- **Death & dying** — when HP hits 0, run the death-roll sequence (success/failure tally), **rally**, and track unconsciousness.
+- **Rest & recovery** — round / stretch / shift timing; Round Rest & Stretch Rest healing of HP/WP and condition removal.
+- **Combat-round helper** — initiative order (Dragonbane initiative card draw 1–10), per-round action/movement reminders, and drop-in NPC/monster combatants.
+
+### 2.5 Skill Advancement (full auto)
+- Auto-marks a skill with an **advancement mark** when it crits (Dragon) or fumbles (Demon) via the roller.
+- **Session-end advancement flow** — roll each marked skill; on success the skill increases; handles awarding new heroic abilities / WP where relevant.
+
+### 2.6 Inventory, Encumbrance & Money (full auto)
+- Inventory items each carry a **weight**; app sums encumbrance vs limit (**½ STR rounded up**).
+- **Over-encumbered** warning + prompts the STR roll to move.
+- **Tiny items** and **mementos** tracked in their own sections (don't count toward encumbrance).
+- **Money** in **gold / silver / copper** with coin-encumbrance (100+ coins = 1 item).
+
+### 2.7 Magic in Play (full)
+- Known **magic tricks (rank 0)** and **spells (rank 1–3)** from the character's school.
+- Tap to cast: deducts **WP (cost = rank)**, with option to spend extra WP to **boost** (range/damage/etc.), rolls the relevant magic skill, flags Dragon/Demon.
+
+### 2.8 Character Flavor (full)
+- Name, kin, profession, age, **appearance**, **weakness**, **memento**, freeform **notes/journal**.
+- **Portrait image** upload (synced via Firebase Storage).
+
+### 2.9 Planned — Rules-Accuracy Completion (see §7B roadmap)
+> These features are **specified but not yet built**. Full implementation specs (rule,
+> target file/function, behavior, schema, acceptance) live in **§7B**, ordered by
+> rules-impact. Summary by theme:
+- **Combat roll accuracy:** STR-requirement bane, two-handed grip (−3 STR req), heavy-armor/helmet skill banes, working metal-magic restriction, *Lightning Fast* / *Veteran* initiative, turn swap/wait.
+- **Conditions:** condition-overflow penalty (all six held → lose D6 WP, or D6 HP if WP 0).
+- **Inventory (full slot-system rebuild):** ½STR slot limit, equipped exemptions (armor/helmet/3 weapons-at-hand), coin-weight slots, ration/ammo grouping, over-encumbered STR-roll prompt, weapon/shield durability.
+- **Advancement & identity:** Overcome Weakness (2 marks + cooldown), end-of-session 5-question questionnaire, teacher training (+1 cap), heroic-ability requirement locking + free ability at skill 18.
+- **Vitals & magic:** *Robust*/*Focused* auto-adjust max HP/WP, familiar WP splitting.
+- **Movement & reactions:** prone/stand, door half-move, leaping (Acrobatics), parry/dodge reaction (flips card, +2m on dodge).
+- **Solo completion:** +5 mission marks, extra free heroic ability at creation, fail-forward.
+- **Advanced GM automation (one optional toggle):** global time clock, round-rest once-per-shift, light-source burn-out, sleep deprivation, cold & disease, fear attacks/table, concentration interruption.
+- **Bug fixes:** dead `DB.solo` references, missing `Store.clear()`, dead metal-magic check, hero-armor-always-0.
+
+---
+
+## 3. Derived Stats & Tables (reference)
+
+- **Damage Bonus** (separate for STR and AGL): ≤12 → none; 13–16 → **+D4**; 17+ → **+D6**.
+- **Movement** = kin base modified by AGL.
+  - Kin base: Human 10, Halfling 8, Dwarf 8, Elf 10, Mallard 8, Wolfkin 12.
+  - AGL mod: 1–6 → −4; 7–9 → −2; 10–12 → 0; 13–15 → +2; 16–18 → +4.
+- **Hit Points (HP)** max = **CON** (increased by *Robust* heroic ability).
+- **Willpower Points (WP)** max = **WIL** (increased by *Focused* heroic ability).
+- **Skill base chance** by governing attribute: 1–5 → 3; 6–8 → 4; 9–12 → 5; 13–15 → 6; 16–18 → 7.
+- **Age effects** (max 18): Young → AGL & CON +1, 6+2 trained skills; Adult → no mod, 6+4; Old → STR/AGL/CON −2, INT/WIL +1, 6+6.
+- **Skills** scale 1–18, d20 roll-under; **conditions** from pushing rolls.
+- **Encumbrance** limit = ½ STR (round up); coins: <100 tiny, 100–199 = 1 item, etc.
+
+*(All values above are drawn from the Dragonbane core rules via the project's NotebookLM notebook and will be expanded into the full `data.js` library.)*
+
+---
+
+## 4. Architecture
+
+### 4.1 Multiplayer & Identity
+- **Multiple characters** per device + a **shared party view** (combined initiative, party HP/conditions at a glance).
+- **Firebase** backend: **Realtime Database (RTDB)** (selected over Firestore for low latency, presence, and lower high-frequency update costs) + Storage for portraits.
+- **Auth:** Instant launch into Local/Anonymous mode (zero friction). **Optional Google account linking** lives inside the Settings tab to back up characters across devices.
+- **Campaigns:** A player creates a campaign and gets a short **join code** formatted as a memorable fantasy phrase (e.g. `red-dragon-sword`); others enter the code to join the same party.
+- **Permissions:** **Player-only UI now**, but the schema and Firebase Security Rules explicitly include `role: "player" | "gm"` from day one so a GM screen can be built later without database migrations.
+
+### 4.2 PWA / Offline & Updates
+- Installable (add-to-home-screen), app-like launch.
+- **Local Only Mode:** Preserves `localStorage` alongside Firebase for offline standalone play without API keys.
+- **Cloud Offline Persistence:** Firebase RTDB IndexedDB caching handles offline edits when connected to a campaign.
+- **PWA Updates:** Includes an in-app *"Update Available: Click to Reload"* toast/banner when the Service Worker detects new code, guaranteeing all players run identical rules and UI.
+
+### 4.3 Firebase Setup Model
+- App ships with a **clearly-marked placeholder config block** and runs immediately in a **local/offline mode** (no sync) so it works out of the box.
+- Dropping in real Firebase keys switches it to **live cloud sync**.
+- Setup instructions live in `README.md` (and summarized here).
+
+---
+
+## 5. File Structure (small organized project)
+
+| File | Purpose | Status |
+|---|---|---|
+| `index.html` | App shell / markup | ✅ COMPLETE — shell done (header, nav, screen mount, script loads); loads `src/main.js` as an ES module. |
+| `src/*.js` | Application logic, split into **16 ES modules** (was the single `app.js` IIFE). Entry point `src/main.js`. | ✅ ALL PHASES COMPLETE (Phases 1–21): see the module map below. Native ES modules — **no bundler/build step**; the browser loads them directly (clone-and-run preserved). |
+| `styles.css` | Theming (Dragonbane look + light/dark) | ✅ Dragonbane theme (light + dark) + wizard/sheet styles (chips, attr grid, forms, steps) — verified in browser |
+| `data.js` | Dragonbane rules library (kin, professions, skills, abilities, spells, equipment) | ✅ COMPLETE — kin, conditions, derived tables, ages, 30 skills + 3 magic schools, 10 professions (+ full gear tables), 44 heroic abilities, all spells (4 schools), weapons/shields/armor/helmets, general gear, instruments, currency |
+| `data-magic.js` | Book of Magic library (revised spells, new spells for existing schools, 9 new schools) | ✅ COMPLETE & WIRED — 6 revised spells + 39 new spells for existing schools (+familiar table) + all 9 new schools; 254 magic entries total, fully wired into wizard and casting. |
+| `data-solo.js` | Solo rules: oracle, likelihoods, random tables, solo heroic abilities | ✅ COMPLETE & WIRED — Fortune Chart oracle, Inspiration Table (3D20), Dragon/Demon twists, Solo NPC generator + quick combat add, D6 NPC Attack Table AI roller, and Solo Heroic Abilities wired into wizard and initiative. |
+| `data-monsters.js` | Dragonbane Bestiary library (52 true monsters) | ✅ COMPLETE & WIRED — 12 core monsters + Robber Knight + 40 compendium additions; every entry carries a `ferocity` (attacks/turn, §7C F15). Auto-hit attacks roll damage via `Roller.monsterAttack` / `Roller.monsterTableRoll` (Ferocity×). |
+| `data-npcs.js` | Dragonbane Humanoid NPCs, Bosses, Undead & Animals library | ✅ COMPLETE & WIRED — Guard, Cultist, Thief, Villager, Hunter, Bandit, Adventurer, Scholar, Bosses, Goblins, Orcs, Skeletons, animals + 17 playable kin archetypes. Rolls d20 attacks via `Roller.npcAttack`. |
+| `data-pregens.js` | The 5 Dragonbane Core Set pre-generated characters | ✅ COMPLETE & WIRED — Aodhan, Orla, Makander, Krisanna, Bastonn. Instantiated via "Use a pre-gen" on Heroes screen. |
+| `database.rules.json` | Firebase Realtime Database security rules | ✅ COMPLETE — enforces player read/write own sheet + shared combat state; GM read/write all sheets. |
+| `manifest.json` | PWA manifest (installable) | ✅ done |
+| `service-worker.js` | Offline caching | ✅ done — network-first for same-origin, caches all data files. |
+| `firebase-config.js` | Firebase config & flags | ✅ done — configured for regional RTDB (`asia-southeast1.firebasedatabase.app`) + `FIREBASE_ENABLED` flag. |
+| `icon.svg` | PWA app icon | ✅ done |
+| `README.md` | GitHub readme + Firebase setup steps | ✅ done |
+| `tests/` + `package.json` | Dev-only headless regression harness (`npm test`) — Phase 20. `tests/{run,serve,browser}.js` + `tests/specs/*.js`. Not part of the shipped PWA; `node_modules` gitignored. | ✅ COMPLETE — 8 specs / 136 checks (smoke, spillage, derivation, cast, inventory, a11y, gm, rules7c). |
+| `CLAUDE.md` | This file — canonical spec, kept in sync with code | ✅ active |
+
+*(Update this table's Status column as files are created/changed.)*
+
+### 5.1 `src/` module map (ES modules — entry point `src/main.js`)
+
+Loaded by the browser as native ES modules (no bundler). Each file `export`s its
+modules and `import`s exactly what it uses; runtime cross-calls between mutually
+referential modules (`Sheet` ↔ `Roller` ↔ `Combat` ↔ `SpellAutomation`) work via
+ESM live bindings (the cycles are only exercised at runtime, never at module
+load). **When adding a symbol used by another module, `export` it and `import` it
+where needed** — don't reach for globals.
+
+| Module | Exports | Responsibility |
+|---|---|---|
+| `core.js` | `DB`, `MAGICX`, `CORE_SCHOOLS`, `FANTASY_WORDS`, `$`, `el`, `esc`, `sectionTitle`, `uid`, `mountScreen`, `Dice`, `MISHAPS`, `CONDITION_BY_MISHAP` | Foundational globals, DOM/util helpers, dice, shared constants. No imports. |
+| `ui.js` | `modal`, `showToast`, `confirmModal`, `promptModal` | Themed non-blocking dialogs/toasts (replace native alert/confirm/prompt). |
+| `rules.js` | `Calc`, `findHeroicAbility`, `heroicReqMet`, `resolveEquippedWeapons`, `normName`, `resolveArmorItem`, `resolveHelmetItem`, `classifyItem`, `parseGear`, `buildSkills`, `resolveCanonicalSpell` | Pure rules lookups/derivations over the data libraries. |
+| `derived.js` | `effHpMax`, `effWpMax`, `encUsed`, `encLimit`, `equippedArmor`, `equippedHelmet`, `armorBanedSkills`, `normalizeInventory`, `itemQty`, `lightDieFor`, `abilityCount`, … | Character-derived calculations (vitals, encumbrance slots, equipped gear, normalization). |
+| `settings.js` | `Settings`, `Magic` | Settings flags (Book of Magic / Solo / GM Automation) + magic content gating. |
+| `store.js` | `Store`, `syncCharToCombat` | Local/cloud character persistence + combat mirroring. |
+| `sync.js` | `Sync`, `Theme` | Firebase auth/RTDB campaigns + light/dark theme. |
+| `wizard.js` | `Wizard`, `Pregens` | Character-creation wizard + pre-gens. |
+| `spell-automation.js` | `SpellAutomation`, `SUMMON_STATS` | Automated spell gameplay engine (Phase 19). |
+| `roller.js` | `Roller` | Dice engine: skill/attack/damage/cast rolls, push, mishaps. |
+| `sheet.js` | `Sheet` | The full character sheet view + all in-play tracking UI. |
+| `combat.js` | `Combat` | Combat tracker / initiative / damage applier. |
+| `solo.js` | `SoloMode` | Solo assistant (oracle, inspiration, NPC gen). |
+| `gm.js` | `GM` | GM dashboard (Phase 21): party panel, peek sheet, drop-in monsters/NPCs, hand out damage/conditions/fear, GM reference tables. |
+| `screens.js` | `Screens`, `renderPartyBanner`, `renderRuleDetail` | Top-level screen renderers (home/rules/about/gm) + party banner. |
+| `router.js` | `Router` | Bottom-nav routing + Solo/GM-tab gating. |
+| `main.js` | `init` | Entry point: boot, theme/sync init, `DOMContentLoaded`. |
+
+---
+
+## 6. Data Model (Firebase) — draft
+
+> To be finalized during build. Structured GM-ready.
+
+```
+campaigns/{campaignId}
+  meta: { name, joinCode, createdAt, ownerUid }
+  members/{uid}: { displayName, characterId, role: "player" }   // "player" | "gm" (enforced in security rules)
+  combat: { active, round, initiativeOrder[], combatants{...} }  // shared round helper
+  broadcast/{pushId}: { text, ts, from }   // GM→players message feed (Phase 21); GM-write/member-read
+
+characters/{characterId}
+  owner: uid
+  campaignId
+  identity: { name, kin, profession, age, appearance, weakness, memento, portraitUrl }
+  attributes: { STR, CON, AGL, INT, WIL, CHA }
+  derived:    { movement, hpMax, wpMax, dmgBonusSTR, dmgBonusAGL }
+  state:      { hp, wp, conditions{...}, deathRolls{...}, wpPenalty, rallied,
+                moveSpent, isDashing, isMounted, combatAmmo }
+  skills:     { <skillName>: { level, trained, mark } }
+  abilities:  [ ... ]   // heroic + innate kin abilities
+  spells:     { tricks[], known[], castSkill?, castSchool? }
+  inventory:  { items[], tiny[], mementos[], money:{ gold, silver, copper } }
+  companions: [ { id, name, hp, hpMax, notes } ]   // summons/familiars/companions
+  effects:    [ { id, name, concentration, notes } ]
+  notes:      string
+  advancementLog: [ ... ]
+```
+
+### 6.1 Planned schema additions (§7B Rules-Accuracy roadmap)
+
+These fields are introduced by the planned phases in §7B. Defaults shown; all are
+optional and back-filled by `normalizeInventory`-style migration when absent.
+
+```
+state.weaknessCooldown : boolean = false        // Phase 14 Overcome Weakness
+state.teacherTrained   : { [skill]: true } = {}  // Phase 14 Teacher training
+state.familiar         : { name, wp, wpMax } | null = null   // Phase 15
+state.prone            : boolean = false          // Phase 16 change position
+state.time             : { round:0, stretch:0, shift:0 }     // Phase 18 clock
+state.roundRestUsed    : boolean = false          // §7C F3 once-per-shift (core, was Phase 18)
+state.stretchRestUsed  : boolean = false          // §7C F4 stretch-rest once-per-shift
+state.awakeShifts      : number = 0               // Phase 18 sleep deprivation
+state.afflictions      : { cold:false, disease:null } // Phase 18 cold/disease
+inventory.items[].equipped   : boolean = false    // Phase 13 — DONE. Implemented as a
+                                                  // per-item flag (not a separate equipped{} object):
+                                                  // 1 armor + 1 helmet + ≤3 weapons are slot-exempt.
+inventory.items[].durability : number             // Phase 13 durability — DONE
+inventory.items[].qty        : number = 1         // Phase 13 stackables (rations/ammo)
+inventory.items[].lit        : boolean            // Phase 18 light sources
+combatant.prevInit     : number | null = null     // Phase 11 Veteran retention
+combatant.initUsed     : boolean = false          // §7C F7–F9 per-round Veteran/Lightning-Fast activation
+combatant.ferocity     : number = 1               // §7C F15 monster attacks per turn (mirrors data-monsters)
+settings.gmAutomation  : boolean = false          // Phase 18 shared toggle
+
+// New data-library tables (single source of truth — never hardcode in the src/ modules):
+data.js: armor[].banes[], helmets[].banes[], armor/weapons[].metal (§7C F12 studded leather = metal),
+         gear[].lightDie, advancementQuestions[], fearTable[], demonMelee[]/demonRanged[]/leavingSite[],
+         core Elementalism "Firebird" rank 3 (§7C F14)
+data-monsters.js: every monster has ferocity (§7C F15 — attacks/turn)
+data-solo.js: failForward[] (an optional house aid, not an official table — §7C F16)
+```
+
+---
+
+## 7. Roadmap
+
+### Phase 0 — Foundations
+- [x] Create project scaffold (all files in §5).
+- [x] `data.js` rules library — full Dragonbane core data extracted from NotebookLM. **COMPLETE.**
+  - [x] Attributes, conditions, derived-stat tables, ages
+  - [x] Kin (6) + innate abilities + base movement
+  - [x] Skills (30 core + 3 magic schools) with governing attributes
+  - [x] Professions (10) — key attribute, profession skill lists, starting heroic ability, **full D6 gear tables**
+  - [x] Heroic abilities (44) — requirement, WP cost, full effect text
+  - [x] Spells — General Magic + Animism / Elementalism / Mentalism (tricks + ranks 1–3)
+    - [x] General Magic — 6 tricks + 7 spells (Dispel, Protector, Magic Shield, Transfer, Magic Seal, Charge, Permanence)
+    - [x] Animism — 5 tricks + 10 spells (ranks 1–3)
+    - [x] Elementalism — 3 tricks + 15 spells (ranks 1–3, incl. elemental summon stats)
+    - [x] Mentalism — 3 tricks + 13 spells (ranks 1–3)
+  - [x] Equipment — weapons (melee + ranged + shields) + mastercrafted modifier; armor (4) & helmets (2); general adventuring gear (~55 items w/ cost, weight, effect); musical instruments; currency conversion
+- [x] `firebase-config.js` placeholder + local/offline fallback mode.
+- [x] Base theming (`styles.css`) — Dragonbane look + light/dark toggle. *(verified in browser)*
+- [x] PWA shell (`manifest.json`, `service-worker.js`, `icon.svg`) — installable + offline.
+- [x] App shell (`index.html` + `app.js`) — header, bottom nav, router, storage layer (local mode), Rules browser backed by `data.js`, `README.md`. **Phase 0 COMPLETE.**
+
+### Phase 1 — Character Creation Wizard ✅ COMPLETE (verified in browser)
+- [x] Attribute roll/assign (4D6 drop lowest; assign each rolled score to an attribute; age mods applied, capped 3–18).
+- [x] Kin / profession / age selection with auto-fill (mage school selector for Mages).
+- [x] Derived stats + skill base-chance computation (movement, HP/WP max, damage bonuses; trained skill = 2× base chance, untrained = base chance — verified correct).
+- [x] Starting trained skills (exactly age total, ≥6 from profession; school auto-trained for mages), gear (D6 package, dice rolled), heroic ability (auto/choice) or magic (3 tricks + 3 rank-1 spells from school/General).
+- [x] Legal-character validation at each step; saves character + opens a read-only sheet view (full tracker is Phase 2).
+- [x] **Pre-generated characters** — the 5 Core Set pregens (`data-pregens.js`) selectable via "Use a pre-gen" on the Heroes screen; instantiates a full character (derives stats + skills) and opens its sheet. Verified end-to-end (mage Aodhan and knight Makander).
+
+### Phase 2 — Core Tracker ✅ COMPLETE (verified in browser)
+- [x] Full character sheet view (attributes, derived, skills, conditions) — live & persistent.
+- [x] Editable HP/WP (steppers, clamped 0–max, persist); the six conditions toggle and **auto-flag a bane (⚠)** on the affected attribute and its skills (actual roll application lands with the Phase 3 dice engine).
+- [x] Inventory / encumbrance / money automation — per-item weights, add/remove, encumbrance bar vs ½-STR limit with over-encumbered warning, tiny items & mementos, gold/silver/copper steppers.
+- [x] Abilities & spells display; advancement-mark toggles per skill; notes/journal; scroll preserved across live re-renders. Legacy inventory auto-migrated to structured form.
+
+### Phase 3 — Dice Engine ✅ COMPLETE (verified in browser)
+- [x] d20 roll-under per skill (tap a skill name) + Dragon (nat 1) / Demon (nat 20); auto-adds an advancement mark on a crit/fumble.
+- [x] Boons/banes — net stepper (boon = 2d20 keep lowest, bane = keep highest); a condition on the skill's attribute auto-applies a bane.
+- [x] Pushing → pick a condition (not already held) then re-roll; blocked on a Demon.
+- [x] Weapon damage rolls (⚔ on inventory weapons) with the correct STR/AGL damage bonus (respects "no damage bonus").
+- [x] Spell casting — power-level selector (2 WP/level, 6 for Dracomancy), rolls the school skill, deducts WP even on failure, Dragon perks, Demon → full Magical Mishap table (conditions/damage/WP auto-applied for results 1–8); magic tricks cost 1 WP and auto-succeed.
+
+### Phase 3B — Book of Magic: Spells & Schools ✅ COMPLETE (verified in browser) *(depends on Phase 3 casting)*
+> Expansion content, gated behind a **"Book of Magic" content toggle** (per character and/or campaign), off by default. See §10.
+- [x] Extract Book of Magic data into `data-magic.js` (separate file). **DATA COMPLETE** (254 magic entries, validated).
+- [x] **Revised spells** — the six core spells (Dispel, Magic Seal, Permanence, Protector, Resurrection, Sleep) extracted as official revised versions (canonical everywhere — Q3/B). App overrides `data.js` entries with these.
+- [x] New spells for existing schools (General 7, Animism 16, Elementalism 8, Mentalism 8) + familiar animal table.
+- [x] All 9 new schools fully statted (Demonology, Harmonism, Illusionism, Necromancy, Symbolism, Witchcraft, Alchemy, Enchanting, Dracomancy).
+- [x] Content toggle wiring (`Settings` + `Magic` modules; toggle in **Settings & About**) + Rules browser shows the 9 new schools & extra spells only when on. **Revised spells applied everywhere** (always canonical).
+- [x] Wizard: when toggle on, a mage may start with any eligible school (core 3 + the new ones, **Dracomancy excluded** as learn-in-play); new schools added as INT magic skills via `buildSkills`.
+- [x] Wizard: **Bard as caster** — when toggle on, a Bard may study **Harmonism** (toggle in the profession step); gets a Magic step (3 tricks + 3 rank-1 Harmonism spells), still gets Musician; **casts via Performance** (`spells.castSkill`), verified in the dice engine. `Roller.cast` uses the cast skill's attribute for the condition bane.
+
+### Phase 4 — In-Play Systems ✅ COMPLETE (verified in browser)
+- [x] Death & dying (corrected to official rules) — at 0 HP a dying panel tracks successes/failures via **D20 vs CON** (roll ≤ CON = success). **3 successes → stabilize & recover D6 HP**; **3 failures → death**. **Dragon (1) = two successes**, **Demon (20) = two failures**, death rolls can't be pushed. **Taking damage while down = a failed death roll**. **Rally** (ally PERSUASION / self WIL-with-bane): you act but keep rolling. **Saved (Healing)**: an adjacent ally's HEALING roll → stop rolls + recover D6 HP.
+- [x] Rest & recovery — Round rest (+D6 WP), Stretch rest (+D6 HP/WP, heal one chosen condition), Shift rest (full HP/WP, all conditions cleared).
+- [x] Skill advancement — marks auto-added on Dragon/Demon (Phase 3); "End session — roll advancement" rolls D20 per marked skill (improve if > level, max 18) and clears marks.
+- [x] Combat-round helper — the **Combat** tab (`Combat` module, `dragonbane.combat` storage): add heroes, Bestiary monsters (12 true monsters with auto-hitting attacks from `data-monsters.js`), or custom NPCs. Accordion combatant rows with inline HP (+/−) vitals tracking and one-click attack rolling (`Roller.monsterAttack` / `Roller.damage`).
+
+### Phase 4B — Book of Magic: School Subsystems ✅ COMPLETE (verified in browser)
+- [x] Enchanting / Alchemy — **+ Craft** / **+ Brew** buttons in the Magic panel add the result to inventory.
+- [x] Necromancy / Demonology / Elementalism / Symbolism / Witchcraft / General — **Summons & Companions roster** on the sheet (HP tracking, remove).
+- [x] Corruption / insanity tracking — **permanent WP-loss control** (`state.wpPenalty`).
+- [x] Active-effects tracker — **Active Spells & Effects** panel (`c.effects[]`) with a **+ Track** quick-add on lasting spells.
+- [x] Dracomancy learn-in-play — a **"Learn a spell or school"** modal (`Sheet.learnMagic`) in the Magic panel.
+
+### Phase 5 — Multiplayer & Sync ✅ COMPLETE (verified in browser)
+- [x] Firebase Realtime Database (RTDB) setup & schema initialization.
+- [x] Security Rules: enforce player read/write own sheet + shared combat state; GM read/write all sheets.
+- [x] Instant Local/Anonymous auth flow + "Link Google Account" button in Settings.
+- [x] Party overview dashboard & live sheet sync.
+- [x] Shared combat tracker sync (`dragonbane.combat` RTDB node).
+- [x] Portrait image upload (client-side canvas compression) & PWA reload toast.
+
+### Phase 5B — Solo Mode Wiring ✅ COMPLETE (verified in browser)
+- [x] Fortune Chart oracle widget (6 columns, 3 likelihoods).
+- [x] Inspiration Table widget (D20×3 prompt generator).
+- [x] Solo NPC templates (Minion/Boss generator) & NPC Attack Table widget (4 roles).
+- [x] Solo Heroic Abilities (Army of One, Sole Survivor) wiring into wizard/sheet.
+
+### Phase 6 — Navigation & Rules Neatening ✅ COMPLETE (verified in browser)
+- [x] Reorganized Rules Library into searchable accordion categories with live text filter.
+- [x] Wilderness Journeys & Travel Reference compendium (Shifts, camp/rest Bushcraft rules, foraging, mishap table).
+- [x] Core Gameplay Loop & Stages walkthrough compendium.
+- [x] Dynamic Solo tab hiding when disabled in Settings.
+
+### Phase 8 — Combat Ergonomics & Caster NPCs ✅ COMPLETE (verified in browser)
+- [x] Repositioned combat row Open Sheet and Delete icons.
+- [x] Wired explicit known spells arrays into canonical caster NPCs.
+- [x] Implemented `Roller.npcCast` pop-up modal with d20 magic skill checks.
+- [x] Clickable sync status pill & Heroes screen prompt banner.
+- [x] Desperate healing restrictions, metal armor/weapon warnings, and grimoire unprepared checkboxes.
+
+### Phase 9 — Tabletop Automation & GM Guards ✅ COMPLETE (verified in browser)
+- [x] Two-way HP/WP live sync between Combat Tracker rows and Hero character sheets.
+- [x] Bestiary Monster random attack buttons auto-roll damage dice and open Target Applier.
+- [x] GM-only controls locking (`Combat.isGm`) for Initiative, Next Turn/Round, and Reset.
+- [x] Automatic ammunition deduction (`combatAmmo`) and out-of-ammo roll blocking.
+- [x] Automatic Prepare Grimoire Spells pop-up modal upon Shift Rest.
+
+---
+
+## 7B. Rules-Accuracy Completion Roadmap (planned)
+
+> These themed phases close the gap between the current app and a fully
+> rules-accurate *Dragonbane* player tracker (see the feature audit, 2026-06-26).
+> **Ordering is by rules-impact** (highest-accuracy wins first); each phase has a
+> **Priority** label. **All phases below (10–19) are now COMPLETE** (`- [x]`); the
+> per-item specs are retained as documentation of what was built.
+>
+> **How to read each item (full implementation spec):** every feature lists
+> **Rule** (the canonical Dragonbane mechanic + exact numbers), **Target** (the
+> file · module · function to edit), **Behavior/UI** (what to build and where it
+> appears), **Schema** (new data fields: name · type · default · location), and
+> **Acceptance** (how to confirm it works in the browser). Implement one item at
+> a time, tick its box, update §6 if you add schema fields, and add a §8
+> changelog row — in the same change (per §9 sync discipline). Bump
+> `CACHE_VERSION` in `service-worker.js` whenever cached files change.
+>
+> **Single source of truth:** all rules numbers belong in `data.js` /
+> `data-magic.js` / `data-solo.js`. Do not hardcode rules values in the `src/`
+> modules — read them from the data libraries (add a table there if one is missing).
+
+### Phase 10 — Bug Fixes (Priority: CRITICAL — these are broken behaviors)
+- [x] **Fix dead `DB.solo` references (solo NPC attack table never shows in combat).** ✅ Repointed `Roller.rollNpcAttackTable` and the `Combat.view` NPC-card gate to `DRAGONBANE_SOLO.npcAttackTable`; combat button now gated by `Settings.soloMode()`.
+  - Rule: N/A (code bug). The solo NPC Attack Table lives in `DRAGONBANE_SOLO.npcAttackTable`, not `DRAGONBANE.solo`.
+  - Target: `app.js` · `Roller.rollNpcAttackTable` (~line 1482) and `Combat.view` (~line 2626). Both guard on `DB.solo && DB.solo.npcAttacks`, which is always `undefined`.
+  - Behavior/UI: Replace the guard/data source with `DRAGONBANE_SOLO.npcAttackTable` (and its `.rows` / `.roles`). The "🎲 Roll NPC Attack Table (AI Action)" button on NPC combat cards must render and roll correctly. Only show it when Solo Mode is enabled (`Settings.soloMode()`), to match the Solo-tab gating.
+  - Schema: none.
+  - Acceptance: With Solo Mode on, add a custom NPC in Combat, open its card → the AI-action button appears and rolling a role returns a row from `data-solo.js`.
+- [x] **Add missing `Store.clear()` (the "Clear all storage" button throws).** ✅ Added `Store.clear()` (removes characters + combat keys, resets `activeCharacterId`; keeps theme/settings/campaign).
+  - Rule: N/A (code bug).
+  - Target: `app.js` · `Store` object (~line 22). `Screens.about` (~line 3108) calls `Store.clear()` which does not exist.
+  - Behavior/UI: Implement `clear()` to remove the characters key, combat key, campaign key, and settings as appropriate (at minimum `localStorage.removeItem(this.KEY)` + `localStorage.removeItem("dragonbane.combat")`), then let the existing `Router.go("home")` run. Do not wipe theme unless intended.
+  - Schema: none.
+  - Acceptance: Settings → "Clear all storage" → confirm → heroes list empties with no console error.
+- [x] **Make the metal-armor / metal-weapon spell restriction actually fire.** ✅ `Roller.cast` now detects metal via `equippedArmor`/`equippedHelmet` `.metal` flags (data-driven) plus a data-driven `DB.weapons[].metal` flag; the metal warning fires for real.
+  - Rule: A mage casting while wearing metal armor or wielding a metal weapon is penalized/blocked (see §6.Phase-11 metal rule). Reuse the same equip data introduced in Phase 13.
+  - Target: `app.js` · `Roller.cast` (~line 1570). The current check reads `c.gear?.armor?.name` (no such field) and `item.equipped` (never set), so it never triggers.
+  - Behavior/UI: Detect metal via the equipped-armor slot and equipped weapons added in Phase 13 (`c.inventory.equipped`), matching armor names against `DB.armor` `metal:true` flags and weapon names against a `metal` feature. Until Phase 13 lands, gate this fix behind that dependency (do not ship a half-check).
+  - Schema: depends on Phase 13 equip slots; add `metal: true|false` to relevant `DB.armor` / `DB.weapons` entries in `data.js`.
+  - Acceptance: Equip chainmail (or a sword) → opening a spell cast shows the metal warning; equip leather/no weapon → no warning.
+- [x] **Fix hero combatant armor always 0 in the damage applier.** ✅ `Combat.view` hero-add now reads `equippedArmor(h).rating` so the damage applier auto-subtracts a hero's worn armor (verified: Plate → Armor 6 on the card).
+  - Rule: A defender's armor rating subtracts from incoming damage.
+  - Target: `app.js` · `Combat.view` hero-add (~line 2350): `armor: (h.gear && h.gear.armor ? h.gear.armor.rating : 0)` — heroes have no `gear.armor`.
+  - Behavior/UI: Resolve the hero's equipped armor (Phase 13 equip slot, or by matching inventory items to `DB.armor`) and store its rating on the combatant so `Roller.renderDamageApplier` auto-subtracts it. Until Phase 13, derive from the equipped-armor item name → `DB.armor` rating.
+  - Schema: reads Phase 13 `inventory.equipped.armor`.
+  - Acceptance: Add a hero wearing leather (rating 1) to Combat → applying 5 damage with "Ignore Armor" off removes 4 HP.
+
+### Phase 11 — Combat Roll Accuracy (Priority: HIGH)
+- [x] **STR-requirement bane on attacks.** ✅ `Roller.heroWeaponAttack` applies a −1 bane (at roll time, stacking with conditions) when `c.attributes.STR < weapon.str` for melee weapons, with a live explanatory note.
+  - Rule: If the wielder's STR is below a weapon's STR requirement, attack rolls with it get a bane.
+  - Target: `app.js` · `Roller.heroWeaponAttack` (~line 1208). Weapons carry `str` in `DB.weapons`.
+  - Behavior/UI: When `c.attributes.STR < weapon.str`, start the attack with net −1 (bane) and show a labeled note ("STR ${STR} < requirement ${weapon.str} → bane"). Stack with the existing condition bane.
+  - Schema: none (uses `DB.weapons[].str`).
+  - Acceptance: A STR 8 hero attacking with a Longsword (STR 13) opens the attack roll already at Bane ×1 with the explanatory note.
+- [x] **Two-handed grip reduces STR requirement by 3.** ✅ For 1H melee weapons, a "Two-handed grip" checkbox in the attack modal compares STR against `weapon.str − 3` for the bane calc above.
+  - Rule: Wielding a one-handed melee weapon in two hands lowers its STR requirement by 3 (cannot also use a shield/off-hand).
+  - Target: `app.js` · `Roller.heroWeaponAttack`. Use `weapon.grip` from `DB.weapons`.
+  - Behavior/UI: For `grip === "1H"` melee weapons, show a "Two-handed grip (−3 STR req)" checkbox in the attack modal; when checked, compare STR against `weapon.str - 3` for the bane calc above.
+  - Schema: none.
+  - Acceptance: STR 7 hero + Broadsword (STR 10): unchecked → bane; "Two-handed grip" checked → no STR bane (10−3=7).
+- [x] **Heavy-armor / helmet skill banes.** ✅ Added structured `banes[]`/`metal`/`rangedBane` to `DB.armor`/`DB.helmets`; `Roller.skill` banes worn-armor skills (Plate → Acrobatics/Evade/Sneaking, etc.) and `heroWeaponAttack` banes ranged attacks under a Great Helm.
+  - Rule: Equipped armor imposes banes — Studded Leather → Sneaking; Chainmail → Evade & Sneaking; Plate → Acrobatics, Evade & Sneaking. Open Helmet → Awareness; Great Helm → Awareness & all ranged attacks. (Text already in `DB.armor[].effect` / `DB.helmets[].effect`.)
+  - Target: `data.js` (add structured `banes: ["Sneaking", ...]` arrays to each armor/helmet entry); `app.js` · `Roller.skill` and `Roller.heroWeaponAttack` apply them.
+  - Behavior/UI: When the relevant skill (or a ranged attack) is rolled and the matching armor/helmet is equipped (Phase 13 equip slot), start at bane −1 with a note. Great Helm's "all ranged attacks" applies in `heroWeaponAttack` when `isRanged`.
+  - Schema: add `banes: string[]` to `DB.armor` and `DB.helmets`; reads `inventory.equipped` (Phase 13).
+  - Acceptance: Hero in Plate rolling Evade opens at Bane ×1; in leather, no bane.
+- [x] **Initiative: Lightning Fast & Veteran.** ✅ `Combat.draw` retains `prevInit` for *Veteran* (keeps last round's card) and draws two cards keeping the lower for *Lightning Fast*; *Army of One* secondary still gets its own fresh card.
+  - Rule: *Lightning Fast* — when drawing initiative, draw two cards and keep one (once per round). *Veteran* — at round start, keep your previous round's card instead of drawing.
+  - Target: `app.js` · `Combat.draw` (~line 2307). Currently only *Army of One* is handled.
+  - Behavior/UI: In `draw`, for each hero combatant, look up `Store.get(charId).abilities`. *Veteran*: if the combatant has a stored `init` from last round and the ability, keep it (skip a new card). *Lightning Fast*: deal two cards and keep the lower (better) one, marking it used for the round. Document interaction order (Veteran resolves before dealing new cards).
+  - Schema: combatant gains `prevInit: number|null` (default null) so Veteran can retain across rounds.
+  - Acceptance: Add a Veteran hero, draw, Next Round → same card retained. Add a Lightning Fast hero → two cards considered, best kept (observe via repeated draws trending low).
+- [x] **Turn swap / wait.** ✅ `Combat.swapInit` + a `⇅` row button let the GM exchange initiative cards between any two combatants (re-sorts the order, clears their done flags).
+  - Rule: A combatant may voluntarily act later, swapping turn order with a willing other combatant (initiative-card swap).
+  - Target: `app.js` · `Combat.view` combatant row actions; `Combat.mutate`.
+  - Behavior/UI: Add a "Wait / Swap" control on a combatant row that lets the GM pick another combatant to swap `init` values with (re-sorts the order). GM-guarded via `Combat.guardGm`.
+  - Schema: none.
+  - Acceptance: Two combatants; swap → their initiative numbers and ordering exchange.
+
+### Phase 12 — Conditions & Status Accuracy (Priority: HIGH)
+- [x] **Condition overflow (all six held).** ✅ Added `Roller.applyConditionOverflow` (−D6 WP, or −D6 HP if WP 0) and wired it into the push flows of `Roller.skill`, `Roller.heroWeaponAttack`, and `Roller.cast`: pushing is now always allowed on a failed non-demon roll, and when all six conditions are held it applies the D6 penalty instead of a new condition. Also fixed a latent bug where `heroWeaponAttack`'s push chips were appended via `outerHTML` (dropping their click handlers) — now appended as live DOM nodes.
+  - Rule: You cannot hold the same condition twice. If you already have all six conditions and would gain another, instead lose D6 WP (or D6 HP if WP is already 0).
+  - Target: `app.js` · the push flows in `Roller.skill`, `Roller.heroWeaponAttack`, `Roller.cast`; and the Conditions toggles in `Sheet.render` (~line 2060).
+  - Behavior/UI: When a push/effect would add a condition but all six are set, skip the picker and instead roll D6: if `wp > 0` subtract from WP, else subtract from HP; show the result ("All conditions held → −${n} WP"). Pushing remains allowed in this state (it currently blocks once all six are held — change to apply the D6 penalty instead).
+  - Schema: none.
+  - Acceptance: Set all six conditions, push a failed roll → no picker, D6 WP deducted; with WP 0, D6 HP deducted instead.
+
+### Phase 13 — Encumbrance & Inventory Rebuild (Priority: HIGH)
+> **Full rules-accurate rebuild** of the inventory/encumbrance model (replaces the current "sum of item weights vs ½STR" approach).
+- [x] **Slot-based encumbrance core.** ✅ `encUsed` rewritten as a slot model (limit = ⌈STR/2⌉, ceil(weight) per item, equipped/tiny excluded); the slot-count line now renders (fixed a latent `el()` two-node-template drop).
+  - Rule: Carrying capacity = STR ÷ 2, rounded up. Each normal item = 1 slot; items of Weight 2/3/… consume that many slots. Tiny items (Weight 0) are unlimited and tracked separately.
+  - Target: `app.js` · new `encUsed`/`encLimit` logic (~line 1723) + `Sheet.render` inventory panel. `data.js` weights already present.
+  - Behavior/UI: Compute used slots = Σ ceil(weight) over carried (non-equipped, non-tiny) items + coin slots + grouped ration/ammo slots (below). Keep the encumbrance bar; show "X / limit slots".
+  - Schema: none beyond existing `inventory.items[].weight`.
+  - Acceptance: STR 11 → limit 6; three Weight-1 items + one Weight-2 item = 5 slots.
+- [x] **Equipped exemptions: armor, helmet, 3 weapons-at-hand.** ✅ Items carry `equipped` + an Equip/Unequip control; an "Equipped (no encumbrance)" section excludes them from slots; caps enforced (1 armor, 1 helmet, ≤3 weapons). `equippedArmor`/`equippedHelmet` derive worn gear.
+  - Rule: Worn armor, worn helmet, and up to three "weapons at hand" (shields count) do not consume inventory slots.
+  - Target: `app.js` · `Sheet.render` inventory; new equip UI.
+  - Behavior/UI: Add equip controls — an Armor slot, a Helmet slot, and up to 3 Weapon/Shield slots. Equipped items render in their own "Equipped (no encumbrance)" section and are excluded from slot totals. Enforce the 3-weapon cap. Equipped armor/helmet/weapons feed Phase 11 banes & metal check and Phase 10 hero-armor.
+  - Schema: `inventory.equipped: { armor: itemRef|null, helmet: itemRef|null, weapons: itemRef[] (max 3) }` (default `{armor:null, helmet:null, weapons:[]}`). Store either the item object or an index/id into `inventory.items`.
+  - Acceptance: Equip leather + helmet + 2 weapons → none count toward slots; a 4th weapon-at-hand is rejected.
+- [x] **Coin-weight slots.** ✅ `encUsed` adds 1 slot per 100 total coins (`DB.currency.coinsPerItem`); shown in the slot line.
+  - Rule: <100 coins = 0 slots; 100–199 = 1 slot; 200–299 = 2; etc. (per 100 total coins). Uses `DB.currency.coinsPerItem = 100`.
+  - Target: `app.js` · encumbrance calc + money panel in `Sheet.render`.
+  - Behavior/UI: Sum gold+silver+copper counts, slots = floor(total / 100), add to used slots; show "(coins: N → M slots)".
+  - Schema: none.
+  - Acceptance: 150 total coins → +1 slot; 240 → +2 slots.
+- [x] **Ration & ammunition grouping.** ✅ Rations group 4-per-slot, quivers = 1 slot regardless of arrows, slingstones = 0 (name-based in `encUsed`, qty parsed from "(×N)").
+  - Rule: Every 4 food rations = 1 slot. A quiver of arrows = 1 slot regardless of arrows remaining. Slingstones = 0 slots.
+  - Target: `app.js` · encumbrance calc; recognize items by name/category (`data.js` gear `category`).
+  - Behavior/UI: When counting slots, group field rations in stacks of 4 (ceil(count/4)), force quiver items to 1 slot, force slingstones to 0. Tie into the ammo counter used by `heroWeaponAttack`.
+  - Schema: optional `inventory.items[].qty` for stackables (default 1); else parse the existing "(×N)" suffix.
+  - Acceptance: 8 rations = 2 slots; a quiver with 12 arrows = 1 slot; slingstones = 0.
+- [x] **Over-encumbered → STR roll prompt.** ✅ When over the limit, a "⚖ Roll STR to move" button opens a d20-≤-STR check on the sheet.
+  - Rule: While over the limit, you must succeed a STR roll to move in combat or travel a shift (failure = you don't move / progress).
+  - Target: `app.js` · `Sheet.render` (movement panel) + `Combat.view`.
+  - Behavior/UI: When `used > limit`, the move panel and combat row show an "Over-encumbered — roll STR to move" button that opens `Roller.skill`-style STR check; surface the result. Keep the existing red warning.
+  - Schema: none.
+  - Acceptance: Exceed the limit → STR-roll prompt appears on the sheet and the combat row.
+- [x] **Weapon & shield durability tracking.** ✅ Equipped weapons/shields with a `DB.weapons.durability` show a current/max stepper; 0 → 💥 broken. Stored as `inventory.items[].durability`.
+  - Rule: Weapons/shields have a durability rating (`DB.weapons[].durability`); parrying heavy blows or using fragile gear ticks it down; at 0 the item breaks.
+  - Target: `app.js` · inventory rows + parry actions; `data.js` durability already present.
+  - Behavior/UI: Show a durability counter (current/max) on equipped weapons/shields with −/+ steppers and a "broken" state at 0 (disables attack/parry until repaired). Optionally auto-prompt on parry actions.
+  - Schema: `inventory.items[].durability: number` (default = `DB.weapons` value when equipped/first used).
+  - Acceptance: Tick a shield's durability to 0 → marked broken; cannot parry until repaired.
+
+### Phase 14 — Advancement & Identity (Priority: MEDIUM)
+- [x] **Overcome Weakness flow.** ✅ `Sheet.overcomeWeakness` — an "⚡ Overcome Weakness" button awards 2 marks (pick 2 unmarked skills), clears the weakness, sets `state.weaknessCooldown`; a new weakness can be set only after the cooldown clears at session end.
+  - Rule: Acting against your Weakness can let you overcome it — award 2 advancement marks (instead of 1), delete the weakness, and a 1-session cooldown before a new weakness may be chosen.
+  - Target: `app.js` · `Sheet.render` Character/flavor panel.
+  - Behavior/UI: Add an "Overcome Weakness" button by the Weakness field. On click: grant 2 marks (apply to chosen unmarked skills, reuse the advancement-marking UI), clear `identity.weakness`, set a cooldown flag. While on cooldown, show "New weakness available next session" and block setting a new one; clear the flag in `endSession`.
+  - Schema: `state.weaknessCooldown: boolean` (default false); reuses skill `mark`.
+  - Acceptance: Click Overcome → 2 marks awarded, weakness cleared, cooldown shown; after End Session, a new weakness can be entered.
+- [x] **End-of-session questionnaire (5 questions).** ✅ `Sheet.endSession` now shows the 5 `DB.advancementQuestions`; each Yes lets you mark one unmarked skill, then `rollAdvancement` rolls all marks. Skills reaching 18 prompt a free heroic ability.
+  - Rule: At session end, answer the five advancement questions; each "yes" lets you place one advancement mark on an unmarked skill of your choice (in addition to marks earned from Dragons/Demons).
+  - Target: `app.js` · `Sheet.endSession` (~line 1889) — currently only rolls existing marks.
+  - Behavior/UI: Before the advancement roll, show a modal listing the five canonical questions (store the text in `data.js`, e.g. `DB.advancementQuestions`). For each "yes", let the player tick one unmarked skill to mark. Then proceed to the existing per-mark D20 advancement roll.
+  - Schema: add `advancementQuestions: string[]` to `data.js` (the 5 official questions).
+  - Acceptance: End Session → questionnaire appears; answering 3 "yes" lets you mark 3 skills, which then roll for advancement.
+- [x] **Teacher training.** ✅ `Sheet.trainTeacher` — pick a skill, one advancement D20, capped via `state.teacherTrained[skill]` (a skill can be teacher-trained once).
+  - Rule: Spend a shift training a skill with an NPC teacher (skill 15+) to get one immediate advancement roll for that skill; a given teacher can only raise you by +1.
+  - Target: `app.js` · `Sheet` (new action near skills/advancement).
+  - Behavior/UI: A "Train with teacher" control: pick a skill, confirm teacher skill ≥15, roll one advancement D20 (improve if > level, max 18). Track that you've benefited from this teacher for this skill (+1 cap).
+  - Schema: `state.teacherTrained: { [skillName]: true }` (default {}).
+  - Acceptance: Train a skill → one advancement roll occurs; repeating with the same teacher/skill is blocked.
+- [x] **Heroic-ability requirement locking + skill-18 free ability.** ✅ `heroicReqMet` parses the rulebook req phrasings; `Sheet.gainHeroicAbility` locks unmet abilities (verified: 22/43 locked). Skill-18 advancement (session or teacher) prompts the free-ability picker.
+  - Rule: A heroic ability can't be taken unless its skill requirement is met (e.g. Catlike needs Acrobatics 12). When a skill first reaches 18, the character immediately gains a new heroic ability for free.
+  - Target: `app.js` · `Sheet.learnMagic`/a new "Gain heroic ability" picker; advancement in `endSession`/`deathRoll`/training where levels change.
+  - Behavior/UI: Add a heroic-ability picker (sheet) that lists `DB.heroicAbilities` and **disables** those whose `req` isn't met by current skills. When any skill advances to 18, prompt "Choose a free heroic ability" using the same picker (requirement still enforced unless rules say otherwise — keep the requirement check).
+  - Schema: none (uses `abilities[]`).
+  - Acceptance: With Acrobatics 11, Catlike is locked; raise to 12 → selectable; advancing a skill to 18 pops the free-ability picker.
+
+### Phase 15 — Vitals & Magic Extras (Priority: MEDIUM)
+- [x] **Robust / Focused auto-adjust max HP/WP.** ✅ `effHpMax`/`effWpMax` now add +2 per Robust/Focused in `abilities[]` (via `abilityCount`), used at the HP/WP steppers, rests, and combat add. Verified: Focused 18→20 WP, Robust 11→13 HP.
+  - Rule: *Robust* permanently raises max HP by 2 per pick; *Focused* raises max WP by 2 per pick (both stackable).
+  - Target: `app.js` · derived-stat usage; wherever `derived.hpMax`/`wpMax` are read (`effWpMax`, sheet, combat).
+  - Behavior/UI: Compute effective max HP = `attributes.CON + 2×(count of Robust in abilities)`; effective max WP = `attributes.WIL + 2×(Focused count) − wpPenalty`. Use everywhere HP/WP max is shown/clamped. Acquiring/removing the ability updates the max live.
+  - Schema: none (derive from `abilities[]`); optionally cache in `derived` on change.
+  - Acceptance: Add Robust → max HP +2 and the HP stepper allows the new max; add two Focused → max WP +4.
+- [x] **Familiar WP splitting.** ✅ A caster-only Familiar panel (`state.familiar`) binds a familiar with cap ⌊maxWP/2⌋ and transfers WP between two independent pools; releasing returns its WP to the mage.
+  - Rule: A mage may assign up to half their max WP to a familiar; the familiar's pool and the mage's pool are tracked separately.
+  - Target: `app.js` · `Sheet.render` (Summons/Companions or a dedicated Familiar panel).
+  - Behavior/UI: A "Familiar" control to allocate WP (0…⌊maxWP/2⌋) from the mage to the familiar; show two pools with independent steppers; enforce the cap; returning WP adds back to the mage (never exceeding mage max).
+  - Schema: `state.familiar: { name: string, wp: number, wpMax: number } | null` (default null).
+  - Acceptance: Mage with max WP 10 can move up to 5 WP into the familiar; pools update independently and respect the cap.
+
+### Phase 16 — Movement & Reactions (Priority: MEDIUM)
+- [x] **Change position (prone / stand).** ✅ A 🧍/🛌 free-action toggle in the movement panel sets `state.prone` (no movement cost).
+  - Rule: Dropping prone or standing up is a free action (affects being targeted/attacking).
+  - Target: `app.js` · `Sheet.render` movement panel and/or `Combat.view` row.
+  - Behavior/UI: A "Prone/Stand" toggle (free action, no movement cost) showing current posture.
+  - Schema: `state.prone: boolean` (default false).
+  - Acceptance: Toggle prone on/off; state persists and shows on the sheet/combat row.
+- [x] **Door interaction (dock half movement).** ✅ A "🚪 Door (−½)" button spends ⌈pool/2⌉ of the movement pool (verified 14→7).
+  - Rule: Passing through a closed door costs half your movement for the turn.
+  - Target: `app.js` · movement panel (`moveBtns`).
+  - Behavior/UI: Add a "Through door (−½ pool)" button that subtracts half of `calcMaxMove()` from the remaining pool (distinct from the generic +4m difficult-terrain button).
+  - Schema: none (uses `state.moveSpent`).
+  - Acceptance: With pool 10, pressing the door button spends 5m.
+- [x] **Leaping (Acrobatics if > ¼ move).** ✅ A "🤸 Leap" button prompts for distance; > movement/4 opens an Acrobatics `Roller.skill` check, otherwise auto-success with the threshold shown.
+  - Rule: Leaping a gap longer than ¼ of your movement rate requires an Acrobatics roll.
+  - Target: `app.js` · movement panel.
+  - Behavior/UI: A "Leap" control: enter distance; if distance > movement/4, open an Acrobatics `Roller.skill` check; else auto-succeed. Show the threshold.
+  - Schema: none.
+  - Acceptance: Movement 10, leap 3m → Acrobatics prompt (threshold 2.5m); leap 2m → auto-success.
+- [x] **Parry / Dodge reaction.** ✅ `Combat.reaction` adds 🛡 Parry (weapon/shield skill) and 🤸 Dodge (Evade) buttons on hero combat cards that roll the skill and consume the turn (acted+done = card flip); a successful dodge offers a +2 m free move.
+  - Rule: Parrying or dodging is a reaction that consumes your upcoming action (flips your initiative card). A successful dodge grants a free 2m move. You can't parry and dodge the same attack.
+  - Target: `app.js` · `Combat.view` row actions and/or `Sheet`.
+  - Behavior/UI: "Parry" (weapon/shield skill roll) and "Dodge" (Evade roll) buttons that mark the combatant's turn used (`acted/done`, flip card), and on a successful dodge offer a "+2m free move". Respect that a combatant can react only once per attack.
+  - Schema: none (uses combatant `acted`/`done`).
+  - Acceptance: Use Dodge in combat → the combatant's turn is consumed; on success a +2m option appears.
+
+### Phase 17 — Solo Completion (Priority: MEDIUM)
+- [x] **Solo "+5 Advancement Marks" mission button.** ✅ `Sheet.soloMissionMarks` (Skills panel, Solo-only) marks 5 chosen skills then runs `rollAdvancement`.
+  - Rule (solo): On completing a mission, gain 5 advancement marks to assign to skills of your choice (replaces the group end-of-session marking). See `DRAGONBANE_SOLO.advancement`.
+  - Target: `app.js` · `SoloMode.view` and/or `Sheet` (visible when `Settings.soloMode()`).
+  - Behavior/UI: A "Mission complete: +5 marks" button that lets the player tick 5 unmarked skills, then optionally run the advancement roll. Hidden when Solo Mode is off.
+  - Schema: none (reuses skill `mark`).
+  - Acceptance: With Solo Mode on, press the button → assign 5 marks → advancement roll uses them.
+- [x] **Solo: one extra free Heroic Ability at creation.** ✅ Wizard refactored to `heroicPicks[]` with cap = `heroicCap()` (2 in Solo, 1 otherwise); validation/build updated. Verified both the non-solo (1 pick) and solo (2 picks) wizard runs create a hero with the right abilities.
+  - Rule (solo): A solo character gets one additional free heroic ability at creation.
+  - Target: `app.js` · `Wizard.step_heroic` / `Wizard.build` (and Pregens if relevant). Currently solo abilities are merely added to the choice pool (still one pick).
+  - Behavior/UI: When `Settings.soloMode()`, allow selecting **two** heroic abilities at creation (one normal + one extra), both added to `abilities[]`. Update validation to require the correct count.
+  - Schema: none.
+  - Acceptance: With Solo Mode on, the wizard heroic step accepts two abilities; both appear on the created sheet.
+- [x] **Solo "failing forward".** ✅ Added `DRAGONBANE_SOLO.failForward` (D6 table); `Roller.skill` shows a "🎲 Fail forward" button on a failed Solo roll that rolls a complication.
+  - Rule (solo): Instead of hard failure, solo play converts failed skill checks into mishaps/complications (e.g. lose an item rather than fall to your death).
+  - Target: `app.js` · `Roller.skill` (and optionally cast/attack) when `Settings.soloMode()`.
+  - Behavior/UI: On a failed (non-demon) solo roll, after the push option, offer a "Fail forward" suggestion that rolls a complication (reuse `DRAGONBANE_SOLO.dragonDemonEffects` demon column or a new solo complication table in `data-solo.js`).
+  - Schema: optional new `failForward: string[]` table in `data-solo.js`.
+  - Acceptance: With Solo Mode on, a failed skill roll offers a "Fail forward" complication.
+
+### Phase 18 — Advanced GM Automation (Priority: LOW) *(gated behind one shared toggle)*
+> All features below are **optional**, hidden by default, and revealed together by a
+> single **"Advanced / GM Automation"** toggle in **Settings & About** (same
+> pattern as Book of Magic / Solo Mode). Add `Settings.gmAutomation()` →
+> `!!get("gmAutomation")`. Keep the default player UI uncluttered.
+- [x] **Add the shared toggle.** ✅ `Settings.gmAutomation()` + an "Advanced / GM Automation" toggle row in Settings & About; all Phase-18 UI checks it.
+  - Target: `app.js` · `Settings` (add `gmAutomation()`); `Screens.about` settings panel (new toggle row).
+  - Behavior/UI: A toggle row "Advanced / GM Automation" with a one-line description listing what it enables. All Phase-18 UI checks `Settings.gmAutomation()` before rendering.
+  - Schema: `settings.gmAutomation: boolean` (default false) in `dragonbane.settings`.
+  - Acceptance: Toggling it on reveals all Phase-18 panels; off hides them.
+- [x] **Global time dashboard (Rounds / Stretches / Shifts).** ✅ A GM panel shows `state.time` with +Round/+Stretch/+Shift buttons (`Sheet.advanceClock`); +Shift drives sleep, +Stretch drives light burn-out.
+  - Rule: Time scales — Round ≈ 10s, Stretch (several minutes), Shift ≈ 6h (Morning/Day/Evening/Night).
+  - Target: `app.js` · new panel (Sheet or a small header widget) gated by the toggle.
+  - Behavior/UI: Counters/steppers for rounds, stretches, and shift-of-day; advancing a shift can trigger dependent systems (light, sleep, round-rest reset).
+  - Schema: `state.time: { round: 0, stretch: 0, shift: 0 }` (default zeros) or a campaign-level clock.
+  - Acceptance: Advancing the clock updates counters and (when present) drives the systems below.
+- [x] **Round rest "once per shift" enforcement.** ✅ `rest("round")` sets `state.roundRestUsed` and blocks a second round rest until a shift rest / +Shift clears it.
+  - Rule: Round rest (+D6 WP) can be used only once per shift.
+  - Target: `app.js` · `Sheet.rest("round")`.
+  - Behavior/UI: After a round rest, disable it until a Shift rest or the time dashboard advances a shift; show "used this shift".
+  - Schema: `state.roundRestUsed: boolean` (default false), cleared on shift rest / shift advance.
+  - Acceptance: Two round rests in a row → second is blocked until a shift passes.
+- [x] **Light-source burn-out.** ✅ Added `lightDie` to `DB.gear` light entries; lit items (`items[].lit`, toggled in the GM panel) roll their die on +Stretch (`Sheet.lightStretch`) — a 1 extinguishes.
+  - Rule: Each stretch, roll the light's die (Torch D6, Oil Lamp D6, Lantern D8, Candle D4); on a 1 it goes out (`data.js` gear effects).
+  - Target: `app.js` · light items in inventory + the time dashboard.
+  - Behavior/UI: For carried/lit light sources, each elapsed stretch prompts the correct die; on a 1 mark it extinguished. Add structured `lightDie` to `DB.gear` light entries.
+  - Schema: add `lightDie: 4|6|8` to light gear in `data.js`; `inventory.items[].lit: boolean`.
+  - Acceptance: A lit torch prompts a D6 each stretch; rolling 1 marks it out.
+- [x] **Sleep deprivation.** ✅ +Shift increments `state.awakeShifts`; at ≥3 it drains D6 WP per shift and `rest()` blocks WP/condition recovery; a shift rest resets it.
+  - Rule: Missing sleep for 3 shifts blocks WP and condition healing and drains D6 WP per awake shift; reaching 0 WP forces an un-wakeable sleep.
+  - Target: `app.js` · time dashboard + `Sheet`.
+  - Behavior/UI: Track awake-shifts; at ≥3, block WP/condition recovery in `rest()` and deduct D6 WP per shift advance; at WP 0 show "forced sleep". Sleeping (a shift rest) resets the counter.
+  - Schema: `state.awakeShifts: number` (default 0).
+  - Acceptance: Advance 3 awake shifts → healing blocked + D6 WP drained per shift; sleeping resets it.
+- [x] **Cold & disease trackers.** ✅ `state.afflictions` cold/disease(virulence 3D6) toggles + `Sheet.afflictionRoll` CON checks (failure → D6 damage + Sickly).
+  - Rule: Cold/disease prompt recurring CON rolls; failure deals D6 damage and/or applies *Sickly*. (Disease has a virulence/duration.)
+  - Target: `app.js` · `Sheet` (status section) + time dashboard.
+  - Behavior/UI: "Cold" and "Disease" toggles; while active, each relevant interval prompts a CON `Roller.skill`-style check; on failure apply D6 damage and the *Sickly* condition. Disease tracks a virulence value.
+  - Schema: `state.afflictions: { cold: boolean, disease: { virulence: number }|null }` (default `{cold:false, disease:null}`).
+  - Acceptance: Enable Cold → CON-roll prompt; failing deals D6 and sets Sickly.
+- [x] **Fear attacks + fear table.** ✅ Added `DB.fearTable`; `Sheet.fearAttack` rolls WIL (Fearless auto-resists), failure sets Scared + a D6 fear-table result.
+  - Rule: A fear attack forces a WIL roll; failure applies *Scared* and a result on the fear table (Paralysis / Fleeing / Rage).
+  - Target: `app.js` · `Sheet`/`Combat`; add a `fearTable` to `data.js`.
+  - Behavior/UI: A "Fear attack" button → WIL `Roller.skill` check; on failure set *Scared* and roll/show the fear-table outcome.
+  - Schema: add `fearTable: [...]` to `data.js`.
+  - Acceptance: Trigger a fear attack → WIL roll; failure sets Scared and shows a fear-table result.
+- [x] **Concentration interruption.** ✅ The sheet HP stepper calls `Sheet.concentrationCheck` on damage (gmAutomation): a WIL roll per concentration effect, failure ends it.
+  - Rule: A concentration spell is broken (WIL roll to maintain) if the caster takes damage or suffers fear while concentrating.
+  - Target: `app.js` · HP-decrement paths (`Sheet` stepper ~line 1943, `Combat` `doHp`, damage applier) check active concentration effects (`c.effects[].concentration`).
+  - Behavior/UI: When a concentrating character takes damage/fear, prompt a WIL roll; on failure end the matching concentration effect.
+  - Schema: none (uses `effects[].concentration`).
+  - Acceptance: With a tracked concentration effect, taking damage prompts a WIL roll; failing removes the effect.
+
+### Phase 19 — Book of Magic: Automated Spell Gameplay Engine (Priority: HIGH) *(new phase)*
+> Automate the gameplay effects of all *Dragonbane* magic tricks and spells across character sheets and the initiative tracker (`SpellAutomation`). Hardcode canonical mechanical impacts across General Magic, Animism, Elementalism, Mentalism, Demonology, Necromancy, Chronomancy, Dracomancy, Harmonism, Illusionism, Symbolism, Witchcraft, Alchemy, and Enchanting.
+- [x] **Create `SpellAutomation` rules engine.** Central controller evaluating successful casts (`Roller.cast` -> `SpellAutomation.execute`) with hardcoded handlers (`heal`, `damage_single`, `damage_aoe`, `debuff`, `buff_track`, `summon`, `illusion`, `corruption`, `necromancy`).
+  - Rule: Spells automatically heal HP (`Cure`, `Recovery`), roll combat damage with Armor mitigation (`Fireball`), inflict conditions (`Sleep`), track concentration (`Stone Skin`), or spawn official statted Summons (`Skeleton`).
+  - Target: `app.js` · `SpellAutomation` object; `Roller.cast`.
+  - Behavior/UI: Single target combatant dropdown picker + custom write-in; AoE multi-select combatant checklist; interactive Dragon (1) boons (`[Double]`, `[Refund WP]`, `[Free Cast]`); auto-rolling target resistance checks (WIL); unprepared combat multi-round delay (`⏳ Casting 1/2`); distance range steppers; dying hero 0 HP vitals restoration; PL scaling on saving throws; narrative Skip Automation override; Harmonism Bard Performance parity; Illusion disbelief check buttons; Demonology Corruption counters; Necromancy corpse warnings; Symbolism dormant runes; Witchcraft lasting curse notes; Alchemy clickable potion dose use buttons; Enchanted equipped item passive stat buffs; Chronomancy Haste initiative card draws; and Dracomancy lore confirmation prompts.
+
+### Phase 20 — Regression-Test Harness (Priority: MEDIUM — quality infrastructure) ✅ COMPLETE
+> Every changelog row through Phase 19 cites manual headless-Playwright verification, but **none of those checks are committed** — there is no automated way to catch a regression. This phase commits the existing throwaway verification scripts as a repeatable suite so future edits can be validated in one command. Pure tooling: **no app-behavior changes**, no new gameplay features.
+- [x] **Add a committed test harness under `tests/`.** ✅ `npm test` (`node tests/run.js`) boots the app headless and runs 5 specs (86 checks): `smoke` (boot + module wiring + skill roll + every tab, 0 JS errors), `spillage` (no overflow at 360/390px across all screens incl. combat & cast modal), `derivation` (all pregens: hpMax=CON, wpMax=WIL, movement=kin+AGL mod, damage-bonus thresholds), `cast` (spells open non-empty resolution modals), `inventory` (slot limit = ⌈STR/2⌉ + equip exemption). `tests/run.js` orchestrates, `tests/serve.js` is the static server, `tests/browser.js` resolves Chromium robustly (env `CHROMIUM_BIN` → Playwright's path → glob `PLAYWRIGHT_BROWSERS_PATH/chromium-*`). `package.json` declares a dev-only `playwright-core`; `node_modules` is gitignored. Verified: all green, and breaking an invariant (ceil→floor on `encLimit`) makes it exit 1 with a clear diff. **No app behavior changed**; tests live outside the SW `APP_SHELL`.
+  - Rule: N/A (developer infrastructure, not a game rule).
+  - Target: new `tests/` directory (`tests/run.js` orchestrator + per-area spec files); new `package.json` with a `test` script and a dev-only `playwright-core` devDependency; a tiny static file server reused by all specs (extract the inline `http.createServer` used by the audit scripts into `tests/serve.js`). **Do not** add runtime deps to the shipped app — the PWA stays dependency-free; tests live outside the service-worker `APP_SHELL`.
+  - Behavior/UI: Headless Chromium (reuse `executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`, `--no-sandbox`, and `route('**/firebasejs/**', abort)` so tests never touch Firebase). Cover the regressions already fixed so they can't silently return: (1) **text-spillage audit** — `documentElement.scrollWidth <= clientWidth` and zero overflowing leaf elements at 360px & 390px across sheet/home/combat/rules/solo/about/cast-modal (port `/tmp/spillaudit.js`); (2) **wizard smoke** — build a character of each kin/profession and assert legal derived stats (HP=CON, movement, damage bonus) per §3; (3) **dice engine** — `Roller.d20net`/push/boon-bane invariants and crit/fumble marking; (4) **cast smoke** — every spell in `data.js`+`data-magic.js` opens a non-empty cast modal (guards the "spells open with no text" class of bug); (5) **inventory/encumbrance** — slot math from §6.1 (STR 11 → 6 slots; equipped exemptions; coin/ration/quiver grouping). Each spec prints `[area] N passed / M failed` and the runner exits non-zero on any failure.
+  - Schema: none (no app data changes).
+  - Acceptance: `node tests/run.js` on a clean checkout boots the app, runs all specs headless, prints a per-area pass/fail summary, and exits 0; intentionally breaking a known invariant (e.g. reverting the vitals spillage fix) makes it exit non-zero. Document the command in `README.md`.
+
+### Phase 21 — GM Screen (Priority: LOW — new play surface, opt-in) ✅ COMPLETE
+> The schema and Firebase Security Rules were written with `members/{uid}.role: "player" | "gm"` from day one (see §4.1, §11) specifically so a GM view could be added **with zero database migration**. Built as a **distinct mode** (`src/gm.js`), gated behind the "GM Screen" setting (or an actual campaign GM via `Sync.campaign.role === "gm"`), never shown to plain players. Strictly additive — existing player UI is untouched. Also folds in the rules gaps revealed by the official Free League GM Screen.
+- [x] **GM dashboard + GM-screen rules gaps.** ✅ New `src/gm.js` (`GM` module) + a 🎲 GM nav tab gated by `Settings.gmScreen()`/`GM.enabled()` (router + `index.html`, same pattern as the Solo tab). **(a) Party panel** — every character with HP/WP/conditions/dying-state at a glance (campaign party when synced, else all local heroes). **(b) Peek a sheet** — `Sheet.open(id)` on any member. **(c) Drop into combat** — Bestiary monster / Rulebook NPC pickers push straight into the shared `Combat` tracker. **(d) Hand out** — deal damage (`handDamage`), toggle a condition (`handCondition`), or run a fear attack (`handFear`, WIL roll → Scared + fear table) on any character, written through the normal `Store.update` path. **(e) GM reference** — glanceable accordions for the Demon fumble tables, fear table, and leaving-a-site (each with a private 🎲 Roll + optional push). **Rules gaps wired into the engine:** added `DB.demonMelee` / `DB.demonRanged` (D6) so a natural-20 weapon attack now auto-rolls the correct fumble consequence in `Roller.heroWeaponAttack` (was a bare "Demon Fumble!" with no effect), plus `DB.leavingSite` (D6). Tables are concise paraphrased mechanics in `data.js` (single source of truth, §9). Locked in by `tests/specs/gm.js` (13 checks) + a GM-screen pass in the spillage audit. Full harness **118/118 green**. SW cache v55.
+  - Original spec (retained for reference):
+  - Rule: N/A (app feature; respects the existing GM permission already enforced in `database.rules.json`).
+  - Target: `app.js` · new `GM` module + a nav entry shown only when `Sync.isGm()` (campaign `members/{uid}.role === "gm"`); reuses `Combat.isGm`/`Combat.guardGm` patterns. `index.html` nav button gated like the Solo tab. No new files required, but if it grows, split into `gm.js` and add it to §5 + the SW `APP_SHELL`.
+  - Behavior/UI: **(a) Party panel** — live roster of every character in the campaign (read via the existing party-sync listener) showing HP/WP/conditions/death-state at a glance, reusing the party-overview rendering. **(b) Peek a sheet** — open any party member's full sheet read-only (the data is already synced; gate edit controls behind ownership as today). **(c) Combat control** — the GM already owns Initiative/Next-Turn/Reset via `Combat.isGm`; surface a "drop in monster/NPC" shortcut here straight from `data-monsters.js`/`data-npcs.js`. **(d) Hand out** — push a condition / damage / a fear attack (`Sheet.fearAttack`) to a selected character via their synced `state`. All writes go through the existing `Store.update`/RTDB path so security rules apply unchanged.
+  - Schema: none new — `members/{uid}.role` and the `characters/{id}` tree already exist (§6). If a "GM notes" scratchpad is wanted, add `campaigns/{id}.gmNotes: string` (default "") guarded GM-only in `database.rules.json`.
+  - Acceptance: A user who created a campaign (role `gm`) sees a GM nav entry; a joined player does not. The GM dashboard lists all party members live, can open any sheet read-only, and can drop a monster into the shared combat tracker — all without changing `database.rules.json` schema (only an optional `gmNotes` rule if added). Plain-player experience is byte-for-byte unchanged when the GM mode is off.
+
+### Phase 22 — Accessibility (Priority: MEDIUM — quality) ✅ COMPLETE
+> Make the app keyboard- and screen-reader-usable. Additive only — no layout or behavior change for mouse/touch users. Locked in by `tests/specs/a11y.js`.
+- [x] **Keyboard + screen-reader accessibility.** ✅ Dialogs (`ui.js modal()`): `role="dialog"` + `aria-modal` + `aria-labelledby`, focus moved in on open, **Tab trapped** inside, **Escape** closes, focus **restored** to the opener. Nav: `aria-current="page"` on the active tab (`router.js`), decorative `.ico` `aria-hidden`, `<nav aria-label>`. Dice/vitals: `.roll-result` + HP/WP value are `aria-live="polite"`. Icon-only buttons (`✕ ↗ ⇅ ⚔`, advancement mark, steppers, skill-roll) carry `aria-label`/`aria-pressed`. Clickable sync pill is a keyboard-operable `role="button"`. Guarded by 15 a11y checks in the harness; full suite 101/101 green. SW cache v54.
+
+---
+
+## 7C. Rules-Accuracy Audit Findings (2026-06-29) — ✅ ALL RESOLVED
+
+> A full audit of the app against the **NotebookLM core sources** (Rulebook, Bestiary,
+> Book of Magic, Solo Adventure, PreGen Characters; notebook `02d0a44e-…`) was run on
+> **2026-06-29**. Every numeric value that could be checked was verified against the
+> notebook. **Verdict: the data layer is essentially flawless** — all creation tables,
+> 30 skill attributes, 44 heroic abilities, all kin, every weapon/armor/spell number,
+> **all 53 monster stat blocks**, NPCs, 11 animals, **all 5 pregens**, and the solo
+> tables matched the rulebook. The findings below are concentrated in the **rules
+> engine** (gating / options / multi-attack) plus a few data placement/flag issues.
+>
+> **STATUS: all findings F1–F16 and the minors are now CLOSED (2026-06-29).** Each
+> box below is ticked; the per-fix detail is in the §8 changelog row dated 2026-06-29
+> ("§7C rules-accuracy fixes"). New regression coverage lives in `tests/specs/rules7c.js`
+> (data flags + Firebird-core + Ferocity behaviour); the full harness is **136/136 green**.
+> Each finding lists **Rule** (canonical mechanic), **Target** (file · symbol), **Fix**,
+> and **Why** for historical reference.
+
+### Mechanical bugs (highest priority)
+- [x] **F1 — Boons/banes don't stack.**
+  - Rule: each additional boon/bane adds a die; keep the single lowest (boon) / highest (bane). Two boons = roll **3d20** keep lowest. Boons/banes cancel one-for-one.
+  - Target: `src/roller.js` · `Roller.d20net` (~line 15) — always rolls exactly 2 dice regardless of `|net|`.
+  - Fix: roll `1 + Math.abs(net)` d20s; `used = net>0 ? min : net<0 ? max : dice[0]`.
+  - Why: the app already reaches net ±2 (a condition bane + worn-armor bane stack in `Roller.skill`), so "Bane ×2" currently has identical odds to ×1 — the stacking is a no-op.
+- [x] **F15 — Monster Ferocity not modeled.**
+  - Rule: every monster has a **Ferocity** rating = number of attacks it makes per turn (Demon 2, Dragon 3, Giant 1, Young Dragon 2, Guardian Demon 1, …). The monster rolls its D6 attack table once per Ferocity.
+  - Target: `data-monsters.js` (add `ferocity:` to every entry — single source of truth) + `src/combat.js` / `src/roller.js` monster-attack flow (make/prompt N attacks per activation).
+  - Fix: add `ferocity` to each monster; in combat, roll the D6 attack table `ferocity` times (or surface "×N attacks").
+  - Why: a Dragon that should make 3 attacks/round makes 1 — monsters are at a fraction of their intended threat. Biggest balance gap found.
+- [x] **F12 — Studded Leather wrongly non-metal.**
+  - Rule: studded leather is **metal** (partially metal items — studded leather, axes, spears, arrows — disrupt magic; staves/clubs/slings do not).
+  - Target: `data.js` · `armor[]` "Studded Leather" (~line 603) has `metal: false`.
+  - Fix: set `metal: true`. (Bows/crossbows/shields `metal:false` is defensible.)
+  - Why: a mage in studded leather is wrongly allowed to cast.
+- [x] **F14 — Firebird unreachable for core players.**
+  - Rule: **Firebird** is a **core** Elementalism rank-3 spell (2D10, 40 m, prereq Fire Blast).
+  - Target: it currently lives only in `data-magic.js` · `newSpells.elementalism` (~line 121), which is gated behind the Book-of-Magic toggle.
+  - Fix: add Firebird to `data.js` core Elementalism (rank 3). Leave/dedupe the BoM copy.
+  - Why: a core-only mage cannot access a core spell.
+
+### Rules deviations
+- [x] **F2 — Condition-overflow wired to the wrong trigger.**
+  - Rule: (a) you may **not push** once you hold all six conditions (hard stop, no penalty option); (b) an **involuntary** condition (monster ability, **failed spell/mishap**, fear, disease) you already have → choose another; if you have all six → lose **D6 WP** (or D6 HP if WP 0).
+  - Target: `src/roller.js` · `applyConditionOverflow` is called from the three voluntary push flows (`Roller.skill` ~97, `heroWeaponAttack` ~350, `cast` ~726). Involuntary sources set conditions directly (`sheet.js` fearAttack ~157 / afflictionRoll ~173, `gm.js` ~186, `roller.js` mishap ~694) with no overflow.
+  - Fix: block the push when all six are held; move the D6-WP/HP overflow into a shared "apply involuntary condition" helper used by fear/disease/mishap.
+  - Why: the app does the exact inverse of both rules.
+- [x] **F3 — Round-rest once-per-shift is core, not GM-Auto-only.**
+  - Rule: a round rest (+D6 WP) can be taken only **once per shift**.
+  - Target: `src/sheet.js` · `rest("round")` (~line 74) gates the limit behind `Settings.gmAutomation()`.
+  - Fix: always enforce `state.roundRestUsed` (cleared on shift rest). Why: otherwise unlimited WP recovery.
+- [x] **F4 — Stretch-rest once-per-shift not enforced at all.**
+  - Rule: a stretch rest can be taken only **once per shift**.
+  - Target: `src/sheet.js` · `rest("stretch")` (~line 101). Fix: add `state.stretchRestUsed` (clear on shift rest). Why: spammable full HP/WP heal breaks the attrition economy.
+- [x] **F5 — Stretch rest missing healing bonuses.**
+  - Rule: stretch rest heals **2D6 HP** (not D6) if an ally tends you with a successful **HEALING** roll; **Elf Inner Peace** adds +D6 HP, +D6 WP, +1 condition; **Fast Healer** heroic ability adds +D6 HP.
+  - Target: `src/sheet.js` · `rest("stretch")`. Fix: offer the assisted-HEALING option; apply Inner Peace / Fast Healer when present in `abilities[]`.
+- [x] **F6 — Crit on attack forces double damage.**
+  - Rule: a Dragon on an attack lets the attacker **choose one**: melee = double damage / free second attack on another enemy / ignore armor (piercing, optional); ranged = double damage / ignore armor (piercing). (Also: a crit can only be parried/dodged if the defender also rolls a Dragon.)
+  - Target: `src/roller.js` · `heroWeaponAttack` crit branch (~line 360). Fix: present the choice instead of forcing double-dice.
+- [x] **F7 — Lightning Fast auto-keeps the lower card.**
+  - Rule: draw two initiative cards and **the player chooses** which to keep (data text in `data.js` is correct: "choose which one to keep").
+  - Target: `src/combat.js` · `draw` (~line 94) auto-picks `Math.min`. Fix: prompt the player. (Also: Evade-12 req / 2 WP / once-per-round.)
+- [x] **F8 — Veteran auto-retains even a bad card.**
+  - Rule: Veteran is an **optional** activation (any weapon skill 12, 1 WP) to retain last round's card.
+  - Target: `src/combat.js` · `draw` (~line 89). Fix: make it opt-in (and charge WP) — auto-retaining a worse card hurts the player.
+- [x] **F11 — Metal armor/weapon only warns.**
+  - Rule: you **cannot cast** while wearing metal armor or with a metal weapon at hand (hard prohibition; inventory items don't count).
+  - Target: `src/roller.js` · `Roller.cast` metal check. Fix: block the cast (disable Cast), don't just show a notice.
+
+### Minor
+- [x] **F9** — Veteran / Lightning Fast / Army of One don't deduct their WP activation cost (`src/combat.js`).
+- [x] **F10** — Solo self-rally: tooltip says "WIL with a bane"; the solo rule is **PERSUASION without a bane** (`src/sheet.js` ~821, gate on `Settings.soloMode()`).
+- [x] **F16** — `data-solo.js` `failForward` is an **app-invented** D6 table; the official solo rules describe the fail-forward *playstyle* but provide **no table**. Either relabel it as a GM aid (not "official solo tool") or keep as an explicit house table.
+- [x] **Backstabbing requirement** — ✅ RE-VERIFIED against the Rulebook via NotebookLM: the requirement is exactly **Knives 12** (WP 3), which is what the app already has. No change.
+- [x] **Hydra HP** — ✅ DOCUMENTED. The app intentionally flattens the Hydra to a single 40-HP body (≈4 heads × 10 HP) rather than modelling each head separately; its Ferocity is set to **1** (the rulebook's "1/head" for the single-body model). A GM running a multi-head Hydra should add one extra attack per surviving head. Accepted simplification, not a bug.
+- [x] **Slingstones** — ✅ DOCUMENTED/ACCEPTED. Slingstones remain 0 encumbrance slots (a deliberate convenience); arrows/quivers correctly cost 1 slot. Low impact, left as-is.
+- [x] **Power from the Body** — app caps gained WP at `wpMax`; the rule lets you gain the full die roll temporarily (spend immediately, lose the excess). Edge case.
+
+### Verified CLEAN (no action) — recorded so future audits don't re-litigate
+Core math & dice (all derived tables, roll-under, Dragon/Demon, **pushing = free condition choice**, death rolls);
+condition bane effect; **encumbrance slot model** (⌈STR/2⌉, exemptions, coins/rations/quiver, over-encumbered STR roll);
+**all character-creation data** (kin abilities, professions' skills+heroic abilities, ages, attribute gen, mage start,
+magic skills are INT-based, profession key attributes); **magic mechanics** (tricks cost **1 WP**, 2 WP/level, PL 1–3,
+Dracomancy 6, mishap D20 table results 1–8, Power from the Body, failed cast still spends WP); **all equipment numbers**
+(weapons damage/STR, ranged, shields, armor 1/2/4/6, helmets +1/+2); **all core spell lists, ranks & key damage/heal**
+across General/Animism/Elementalism/Mentalism; the **9 Book-of-Magic schools** + 6 revised spells; **all 53 monster
+stat blocks** (mov/armor/hp); **NPCs + 11 animals**; **all 5 pregens' attributes**; **all solo tools** (oracle,
+Inspiration table, NPC templates, NPC Attack Table, +5-marks advancement). Sleep (Animism) is correctly surfaced via
+the always-on revised-spell merge.
+
+### Re-verifying against the notebook (method, not a fixed script)
+To re-check the rules (e.g. after an errata or before fixing a finding), query the project's
+**NotebookLM** notebook via the `notebooklm-mcp` tool (`notebook_query`, id
+`02d0a44e-6f59-4397-8b2a-ccd040fbc4f7`). Sources: **Rulebook.pdf** (core math/dice/combat/magic/
+creation/equipment), **Bestiary.pdf** (monsters + animals), **Book of Magic.pdf** (revised + 9 new
+schools), **Solo Adventure.pdf** (solo tools), **PreGen Characters.pdf** (the 5 pregens).
+**Method:** pull the app's value from `data*.js` / `src/`, ask the notebook for the canonical value
+from the relevant source, compare; a mismatch is a finding. Query **freely and broadly** — don't just
+replay past prompts; NotebookLM answers are non-deterministic, so corroborate anything surprising and
+re-pull the exact rule text before editing. If you get auth `400`s, run `notebooklm-mcp-auth` in a
+terminal (the session cookies expire), then `refresh_auth`. The full transcript of the 2026-06-29
+audit's prompts (illustrative only) is in [`docs/audit-2026-06-29-queries.md`](docs/audit-2026-06-29-queries.md).
+
+---
+
+## 8. Changelog
+
+| Date | Changes |
+|---|---|
+| 2026-06-29 | **§7C rules-accuracy fixes — all findings F1–F16 + minors CLOSED.** Implemented the entire §7C work-list. **Mechanical bugs:** F1 — `Roller.d20net` now rolls `1+|net|` d20s and keeps best/worst, so boons/banes actually stack (was always 2 dice). F15 — added a `ferocity` field to **every** monster in `data-monsters.js` (values verified against the NotebookLM Bestiary — e.g. Dragon 3, Demon/Wight/Manticore 2, Guardian Demon/Giant/Ghoul 1, Giant Octopus 4, Ancient Dragon 2 [stat-line corroborated]) and a new `Roller.monsterTableRoll(cb)` that rolls the D6 attack table Ferocity times in one modal (combat + GM drop-in pass `ferocity`; `renderDamageApplier` gained a `noAdvance` flag so multi-attacks don't each end the turn). F12 — Studded Leather `metal:true` in `data.js`. F14 — **Firebird** moved into core `data.js` Elementalism (rank 3) so core-only mages can reach it; de-duplicated from `data-magic.js`. **Rules deviations:** F2 — `applyInvoluntaryConditionTo` helper in `derived.js` (gain preferred condition, else another, else lose D6 WP/HP when all six held) used by fear/disease/mishap; **voluntary pushing is now blocked** once all six are held (was: applied the overflow penalty — the inverse of the rule). F3 — round-rest once-per-shift always enforced (`state.roundRestUsed`), not just under GM automation. F4 — stretch-rest once-per-shift (`state.stretchRestUsed`). F5 — stretch rest now offers an ally-HEALING assist (2D6 HP), Elf **Inner Peace** (+D6 HP, +D6 WP, +1 condition) and **Fast Healer** (+D6 HP), and lets you recover the bonus conditions. F6 — a Dragon on an attack now offers a **choice** (double damage / ignore armor / melee free second attack) instead of forcing double dice. F7/F8/F9 — Veteran and Lightning Fast are no longer auto-applied in `Combat.draw`; they're opt-in row controls (`useVeteran` 1 WP, `useLightningFast` 2 WP with a card-choice modal, once/round via `combatant.initUsed`). F11 — casting is **blocked** (Cast button disabled) with metal armor/helmet/weapon, not merely warned. **Minors:** F10 — solo self-rally tooltip corrected to PERSUASION (no bane); F16 — `failForward` relabelled as an optional house aid (not an official table); Power-from-the-Body grants the full die and the excess is lost after the cast (clamped in `doCast`); Backstabbing req re-verified (`Knives 12`, correct); Hydra/slingstone simplifications documented. New `tests/specs/rules7c.js` (15 checks: armor metal flags, Firebird-core, Ferocity data + a Dragon rolling 3 attacks). Full harness **136/136 green**. SW cache v58. |
+| 2026-06-29 | **Rules-accuracy audit against NotebookLM — findings documented (§7C).** Ran a full audit of the app against the notebook core sources (Rulebook, Bestiary, Book of Magic, Solo Adventure, PreGen Characters). Every checkable number matched the rulebook — all creation tables, 30 skill attributes, 44 heroic abilities, kin, equipment, core spell lists/ranks/damage, the 9 Book-of-Magic schools, **all 53 monster stat blocks**, NPCs, 11 animals, **all 5 pregens**, and the solo tools. Documented **16 open findings (F1–F16)** in new **§7C** as an actionable work-list with Rule/Target/Fix/Why and checkboxes: 4 mechanical bugs (F1 boon/bane don't stack, F15 monster Ferocity not modeled, F12 studded-leather metal flag, F14 Firebird core spell gated in the BoM file), 7 rules deviations (F2 condition-overflow trigger inverted, F3/F4 rest once-per-shift not enforced, F5 stretch-rest healing bonuses, F6 crit-attack options, F7/F8 Lightning Fast/Veteran auto-selection, F11 metal-magic warn-vs-block), and minors (F9/F10/F16 + Backstabbing req, Hydra per-head HP, slingstone slots, Power-from-Body cap). Added a §7C "Re-verifying against the notebook (method)" note and saved the audit's NotebookLM query transcript to `docs/audit-2026-06-29-queries.md` (illustrative, not a fixed script). Docs only — no code changed, no behavior change. SW cache unchanged. |
+| 2026-06-27 | **GM reference: removed the "Typical NPC quick-stats" accordion.** Dropped at the user's request — the GM reference now shows just the four rollable D6 tables (Demon fumble melee/ranged, fear, leaving-a-site). NPC stats remain available where they're used (the Combat drop-in pickers + the Bestiary in the Rules library). Harness still 121/121 green. SW cache v57. |
+| 2026-06-27 | **GM Screen: table dice-rollers + GM→players broadcast.** Each GM-reference table (Demon fumble melee/ranged, fear, leaving-a-site) gained a **🎲 Roll** button that resolves the die privately and shows the matching entry (full table still listed). A new **broadcast** feature lets a synced GM push a result — or a freeform note — to every player: `Sync.pushBroadcast(text)` writes to `campaigns/{id}/broadcast` (new RTDB node, **GM-write / member-read** in `database.rules.json`), and `Sync` listens (`limitToLast(30)`) so each player gets a **toast** on arrival plus a saved **"📢 GM messages"** panel on their character sheet (`Sheet.render`, newest-first, with timestamps). Per the design Q&A: synced campaigns only, toast + saved feed, **roll-private-then-push** (a "📢 Push to players" button appears beside each rolled result; rolls never auto-broadcast), broadcast to **everyone**, feed lives on the **character sheet**. GM panel also has a freeform compose box and a "Clear feed" (GM-only); non-synced GMs see a hint instead. Toasts suppress your own messages and don't fire for the backlog on initial load. Tests: `tests/specs/gm.js` extended (now 16 checks — table Roll outputs a D6 entry, broadcast panel + not-synced hint); the Firebase round-trip itself isn't headless-testable (sync is aborted in tests). Full harness **121/121 green**. SW cache v56. |
+| 2026-06-27 | **Phase 21 (GM Screen) COMPLETE + GM-screen rules gaps.** Built the GM dashboard the `members/{uid}.role:"gm"` schema was pre-laid for (Phase 5), and folded in the gaps the official Free League GM Screen surfaced. New `src/gm.js` (`GM` module) + a 🎲 GM nav tab gated by a new `Settings.gmScreen()` toggle (auto-on for a campaign GM), wired like the Solo tab (router + `index.html` + `Screens.gm`). Dashboard: **party panel** (live HP/WP/conditions/dying per character — campaign party when synced, else local heroes), **peek any sheet** (`Sheet.open`), **drop into combat** (Bestiary monster / Rulebook NPC pickers push into the shared `Combat` tracker), **hand out** damage / condition-toggle / fear attack (WIL roll → Scared + fear table) via the normal `Store.update` path, and **GM reference** accordions (Demon fumble tables, fear table, leaving-a-site, typical-NPC quick-stats). **Combat-accuracy gap closed:** a natural-20 weapon attack now auto-rolls the correct D6 fumble consequence in `Roller.heroWeaponAttack` (melee vs ranged) instead of just flagging "Demon Fumble!" — backed by new `DB.demonMelee` / `DB.demonRanged` / `DB.leavingSite` tables (concise paraphrased mechanics in `data.js`, single source of truth). Tests: new `tests/specs/gm.js` (13 checks: tab gating on/off, party panel + vitals, drop-in pickers, reference tables, hand-out condition persists, fumble data present) + the spillage audit now sweeps the GM screen. Strictly additive — plain-player UI unchanged with the toggle off. Full harness **118/118 green**. SW cache v55. |
+| 2026-06-27 | **Accessibility pass (Phase 22) + `a11y` test spec.** Made the app usable with a keyboard and screen reader. **Modals** (`ui.js modal()`): added `role="dialog"`/`aria-modal="true"`/`aria-labelledby` (unique title id), move focus into the dialog on open, **trap Tab** within it, close on **Escape**, and **restore focus** to the opening control on close. **Nav** (`index.html` + `router.js`): `aria-current="page"` tracks the active tab, decorative `.ico` emoji are `aria-hidden`, and the `<nav>` has an accessible label. **Dice results**: every `.roll-result` container (13 across roller/sheet/combat) + the HP/WP value are `role="status" aria-live="polite"` so outcomes are announced. **Icon-only buttons**: added `aria-label` to the ambiguous glyph buttons (`✕` remove, `↗` open sheet, `⇅` swap initiative, `⚔` attack/damage), the advancement-mark `●/◦` (`aria-pressed`), the HP/WP steppers, and skill-roll buttons. The clickable **sync-status pill** (`main.js`) is now a keyboard-operable `role="button"` (tabindex + Enter/Space). Added `tests/specs/a11y.js` (15 checks: nav aria-current + hidden icons, dialog semantics + focus-in + Escape + focus-restore, live regions, icon-button labels). Verified: full harness **101/101 green**. SW cache v54. |
+| 2026-06-27 | **Phase 20 (Regression-Test Harness) COMPLETE.** Committed the throwaway headless-Playwright checks as a repeatable suite: `npm test` (`node tests/run.js`) boots the app headless and runs 5 specs / **86 checks** — `smoke` (boot, module wiring, pregen sheet, skill roll, every tab, 0 JS errors — the key guard for the ES-module split), `spillage` (no page/element overflow at 360 & 390px across sheet/home/combat-expanded/rules/solo/about/cast-modal), `derivation` (instantiates all pregens; asserts `hpMax=CON`, `wpMax=WIL`, `movement=kin base+AGL mod`, damage-bonus thresholds per §3), `cast` (spells open non-empty resolution modals — guards "spells open with no text"), `inventory` (slot limit `=⌈STR/2⌉` + equip exemption per §6.1). Infra: `tests/run.js` (orchestrator + pass/fail summary + non-zero exit), `tests/serve.js` (ephemeral-port static server), `tests/browser.js` (robust Chromium resolver: `CHROMIUM_BIN` → Playwright path → glob `PLAYWRIGHT_BROWSERS_PATH/chromium-*`; aborts Firebase; collects page errors). `package.json` declares a **dev-only** `playwright-core`; `.gitignore` excludes `node_modules`. **No app behavior changed**, tests live outside the SW `APP_SHELL`. Verified: all 86 green (~22s), and a deliberate `encLimit` ceil→floor break makes it exit 1 with a clear diff. No SW cache bump (no shipped-file change). |
+| 2026-06-26 | **Maintainability: split the 4,647-line `app.js` IIFE into 16 native ES modules under `src/`.** The monolith was one closure with ~30 mutually-referential modules — hard to navigate, review, and test. Carved it into `src/{core,ui,rules,derived,settings,store,sync,wizard,spell-automation,roller,sheet,combat,solo,screens,router,main}.js` (entry point `main.js`), each with explicit `import`/`export`. To avoid transcription error across 4.7k lines, I built an accurate dependency map by script (word-boundary reference scan of every top-level symbol) and **generated** the modules + their import headers from the original ranges, so cross-references are exact. **No bundler/build step** — `index.html` loads `<script type="module" src="src/main.js">` and the browser resolves the graph natively, preserving clone-and-run. The runtime cycles (`Sheet`↔`Roller`↔`Combat`↔`SpellAutomation`) are safe under ESM live bindings (only called at runtime, never at load). Updated the service-worker `APP_SHELL` to cache all `src/*.js` and removed the old `app.js`. Added §5.1 module map + a §9 module-discipline convention. Verified headless on the modular build: app boots, wizard/sheet/all tabs render, **skill roll and spell cast fire with 0 JS errors**, combat (monsters + boss, cards expanded) works, and the whole-app spillage audit stays clean at 360/390px. SW cache v53. |
+| 2026-06-26 | **UX polish: replaced every native `alert`/`confirm`/`prompt` with themed, non-blocking dialogs.** Native browser dialogs froze the page and looked off-brand (especially on mobile). Promoted the old `Sheet.toast` to three top-level helpers exposed on `window`: `showToast(msg, type)` (stacking, auto-dismiss; `type:"success"` green, `type:"error"/"warn"` red + tap-to-dismiss + longer 5.2s timeout so validation messages aren't missed), `confirmModal(msg, opts) → Promise<boolean>`, and `promptModal(msg, opts) → Promise<string|null>` — both built on the existing `modal()` helper (extended to expose `back` + fire an `_onClose` hook so X/backdrop dismissal resolves the promise). Converted **44 `alert()`** calls (28 error, 7 success, 9 info — classified by message content via a paren-aware script), the **1 inline-`onclick` `alert`** (rebuilt as a real handler), **9 `confirm()`** (delete hero, clear storage, end combat, leave campaign, discard character, out-of-range strike, Dracomancy learn — destructive ones use a red `danger` button), and **3 `prompt()`** (campaign name, companion max-HP, leap distance — number inputs where relevant). Made the affected `onclick` handlers `async`/awaited. Fixed a latent double-confirm on "Disconnect from Campaign" (button + `Sync.leaveCampaign` both prompted). Added CSS for `.toast-success`/`.toast-error`, `.modal-msg`, `.modal-input`, `.modal-actions`, `.btn.danger`. Verified headless: toasts stack & type correctly, confirm resolves true/false/false (OK/cancel/backdrop), prompt returns value/null, delete-hero shows the themed modal, **0 native dialogs fired, 0 page errors**, and the whole-app spillage audit stays clean at 360/390px. SW cache v52. |
+| 2026-06-26 | **Docs: corrected stale §7B intro + spec'd two new roadmap phases (20 & 21).** Fixed the §7B header line that still said the rules-accuracy phases were "None started yet" — phases 10–19 are all complete. Added **Phase 20 — Regression-Test Harness** (commit the throwaway headless-Playwright verification as a repeatable `tests/` suite covering spillage, wizard, dice, cast, and encumbrance invariants; tooling-only, no app behavior change, kept out of the SW `APP_SHELL`) and **Phase 21 — GM Screen** (build the GM dashboard the `members/{uid}.role:"gm"` schema + security rules were pre-laid for in Phase 5 — live party panel, read-only sheet peek, combat drop-in, hand-out conditions/damage/fear — strictly additive, zero DB migration). Docs only — no code yet. Both phases follow the §7B Rule/Target/Behavior/Schema/Acceptance spec format. |
+| 2026-06-26 | **Whole-app text-spillage audit — fixed the last two horizontal-overflow sources.** A headless audit (`scrollWidth > clientWidth` + page-overflow at 360px & 390px across sheet, home, combat, rules, solo, about, and the cast modal, with Book of Magic + Solo + GM Automation on) found every screen clean except the character sheet, which pushed the page 35px wide. Two causes, both on the sheet: (1) **HP/WP vitals** — each `.vital` stepper was rigid at ~174px (34+34 buttons, a 64px-min value, 12px padding), so two side-by-side exceeded a 360px viewport; tightened `.vitals` gap 12→8, `.vital` padding 12→8 + `min-width:0`, value `min-width` 64→44, stepper gap 8→6. (2) **Inventory rows** — `.inv-name { flex:1 }` kept its default `min-width:auto`, so a long item name shoved the trailing `✕`/Equip controls past the edge; added `flex-wrap:wrap` to `.inv-row` and `min-width:90px; overflow-wrap:anywhere` to `.inv-name` so controls wrap instead of spilling. Also widened the movement-panel `WALK:`/`HAZARDS:`/`TACTICS:` labels (fixed `width:60px` → `min-width:60px; white-space:nowrap; flex:0 0 auto`; "HAZARDS:" needed 71px). Re-audit: 0 spillage app-wide at 360px and 390px. SW cache v51. |
+| 2026-06-26 | **Combat card buttons: fixed text spillage + boxed PC spells like enemy spells.** Root cause of the spillage: combat action buttons (weapons/attacks/spells) inherit `.btn`'s `display:inline-flex`, so `name <br><small>detail</small>` rendered the name and detail *side-by-side* (the `<br>` ignored), and long names like "Heavy warhammer" overflowed the box. Added a `.combat-action` class (`display:block`, left-aligned, `overflow-wrap:anywhere`, accent border) applied to all hero/NPC weapon, monster-attack, and spell buttons — name and detail now stack inside the box and never spill. Hero (PC) spell buttons changed from the near-invisible `var(--border)` to the `var(--accent)` box so they match the enemy's boxed spells. Also hardened `.quick-chip` to wrap long names. Verified at 390px (0 overflowing buttons; Ogre "Heavy warhammer / Skill 12 (2d10+1d6)" and PC spells all boxed). SW cache v50. |
+| 2026-06-26 | **Fix: movement buttons looked unresponsive when the sheet was opened from combat.** Opening your PC's sheet via the Combat tracker's `↗` button leaves the bottom-nav on "Combat". `buildMovementDOM`'s `doMutate` then re-rendered the Combat tracker whenever the party nav was active — replacing the just-shown sheet with the combat view the instant any movement button was tapped, so the pool change never appeared (the button "did nothing"). Fix: `doMutate` now re-renders combat only when the tracker is actually on screen (`#screen .combat-row` present, e.g. the movement modal opened over it), not merely when the nav says "party". Verified: tapping +2m on a sheet opened from combat now stays on the sheet and the pool updates (8→6); the combat movement modal and the plain sheet are unchanged; 0 errors. SW cache v49. |
+| 2026-06-26 | **Button audit: fixed dead Export/Import heroes buttons.** A headless audit of every screen (home, sheet, combat, rules, about, solo, wizard) found one genuinely broken control group: **Export/Import heroes** in Settings threw `Cannot read properties of undefined (reading 'export')` and did nothing. Two causes: (1) `Router.go` called `(Screens[route]||Screens.home)()`, leaving `this` undefined inside screen methods; (2) `Screens.export`/`Screens.importFile` were never defined. Fix: implemented `export()` (JSON download of all heroes) and `importFile()` (merge-by-id import), referenced them via `Screens.` instead of `this`, and hardened `Router.go` to bind `this = Screens`. Verified: Export downloads, Import opens the picker, 0 errors. All other audited buttons are responsive (earlier "candidates" were empty-input adds, native file pickers, validation alerts, or re-render detachment). SW cache v48. |
+| 2026-06-26 | **Root-cause fix: ranked spells opened with no text for synced characters (`Roller.cast` crash).** Reported as "Fireball/Gust of Wind/Dispel — no text" on a player's PC while tricks and enemy spells worked. The ranked-spell path read `c.state.conditions[cn.key]` unguarded; a synced/older character missing `state.conditions` threw a TypeError there, aborting the cast after the modal header was created — an empty "no text" window. Tricks return before that line (so they worked); enemy casting uses the separate `npcCast` path (so it worked). Fix: `cast()` normalizes the character once (persisted) when `state.conditions`/`deathRolls` are missing. Reproduced exactly (without fix: 0 body children + 2 page errors; with fix: full content, 0 errors). SW cache v47. |
+| 2026-06-26 | **Consistent spell text on resolution cards + necromancy crash guard.** Addresses "some spells open with text, some don't": the post-cast `SpellAutomation.renderCard` only showed the spell description for *utility* spells; damage/heal/summon/etc. cards showed only controls. Now every resolution card renders the spell's effect text under the header (verified Fireball + Pillar both show their description). Also guarded a latent crash in `Roller.cast` where a Necromancy spell read `x.name.match` on inventory items that could lack a name (would have left that window empty). 0 page errors. SW cache v46. |
+| 2026-06-26 | **Root-cause fix: casting from the Combat tracker hijacked the screen (`Roller.refresh`).** The real cause of "spells break after casting once" (windows opening empty on the 2nd cast). After a cast, `Roller.refresh(charId)` called `Sheet.render()` whenever `Sheet.id` matched — even when the user was on the Combat tab — replacing the combat tracker with the character sheet while the nav still showed Combat. Subsequent casts then ran against stale/detached DOM. Fix: `refresh` now re-renders the sheet only when it is the mounted screen (`window.activeCharacterId === charId`); otherwise (e.g. in combat) it re-renders the Combat tracker for vitals and never swaps the screen. Verified headless: after casting from a combat card the tracker is preserved and a 2nd/3rd cast opens with full content; sheet casting unchanged; 0 page errors. SW cache v45. |
+| 2026-06-26 | **Bulletproof modal sizing (`modal()` + `visualViewport`).** Belt-and-suspenders for the mobile cut-off bug: the `modal()` helper now sizes the overlay to `window.visualViewport.height`/`offsetTop` (the true visible area, excluding the browser toolbar) and caps the card at 92% of it, re-fitting on viewport resize/scroll. Works even where CSS `dvh` is unsupported. SW cache v44. |
+| 2026-06-26 | **Mobile cast/modal cut-off fix (`styles.css`).** Spell-cast (and all other) modals appeared as just a title bar pinned to the bottom on phones — the body was rendered but pushed below the visible screen. Cause: the `.modal-back` overlay used `align-items:flex-end` with `inset:0` (100vh), so the bottom-anchored sheet sat behind the mobile browser toolbar. Fix: size the overlay to `100dvh` (dynamic viewport, vh fallback) and the card to `max-height:85dvh` + `env(safe-area-inset-bottom)` padding, so the sheet always fits within the visible viewport. Verified the full Fireball cast modal (text, power-level, Cast button) renders on a 390×844 viewport, 0 errors. SW cache v43. |
+| 2026-06-26 | **Spell Resolution engine fixes (`SpellAutomation.renderCard`).** Fixed the reported "windows open with no action text / spells don't work" issues by rebuilding the engine's targeting and combat integration: (1) **Unified target lists** — heal/buff target the party roster + self, enemies come from the combat tracker, so casting works on the sheet out of combat (was: empty dropdowns that did nothing). (2) **Damage always shows the rolled number** + a free-text custom target when no tracked enemy exists. (3) **Schema mismatch fixed** — the engine used `type`/`initCard` but the `Combat` module uses `kind`/`init`; summon/haste now slot into initiative, AoE no longer friendly-fires heroes, and hero/enemy classification is correct. (4) **Utility/buff card now shows the spell's effect text** (was just a bare "+ Apply"). (5) HP application routes correctly to characters (via `charId`, synced) or combatants, with armor mitigation. Verified headless: out-of-combat Fireball shows "💥 N damage → custom target / apply manually"; utility card shows effect text; in-combat enemy dropdown lists the Demon and Strike applies 6−4 armor = 2 (HP 64→62); 0 page errors. SW cache v42. |
+| 2026-06-26 | **Universal Canonical Spell Resolution & NPC Casting Automation COMPLETE.** Resolved missing text and broken action buttons on spells (`Roller.cast`, `Roller.npcCast`) by creating `resolveCanonicalSpell` helper. Upgraded legacy string spells and incomplete NPC spell objects in-place during inventory normalization and modal instantiation by matching normalized names against `data.js`, `data-magic.js`, and revised spells compendiums. Expanded `SpellAutomation.categorize` regexes to cover all Dragonbane spells (including `ensnaring roots`, `lightning flash`, `gutworm`, `demonic exile`, `flick`). Routed NPC casting successes through full VTT `SpellAutomation.renderCard` with caster-target swapping (`enemyList` vs `allyList`). Bumped SW cache v41. |
+| 2026-06-26 | **UI Button Text Overflow Ergonomics & Stepper Fix COMPLETE.** Resolved vertical character-by-character text crushing on mobile action buttons across Combat Tracker cards and Spell Resolution cards. Removed fixed 34px width `.step` constraints from text action buttons (`💚 Heal`, `💥 Strike`, `💥 Blast AoE`, `🏃 Move`, `🎲 Atk`, `Power from the Body` dice chips), introducing dedicated `.quick-chip` inline flex layouts with compact tooltips (`title=".."`). Preserved square stepper dimensions (+/−) via `:not(:empty)` content guards. Bumped SW cache v40. |
+| 2026-06-26 | **Phase 19 (Automated Spell Gameplay Engine) COMPLETE.** Built centralized `SpellAutomation` rules engine in `app.js` and wired it into `Roller.cast` and inventory item interactions based on the 26-question VTT master spec. Implemented: (1) Single-target combatant dropdown pickers + distance range steppers + Armor mitigation rules. (2) AoE multi-select blast checklists. (3) Interactive Dragon Boon buttons (`💥 Double Effect`, `✨ Refund WP`, `⚡ Free Cast`). (4) Hardcoded `SUMMON_STATS` spawning NPCs into `c.companions` and the active Combat Tracker. (5) Auto Concentration replacement & dormant Symbolism runes. (6) School specializations: Demonology Corruption counters + Insanity prompts, Necromancy corpse warnings, Alchemy clickable potion `[🧪 Use]` buttons, passive Enchanted item stat boosts (`effHpMax`, `effWpMax`), Chronomancy Haste 2nd initiative turns, and Dracomancy GM lore check confirmations. Verified syntax (0 errors). SW cache v39. |
+| 2026-06-26 | **Party Permissions, Death Rolls, Tabletop Movement Pool Tracker & Phase 19 Master Specification.** (1) Standardized responsive wrapping on mobile buttons (`styles.css`). (2) Implemented private-by-default characters (`c.owner`) and `togglePartyMembership` allowing players to add/remove PCs from active campaigns. Restricted Combat Tracker `Add hero` to owner or GM. (3) Converted Death Roll into an interactive D20 modal with auto-stabilization; added `🩸 DYING` combat state and bidirectional vitals sync (`combatRef.on`). (4) Built complete Tabletop Movement Pool tracker (`buildMovementDOM`, `🏃 Move` combat badge) covering meter splitting, Dashing (2× speed), Leaping (¼ free / ½ Acrobatics), rough terrain (Prone on fail), water hazards, and Disengage EVADE checks. (5) Established **Phase 19 (Automated Spell Gameplay Engine)** roadmap specification based on an exhaustive 26-question VTT design interview covering all 13 magic schools. SW cache v38. |
+| 2026-06-26 | **Follow-ups to the §7B work — both loose ends closed.** (1) Replaced the metal-weapon name heuristic in `Roller.cast` with a real `metal: true|false` flag on all 35 `DB.weapons` entries (metal blades/heads true; wood/stone/bows/crossbows/shields false) — rules now live in the data layer. (2) Verified the Solo two-heroic-ability creation path end-to-end in a headless browser: the wizard heroic step accepts 2 picks (counter 2/2) and the created solo hero carries both abilities. SW cache v37. |
+| 2026-06-26 | **Phase 18 (Advanced GM Automation) COMPLETE — entire §7B roadmap done.** Added `Settings.gmAutomation()` + a shared "Advanced / GM Automation" toggle that reveals a GM panel on the sheet: a time clock (`state.time`, `advanceClock`), round-rest once-per-shift (`state.roundRestUsed`), light burn-out (`DB.gear[].lightDie` + `items[].lit`, `lightStretch`), sleep deprivation (`state.awakeShifts` ≥3 → D6 WP drain + blocked recovery), cold & disease (`state.afflictions` + `afflictionRoll`), fear attacks (`DB.fearTable` + `fearAttack`), and concentration interruption (HP-damage → `concentrationCheck` WIL roll). Verified headless (clock advances, sleep-deprived at 3 shifts, fear→Scared+table, light burn modal on +Stretch, 0 errors). SW cache v36. |
+| 2026-06-26 | **Phase 17 (Solo Completion) COMPLETE.** Added a Solo-only "🏅 Mission complete (+5 marks)" button (`Sheet.soloMissionMarks`) that marks 5 chosen skills then rolls advancement. Refactored the wizard heroic step to `heroicPicks[]` with `heroicCap()` = 2 in Solo / 1 otherwise (validation + build updated) so a solo character gets a second free heroic ability at creation. Added `DRAGONBANE_SOLO.failForward` (D6 complication table) with a "Fail forward" button on failed Solo skill rolls. Verified headless (mission +5, fail-forward complication, full non-solo wizard creates a hero with its ability, 0 errors). SW cache v35. |
+| 2026-06-26 | **Phase 16 (Movement & Reactions) COMPLETE.** Movement panel gains a prone/stand free-action toggle (`state.prone`), a "🚪 Door (−½)" button (spends ⌈pool/2⌉), and a "🤸 Leap" button (Acrobatics roll when distance > movement/4, else auto). Added `Combat.reaction` with 🛡 Parry / 🤸 Dodge buttons on hero combat cards: rolls the skill, consumes the turn (acted+done → card flip), and offers a +2 m free move on a successful dodge. Verified headless (Door 14→7, prone toggle, dodge success marks Acted, 0 errors). SW cache v34. |
+| 2026-06-26 | **Phase 15 (Vitals & Magic Extras) COMPLETE.** Robust/Focused now auto-adjust max HP/WP: added `abilityCount` + `effHpMax` and updated `effWpMax` (+2 per pick), wired through the HP/WP steppers, rest, and combat-add (`derived.hpMax`→`effHpMax`). Added a caster-only **Familiar** panel (`state.familiar`): bind a familiar (cap ⌊maxWP/2⌋), transfer WP between the mage and familiar pools with independent steppers, and release to return its WP. Verified headless (Focused 18→20, Robust 11→13, familiar transfer drains mage pool, 0 errors). SW cache v33. |
+| 2026-06-26 | **Phase 14 (Advancement & Identity) COMPLETE.** Added the 5 official `advancementQuestions` to `data.js`. Rewrote `Sheet.endSession` into a questionnaire-first flow (each Yes → mark one unmarked skill) that calls a new `rollAdvancement`; skills reaching 18 prompt a free heroic ability. Added `Sheet.overcomeWeakness` (+2 marks, clear weakness, `state.weaknessCooldown`), `Sheet.trainTeacher` (one capped advancement roll via `state.teacherTrained`), and `Sheet.gainHeroicAbility` with requirement locking via a new `heroicReqMet` parser. UI: Train-with-teacher + Gain-heroic-ability buttons in the Skills panel; Overcome-Weakness / set-new-weakness controls in the Character panel. Verified headless (overcome → 2 marks + cooldown, questionnaire → advancement, picker 22/43 locked, 0 errors). SW cache v32. |
+| 2026-06-26 | **Phase 13 (Encumbrance & Inventory) COMPLETE + unblocks Phase 10/11.** Rebuilt inventory on a rules-accurate slot model (`encUsed`): limit ⌈STR/2⌉, ceil(weight) per item, coins +1 slot/100, rations 4-per-slot, quiver = 1 slot, slingstones = 0. Added Equip/Unequip with an "Equipped (no encumbrance)" section (1 armor + 1 helmet + ≤3 weapons, via `inventory.items[].equipped`), weapon/shield durability steppers (💥 at 0), and an over-encumbered "Roll STR to move" prompt. Added `banes[]`/`metal`/`rangedBane` to `DB.armor`/`DB.helmets`. This unblocked: **Phase 11 heavy-armor/helmet skill banes** (Roller.skill + ranged Great Helm bane), **Phase 10 metal-magic restriction** (now data-driven via equipped armor/helmet + weapon heuristic), and **Phase 10 hero-armor** (combat cards read `equippedArmor().rating`). Also fixed a latent `el()` bug that dropped the encumbrance slot-count line. Verified in headless browser (slots 6/8→2/8 on equip, Evade shows "worn armor → bane", combat card "Armor 6", 0 page errors). SW cache v31. |
+| 2026-06-26 | **Phase 10 (Bug Fixes) started — 2 of 4 done.** Fixed dead `DB.solo` references (the solo NPC Attack Table AI roller now resolves `DRAGONBANE_SOLO.npcAttackTable`; the combat-card button is gated by Solo Mode). Added the missing `Store.clear()` so Settings → "Clear all storage" works instead of throwing. The remaining two Phase 10 fixes (metal-magic check, hero-armor-always-0) are deferred — they depend on the Phase 13 equipped-item slots. SW cache v27. |
+| 2026-06-26 | **Rules-Accuracy Completion roadmap added (§7B).** From a full feature audit against the *Dragonbane* core/expansion rules, documented every missing/partial feature as nine themed phases (Phase 10 Bug Fixes → Phase 18 Advanced GM Automation), ordered by rules-impact with Priority labels and full implementation specs (rule · target file/function · behavior/UI · schema · acceptance). Added §2.9 (planned-features summary) and §6.1 (planned schema additions). Docs only — no code changes yet. GM-side automations gated behind one shared "Advanced / GM Automation" toggle; encumbrance specced as a full slot-system rebuild. |
+| 2026-06-24 | Extracted canonical scope (§1, §3) from raw conversation logs. Initial `CLAUDE.md`. |
+| 2026-06-24 | Created `data.js` rules library (Attributes, conditions, 6 kin, 30 skills, 10 professions, 44 heroic abilities, 4 schools of spells, full equipment). **Phase 0 COMPLETE.** |
+| 2026-06-24 | Created `data-magic.js` (254 magic entries) and `data-solo.js` (oracle/solo rules). Data extraction DONE. |
+| 2026-06-24 | **Phase 1 (Wizard) COMPLETE.** 9-step wizard (roll, kin/prof/age, auto-calc, validation, pre-gen integration). Verified. |
+| 2026-06-24 | **Phase 2 (Tracker) COMPLETE.** Live sheet (HP/WP/Conds/Skills/Inv/Abilities/Notes) with persistence and automation. Verified. |
+| 2026-06-24 | **Phase 3 (Dice Engine) COMPLETE.** d20 roll-under, boon/bane, crit/fumble, push, damage, spellcasting/mishaps. Verified. |
+| 2026-06-24 | **Phase 4 (In-Play) COMPLETE.** Rest, death/dying (official rules), advancement, combat helper/bestiary. Verified. |
+| 2026-06-24 | **Phase 4B (Magic Subsystems) COMPLETE.** Summons, crafting, corruption, active effects, Dracomancy gated learning. Verified. |
+| 2026-06-24 | **Phase 3B (Book of Magic Wiring) COMPLETE.** Content toggle, revised spells canonical, harmonism bard casting. Verified. |
+| 2026-06-25 | **Phase 5 Architecture finalized.** RTDB, anonymous auth, join codes, canvas compression. Verified. |
+| 2026-06-25 | **Combat Redesign & Bestiary COMPLETE.** Interactive combat dashboard with Bestiary integration. |
+| 2026-06-25 | Updated Phase 4 roadmap item descriptions to match current feature-state and added missing changelog entry. |
+| 2026-06-25 | Created `data-npcs.js` (Humanoids, Bosses, Undead, Animals) and added Rothgar Wolfsbane (Robber Knight) to `data-monsters.js`. Wired rulebook d20 NPC attack rolls (`Roller.npcAttack`) into the accordion combat tracker. SW cache v13. |
+| 2026-06-25 | **All-in-One Hero Combat Rolling COMPLETE.** Upgraded `Roller.heroWeaponAttack` to combine d20 Attack Rolls (boons/banes/pushing), inline ammo steppers (`combatAmmo`), automatic Dragon Crit (1) double-dice damage buttons, and one-click Mage/Bard known spell quick-casting directly inside accordion combat cards. SW cache v14. |
+| 2026-06-25 | **D6 Monster Attack Table Rolling COMPLETE.** Added prominent `🎲 Roll D6 Monster Attack Table` button to Bestiary monster cards in the combat tracker. Maps 1–6 (or evenly distributed 1–2/3–4/5–6 for 3-attack monsters) to canonical attack entries, immediately opening `Roller.monsterAttack` displaying the rolled D6 banner. Numbered manual override buttons `[1]` to `[6]` retained below. SW cache v15. |
+| 2026-06-25 | **Massive Compendium Ingestion COMPLETE.** Added 40 new canonical True Monsters (Demon variants, Dragon stages, Giants, Troll sub-types, Amoeba, Basilisk, Centaur, Lindworm, Titan, Tree Kin, etc.) into `data-monsters.js` with D6 attack tables. Added 17 playable kin archetypes (Cat People, Frog People, Hobgoblins, Karkions, Lizard People, Ogres, Satyr Bard) into `data-npcs.js`. SW cache v16. |
+| 2026-06-25 | **Frictionless Combat Automation COMPLETE.** Upgraded `Combat.view` to display 1-click primary weapon (`⚔️`) and random monster (`🎲`) attack buttons directly visible on collapsed combat row headers. Added live turn tracking badges (`Acted ✓` / `Turn [ ]`) and a `Reset Turns` button. Wired `Roller.renderDamageApplier` into all damage pop-ups (`heroWeaponAttack`, `monsterAttack`, `npcAttack`) featuring an inline target picker dropdown, auto-deducting target Armor, applying damage directly to HP, and automatically marking 0 HP opponents with dark gray strikethrough and `💀 DEFEATED` badges. SW cache v17. |
+| 2026-06-25 | **Combat Tab Hero Weapons Fix COMPLETE.** Fixed missing attack buttons for Player Characters on the Combat tracker by properly resolving equipped weapons from `h.inventory.items` matched against `DB.weapons` rather than checking non-existent `h.inventory.weapons`. SW cache v18. |
+| 2026-06-25 | **Hero Combat Attack Roll Bugfix COMPLETE.** Fixed hallucinated `Dice.under`, `toast`, and `c.state.marks` references in `Roller.heroWeaponAttack` that caused "Roll Attack" button clicks to fail silently. Corrected to use canonical `Roller.d20net`, standard `alert`, and character `c.skills[skillName].mark` data model. SW cache v19. |
+| 2026-06-25 | **Combat Damage Applier Targets Fix COMPLETE.** Fixed hallucinated `Store.get("combat")` and `Store.set("combat")` references across `Roller.renderDamageApplier`, `heroWeaponAttack`, `monsterAttack`, and `npcAttack` that caused the damage modal to always report "No active opponent targets in combat tracker" and prevented applying combat damage. Replaced with canonical `Combat.load()`, `Combat.save()`, and live `Combat.rerender()`. SW cache v20. |
+| 2026-06-25 | **Phase 5B Solo Mode Wiring COMPLETE.** Built dedicated `🧭 Solo` assistant navigation screen featuring interactive Fortune Chart Oracle (1D6/2D6 fate engine with twist highlights), Inspiration 3D20 generator (`Action+Attribute+Thing`), Dragon/Demon narrative twist roller, Solo NPC instantiator with 1-click `Quick Add to Combat Tracker`, and D6 NPC Attack Table AI roller across 4 combat roles. Wired solo heroic abilities into `Wizard` (unlocked via Solo Mode setting), wired *Sole Survivor* into skill/attack/cast roll pushing (−3 WP option to avoid suffering conditions), and wired *Army of One* into `Combat.draw` (drawing 2 unique initiative cards granting two turns). SW cache v21. |
+| 2026-06-25 | **Phase 5 (Multiplayer & Sync) COMPLETE.** Implemented `Sync` module in `app.js` with Firebase Realtime Database connection, anonymous/Google authentication, fantasy join codes, optimistic cloud sync interceptors in `Store` and `Combat`, party roster overview banner, canvas portrait downscaling (~400×400), and SW PWA reload toast banner. Created `database.rules.json` and added Firebase CDN scripts to `index.html`. |
+| 2026-06-25 | **Phase 6 (Navigation & Rules Neatening) COMPLETE.** Reorganized Rules Library into searchable accordion categories (`<details class="rule-accordion">`) with live text filter. Added comprehensive **Wilderness Journeys & Travel Reference** compendium (Shifts, camp/rest Bushcraft rules, foraging, mishap table) to both Rules and Solo tabs. Added **Core Gameplay Loop & Stages** walkthrough compendium (Rounds vs Shifts time scales, combat stage sequence, D20 pushing). Updated `Router.go` and `Router.init` to dynamically hide the Solo navigation button (`🧭 Solo`) when Solo Mode is disabled in Settings. Verified valid syntax. |
+| 2026-06-26 | **Combat Tracker Stacked Mobile Layout COMPLETE.** Re-arranged combatant row headers (`Combat.view`) into a clean two-line stacked flex layout. Top row gives full horizontal width to the Initiative card badge and character name to prevent text squashing on narrow mobile screens. Bottom row aligns Hero/Monster/NPC tags, Quick Attack button (`⚔️`), inline Turn completion badge (`Acted ✓`), and HP vitals. Verified valid JS syntax. |
+| 2026-06-26 | **Phase 8 Combat Ergonomics, NPC Spellcasting & Sync Access COMPLETE.** Repositioned combat row Open Sheet (`↗`) and Delete (`✕`) icons beside character names. Wired explicit known spells arrays into canonical caster NPCs (`data-npcs.js`) and implemented `Roller.npcCast` pop-up modal with d20 magic skill checks vs PCs. Made header sync pill (`Local`/`Synced`) clickable and added main Heroes screen prompt banner jumping straight to multiplayer party login panel. Perfected PC spellcasting with variable Power from the Body die buttons (`[D4]..[D20]`), desperate healing restrictions, metal armor/weapon warnings, and grimoire unprepared checkboxes. Verified valid JS syntax. |
+| 2026-06-26 | **Firebase Auth & Regional RTDB Configuration COMPLETE.** Upgraded `Sync.ensureAuth`, `createCampaign`, `joinCampaign`, and `linkGoogle` (`app.js`) to report exact Firebase authentication errors (`auth/operation-not-allowed` and `auth/unauthorized-domain`) and added `timeoutRace` guards. Hardcoded exact regional `asia-southeast1.firebasedatabase.app` database URL into `firebase-config.js` to fix connection timeouts. Patched `Combat.save` to broadcast tracker changes to RTDB. Patched silent exceptions in `Roller.skill`, `heroWeaponAttack`, and `heroSpellCast` when characters lack initialized conditions objects. Made **Roll Damage** buttons start disabled and unlock only upon a successful attack roll. Made **Roll Attack / Cast / Skill** buttons disable immediately post-roll. Made Party Roster rows on Heroes page clickable. Fixed blank white Combat tab error when `combatants` array is missing in synced storage. Turned all Rules library Magic Schools and Character Sheet Magic sections into folding accordions. Fixed multiplayer sync bug where clicking +/− on a hero sheet bounced the user back to the main Heroes list (`attachListeners`). Preserved selected dropdown options in Combat tab across re-renders (`window._combatAddSelections`). |
+| 2026-06-26 | **Phase 9 Tabletop Automation & GM Guards COMPLETE (1A–5A).** Wired two-way HP/WP synchronization between live Combat Tracker rows and permanent Hero character sheets across Firebase broadcast (`combatRef.on`). Made Bestiary Monster random attack buttons auto-roll damage dice and pop up Target Applier instantly (`Roller.monsterAttack`). Implemented `Combat.isGm` and locked Draw Initiative, Next Turn, Next Round, Reset Turns, End Combat, and Acted badges strictly to Campaign GMs. Added automatic ammunition deduction (`combatAmmo`) and out-of-ammo roll blocking on ranged bow/crossbow attacks (`heroWeaponAttack`), syncing count back to inventory item strings. Added automatic **Prepare Grimoire Spells** pop-up modal upon completing a Shift Rest (`rest("shift")`) and tagged sheet spell list items as `Prepared` vs `Grimoire (Unprepared)`. Verified valid JS syntax. |
+
+---
+
+## 9. Conventions & Rules of Engagement
+
+- **Single source of truth:** all game rules data lives in `data.js` (core), `data-magic.js` (Book of Magic), and `data-solo.js` (solo rules), sourced from the project's NotebookLM notebook. Do not hardcode rules values elsewhere.
+- **Module discipline (`src/`):** app logic is split into native ES modules (see §5.1). No bundler — keep it that way (clone-and-run). When one module needs a symbol from another, `export` it from its home module and `import` it explicitly; don't smuggle things through `window`. Put new code in the module that owns that responsibility; if a file outgrows its job, split along the same lines. When you add/move a `src/*.js` file, update the §5 table, §5.1 map, **and** the service-worker `APP_SHELL` list (then bump `CACHE_VERSION`).
+- **Sync discipline:** any code change → update §2/§4/§5/§6/§10 as needed, tick the relevant §7 roadmap box, and add a §8 changelog row — in the same edit.
+- **Scope guard:** Dragonbane **core rules**, plus **Book of Magic** (gated behind a content toggle) and **Solo mode** (a distinct play mode). No Misty Vale / campaign / setting content in the app. Sources: core rulebook `2ec5709d-…`; Book of Magic `5cc43bfe-…`; solo rules `98cc2537-…` (in the notebook).
+- **GitHub-bound:** keep the tree clean and documented; no secrets committed (Firebase keys go in the user-supplied config; real keys must not be committed).
+
+---
+
+## 10. Expansion Content & Toggles (decisions)
+
+Decisions for the Book of Magic and Solo mode additions (2026-06-24):
+
+**Gating**
+- **Book of Magic** = a **content toggle** (per character and/or campaign), **off by default**. A core-rules table never sees the extra schools/spells unless enabled.
+- **Solo** = a **distinct play mode** (not a content toggle), selected when starting/playing.
+
+**Book of Magic — scope & rules**
+- Include **everything**: new spells for the four existing schools *and* all **9 new schools** (Demonology, Harmonism, Illusionism, Necromancy, Symbolism, Witchcraft, Alchemy, Enchanting, Dracomancy), fully statted.
+- **Revised spells are canonical everywhere** — the Book of Magic versions of Dispel, Magic Seal, Permanence, Protector, Resurrection, Sleep replace the core versions regardless of toggle.
+- **Creation wizard (toggle on):** a mage may start with **any school except Dracomancy** (learn-in-play only); show entry requirements/notes. **Bard is a caster** via **Harmonism**, cast using **Performance (CHA)**; only bards can take Harmonism.
+- **Subsystems = full** (Q6/C): model each new school's mechanics richly — created items/potions in inventory, minion/summon rosters, corruption/insanity tracking, familiars, persistent runes, active illusions, Dracomancy's in-play-only learning.
+
+**Solo mode**
+- **Full solo GM assistant** (Q7/C): oracle + random tables + journal/threads/NPCs + guided "explore the next room" loop.
+- Modeled as a **1-person campaign** (Q8/B) — reuses campaign machinery, party UI hidden; can later become multiplayer / GM-peek.
+- **Official Dragonbane solo rules only** (Q10/A) for the oracle, likelihoods, and tables.
+- Solo-only heroic abilities (**Army of One**, **Sole Survivor**) are **selectable only in Solo campaigns** (Q11/A).
+
+**Roadmap placement (interleaved by dependency, Q9/C):** Book of Magic spells/schools → **Phase 3B** (after casting); Book of Magic subsystems → **Phase 4B** (after tracker + in-play); Solo → **Phase 5B** (after sync). Data extraction for both is being front-loaded now (Q12/C).
+
+---
+
+## 11. Multiplayer & Sync Architecture (decisions)
+
+Decisions for Phase 5 (Multiplayer & Sync) and Phase 5B (Solo Mode) architecture (2026-06-25):
+
+**Database & Auth**
+- **Firebase Realtime Database (RTDB):** Selected over Firestore. *Why:* RTDB charges for bandwidth rather than document read/writes. An RPG app produces hundreds of rapid, tiny updates (toggling conditions, spending 1 WP, HP damage). RTDB is drastically cheaper for this and natively supports ultra-low latency presence (online/offline indicators).
+- **Zero-Friction Auth:** App launches instantly into Local/Anonymous mode. No login wall. *Why:* At the gaming table, players want immediate access to dice and sheets. Optional Google account linking is placed inside **Settings & About** for cross-device backup.
+- **Readable Join Codes:** Uses memorable fantasy dictionary phrases (e.g., `red-dragon-sword`) instead of random alphanumeric strings. *Why:* Eliminates typos and is easy for GMs to say out loud across the table.
+
+**Permissions & Roles**
+- **GM-Ready Security Rules:** The schema (`members/{uid}.role: "player" | "gm"`) and backend security rules are written immediately in Phase 5 to grant GMs full read/write access. *Why:* Writing database migration scripts later for live Firebase data is error-prone. Laying the rule foundation now means building the GM screen later requires zero backend changes.
+- **Flexible Combat Tracker:** Any connected player can draw initiative cards (1–10) or click "Next Turn" by default. *Why:* Keeps casual table gameplay fast when the GM is busy roleplaying or looking up rules. Includes a *"Lock Controls to GM"* toggle in campaign settings for strict GMs.
+
+**Performance & Offline**
+- **Client-Side Image Compression:** Portrait uploads are downscaled via HTML5 `<canvas>` to ~400x400 WebP/JPEG (~30KB–50KB) *before* uploading to Firebase Storage. *Why:* Guarantees instant syncing when 4–6 players open the party view on mobile cell networks, and preserves Firebase free-tier storage limits.
+- **Hybrid Storage Modes:** Preserves `localStorage` standalone mode alongside Firebase. *Why:* Allows anyone to clone the repo and use the app offline without configuring Firebase API keys.
+- **PWA Version Consistency:** Implements an *"Update Available: Click to Reload"* toast when the Service Worker fetches new code. *Why:* Ensures every player at the table runs identical calculation logic and rules, preventing desync bugs.
+
+**Solo Mode Integration (Phase 5B)**
+- **Isolated First, Co-op Ready:** Built strictly as a 1-player experience first to nail Oracle and Inspiration mechanics cleanly. Because it sits on top of the Phase 5 campaign machinery under the hood, the foundation for *"GM-less Co-op"* is automatically preserved by simply hiding party UI elements.

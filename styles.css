@@ -1,0 +1,594 @@
+/*
+ * styles.css — Dragonbane Player
+ * ------------------------------
+ * Dragonbane-flavored theme (parchment & ink, warm earthy tones, serif
+ * display headings) with a light (default) and dark variant. Mobile-first;
+ * readable at the table.
+ */
+
+/* ---- Theme tokens ---------------------------------------------------- */
+:root {
+  /* Light (parchment) — default */
+  --bg:            #efe2c4;
+  --bg-panel:      #f7eed6;
+  --bg-raised:     #fbf5e4;
+  --ink:           #2b2118;
+  --ink-soft:      #5b4a36;
+  --line:          #c8b48a;
+  --accent:        #7a2e1d;   /* dragon red */
+  --accent-soft:   #a64a32;
+  --gold:          #9c7434;
+  --gold-bright:   #c79a5b;
+  --good:          #3f6b3a;
+  --bad:           #8c2f23;
+  --shadow:        rgba(43, 33, 24, 0.18);
+  --font-display:  "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-body:     Georgia, "Times New Roman", serif;
+}
+
+[data-theme="dark"] {
+  --bg:            #1f1812;
+  --bg-panel:      #2b2118;
+  --bg-raised:     #362a1e;
+  --ink:           #efe2c4;
+  --ink-soft:      #c2ad84;
+  --line:          #4d3c29;
+  --accent:        #c1492f;
+  --accent-soft:   #d4674a;
+  --gold:          #c79a5b;
+  --gold-bright:   #e3c187;
+  --good:          #7aa56f;
+  --bad:           #e0795f;
+  --shadow:        rgba(0, 0, 0, 0.45);
+}
+
+/* ---- Base ------------------------------------------------------------ */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 20% 10%, rgba(199, 154, 91, 0.10), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(122, 46, 29, 0.08), transparent 45%);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 0.4em;
+  color: var(--ink);
+}
+
+a { color: var(--accent); }
+
+/* ---- Layout ---------------------------------------------------------- */
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #f7eed6;
+  box-shadow: 0 2px 8px var(--shadow);
+  flex-wrap: wrap;
+}
+
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.app-header .brand img { width: 34px; height: 34px; }
+
+.app-header .spacer { flex: 1; min-width: 0; }
+
+.app-header .status-pill {
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(247, 238, 214, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-pill.local  { background: rgba(0,0,0,0.18); }
+.status-pill.synced { background: var(--good); border-color: var(--good); }
+
+.app-main {
+  flex: 1;
+  padding: 18px 16px 96px;
+}
+
+/* ---- Panels & cards -------------------------------------------------- */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  margin: 0 0 16px;
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.card {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: transform 0.08s ease, box-shadow 0.12s ease;
+}
+.card:hover { transform: translateY(-1px); box-shadow: 0 3px 10px var(--shadow); }
+.card h3 { margin-bottom: 4px; }
+.card .meta { color: var(--ink-soft); font-size: 0.85rem; }
+
+.card-grid { display: grid; gap: 12px; }
+
+/* ---- Buttons --------------------------------------------------------- */
+button, input, select, textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+button {
+  font-family: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #f7eed6;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn.secondary { background: transparent; color: var(--accent); }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--ink); }
+.btn.block { width: 100%; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid rgba(247, 238, 214, 0.5);
+  color: #f7eed6;
+  width: 38px; height: 38px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.icon-btn:hover { background: rgba(0,0,0,0.15); }
+
+/* ---- Misc ------------------------------------------------------------ */
+.section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+.section-title h2 { margin: 0; }
+.section-title .rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--line), transparent);
+}
+
+.empty {
+  text-align: center;
+  color: var(--ink-soft);
+  padding: 40px 20px;
+}
+.empty .big { font-size: 2.4rem; margin-bottom: 8px; }
+
+.stat-line { color: var(--ink-soft); font-size: 0.9rem; }
+
+.tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  margin: 2px 4px 2px 0;
+}
+
+.notice {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  border-left: 3px solid var(--gold);
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border-radius: 0 6px 6px 0;
+}
+
+/* ---- Bottom navigation ----------------------------------------------- */
+.app-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -2px 8px var(--shadow);
+}
+.app-nav button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  padding: 10px 4px;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.app-nav button .ico { font-size: 1.2rem; }
+.app-nav button.active { color: var(--accent); }
+
+.hidden { display: none !important; }
+
+/* ---- Wizard & sheet ------------------------------------------------- */
+.wiz-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.wiz-head .wiz-x { padding: 6px 12px; }
+.wiz-progress {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+.wiz-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.wiz-nav .btn { flex: 1; }
+
+.card.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+
+.attr-grid { display: flex; flex-direction: column; gap: 10px; }
+.rolled-row { margin: 6px 0 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+.rolled-row .tag.used { opacity: 0.4; text-decoration: line-through; }
+.attr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.attr-row label { font-family: var(--font-display); font-weight: 600; }
+.attr-row select, .form-field input, .form-field textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  min-width: 80px;
+}
+
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+.skill-chip {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--ink);
+  cursor: pointer;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+}
+.skill-chip.on { background: var(--accent); color: #f7eed6; border-color: var(--accent); }
+.skill-chip.locked { opacity: 0.7; cursor: default; border-style: dashed; }
+.skill-chip .stat-line { font-size: 0.72rem; }
+
+.form-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.form-field label { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; }
+.form-field input, .form-field textarea { width: 100%; }
+
+/* ---- Tracker: vitals, conditions, skills, inventory ---------------- */
+.tag.baned { border-color: var(--bad); color: var(--bad); }
+.skill-chip.cond-on { background: var(--bad); color: #f7eed6; border-color: var(--bad); }
+
+.vitals { display: flex; gap: 8px; margin-top: 14px; }
+.vital { flex: 1; min-width: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 10px 8px; text-align: center; }
+.vital.hp { border-color: var(--accent-soft); }
+.vital.wp { border-color: var(--gold); }
+.vital-label { font-family: var(--font-display); font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 6px; }
+.vital-val { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; min-width: 44px; display: inline-block; }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 6px; }
+button, .step {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.step {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font-size: 1.1rem; cursor: pointer; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0;
+}
+button.step:not(:empty), .btn.step {
+  width: auto !important;
+  min-width: 34px;
+  height: auto;
+  min-height: 34px;
+  padding: 4px 10px;
+}
+.step:hover { background: var(--bg-panel); }
+.step.rm { width: 28px; height: 28px; font-size: 0.85rem; }
+
+.skill-list { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; margin-top: 8px; }
+.skill-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.skill-row.trained .sk-name { font-weight: 600; }
+.skill-row.trained .sk-lvl { color: var(--accent); }
+.skill-row .sk-name { flex: 1; }
+.skill-row .sk-lvl { font-family: var(--font-display); }
+.mark { background: none; border: none; color: var(--gold); font-size: 1.1rem; cursor: pointer; padding: 0 2px; }
+.mark.marked { color: var(--accent); }
+@media (max-width: 520px) { .skill-list { grid-template-columns: 1fr; } }
+
+.enc-bar { height: 8px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 6px 0 4px; }
+.enc-fill { height: 100%; background: var(--good); transition: width 0.15s ease; }
+.enc-fill.over { background: var(--bad); }
+
+.inv-row, .inv-add { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.inv-add { border-bottom: none; margin-top: 8px; }
+.inv-name { flex: 1; min-width: 90px; overflow-wrap: anywhere; }
+input.wt { width: 56px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.inv-add input[type="text"] { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+
+/* ---- Dice engine: modal + roll UI --------------------------------- */
+.modal-back {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 50;
+  /* Use the dynamic viewport height so the bottom-anchored sheet isn't pushed
+     behind the mobile browser toolbar (vh fallback for old browsers). */
+  height: 100vh; height: 100dvh;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0;
+}
+@media (min-width: 560px) { .modal-back { align-items: center; padding: 20px; } }
+.modal-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  width: 100%; max-width: 480px;
+  max-height: 85vh; max-height: 85dvh; overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4px 24px var(--shadow);
+}
+@media (min-width: 560px) { .modal-card { border-radius: 14px; } }
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--bg-panel);
+}
+.modal-head h3 { margin: 0; }
+.modal-head .modal-x { background: transparent; border-color: var(--line); color: var(--ink); }
+.modal-body { padding: 16px; }
+
+.roll-ctl { display: flex; align-items: center; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+.net-lbl { font-family: var(--font-display); font-weight: 600; min-width: 110px; text-align: center; }
+.roll-result { margin-top: 14px; }
+.dice-faces { display: flex; gap: 10px; justify-content: center; margin: 8px 0; }
+.die {
+  width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.4rem; font-weight: 600;
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px;
+  color: var(--ink-soft); opacity: 0.55;
+}
+.die.used { opacity: 1; border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 2px var(--accent) inset; }
+.outcome { text-align: center; font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; margin: 6px 0; }
+.outcome.ok { color: var(--good); }
+.outcome.bad { color: var(--bad); }
+.push-wrap { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+
+.sk-name.rollable {
+  background: none; border: none; font: inherit; color: inherit; text-align: left;
+  cursor: pointer; padding: 0; flex: 1; border-radius: 4px;
+}
+.sk-name.rollable:hover { color: var(--accent); }
+.step.dmg { width: 28px; height: 28px; font-size: 0.85rem; border-color: var(--accent-soft); color: var(--accent); }
+
+.cast-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cast-info { flex: 1; }
+.cast-actions { display: flex; flex-direction: column; gap: 6px; align-self: center; }
+.cast-btn { white-space: normal; word-break: normal; overflow-wrap: break-word; text-align: center; padding: 7px 12px; font-size: 0.85rem; }
+
+.comp-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.comp-info { flex: 1; }
+.wp-pen { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.wp-pen .stat-line { flex: 1; }
+
+/* ---- Phase 4: rest, dying, toast, combat -------------------------- */
+.rest-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.rest-row .btn { flex: 1 1 120px; min-width: 0; }
+.rest-btn { font-size: 0.85rem; padding: 8px 10px; height: auto; min-height: 38px; }
+
+.panel.dying { border-color: var(--bad); }
+.dr-dots { display: inline-flex; gap: 5px; vertical-align: middle; margin-left: 4px; }
+.dr-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); display: inline-block; }
+.dr-dot.ok { background: var(--good); border-color: var(--good); }
+.dr-dot.bad { background: var(--bad); border-color: var(--bad); }
+
+.toast {
+  position: fixed; left: 50%; bottom: 84px; transform: translate(-50%, 12px);
+  z-index: 60; max-width: 90%;
+  background: var(--ink); color: var(--bg-panel);
+  padding: 10px 16px; border-radius: 999px; font-size: 0.9rem;
+  box-shadow: 0 4px 16px var(--shadow);
+  opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.toast-success { background: var(--ok, #2f7d4f); color: #fff; }
+.toast.toast-error, .toast.toast-warn { background: var(--bad, #9b2c2c); color: #fff; max-width: 92%; white-space: normal; border-radius: 12px; line-height: 1.35; }
+.modal-msg { font-size: 0.95rem; line-height: 1.4; white-space: pre-wrap; margin: 4px 0 12px; }
+.modal-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.modal-actions .btn { flex: 1; min-width: 110px; }
+.btn.danger { background: var(--bad, #9b2c2c); border-color: var(--bad, #9b2c2c); color: #fff; }
+.update-toast {
+  position: fixed; left: 50%; top: 16px; transform: translate(-50%, 0);
+  z-index: 100; background: var(--accent); color: #fff;
+  padding: 10px 20px; border-radius: 999px; font-weight: bold; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+.inv-add { flex-wrap: wrap; }
+.inv-add select { flex: 1 1 180px; min-width: 0; max-width: 100%; white-space: normal; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+
+.combat-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.combat-row.current { background: rgba(122,46,29,0.08); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+.combat-row.done { opacity: 0.5; }
+.init-card {
+  width: 34px; height: 40px; flex: none; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.2rem; font-weight: 600;
+  background: var(--bg-raised); border: 1px solid var(--gold); border-radius: 6px; color: var(--ink);
+}
+.combat-row.current .init-card { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.cb-name { flex: 1; min-width: 0; word-break: normal; overflow-wrap: break-word; }
+
+.quick-chip {
+  padding: 3px 8px !important;
+  font-size: 0.85rem !important;
+  height: auto !important;
+  width: auto !important;
+  max-width: 100%;
+  min-width: 0;
+  flex-shrink: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Combat-card action buttons (weapons, attacks, spells): always boxed,
+   left-aligned, and never spill. Block layout so the name and its detail
+   stack (the .btn inline-flex default put them side-by-side and overflowed). */
+.combat-action {
+  display: block;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+.combat-action small { color: var(--muted); }
+
+/* ---- Toggle switch (settings) ------------------------------------- */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.toggle {
+  flex: none; width: 52px; height: 30px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg-raised); cursor: pointer; position: relative; padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.toggle .knob {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--ink-soft); transition: transform 0.15s ease, background 0.15s ease;
+}
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle.on .knob { transform: translateX(22px); background: #f7eed6; }
+
+.money { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.coin { flex: 1 1 100px; min-width: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 6px; text-align: center; }
+.coin-label { font-size: 0.78rem; color: var(--ink-soft); text-transform: capitalize; margin-bottom: 4px; }
+.coin .stepper { display: flex; align-items: center; justify-content: center; gap: 2px; }
+.coin .step { padding: 2px 8px; }
+.coin .vital-val { min-width: 28px; font-size: 0.95rem; }
+
+/* ---- Rules accordions & search ------------------------------------ */
+#rules-filter { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 1rem; margin-bottom: 12px; }
+.rule-accordion { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.rule-accordion summary { padding: 10px 14px; cursor: pointer; font-size: 1.05rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rule-accordion summary::-webkit-details-marker { display: none; }
+.rule-accordion summary:hover { background: rgba(122,46,29,0.05); }
+.rule-body { padding: 10px 14px; border-top: 1px solid var(--line); background: var(--bg); }
+
+/* ---- Movement & Grid Tracker -------------------------------------- */
+.move-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin: 8px 0; }
+.move-toggles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.move-btn { flex: 1 1 auto; padding: 6px 10px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); cursor: pointer; transition: all 0.15s ease; text-align: center; }
+.move-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: bold; }
+.move-meter { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--bg-raised); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); }
+.move-val { font-family: var(--font-display); font-size: 1.25rem; font-weight: bold; color: var(--accent); }
+
+/* ---- Spells details card in modal --------------------------------- */
+.spell-detail-card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.95rem; }
+

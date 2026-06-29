@@ -1,0 +1,19 @@
+{
+  "name": "Dragonbane Player",
+  "short_name": "Dragonbane",
+  "description": "Character creator and tracker for the Dragonbane RPG, with a real-time shared party.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#2b2118",
+  "theme_color": "#7a2e1d",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
