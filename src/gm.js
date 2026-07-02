@@ -15,8 +15,14 @@ import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
 
 export const GM = {
-    // Show the GM surface when the user has turned it on, or is the GM of a synced campaign.
-    enabled() { return Settings.gmScreen() || (Sync && Sync.campaign && Sync.campaign.role === "gm"); },
+    // Show the GM surface based on the user's explicit toggle when they've set one;
+    // otherwise default to on for the GM of a synced campaign, off for everyone else.
+    // (Tri-state so a campaign GM can still turn the tab OFF — an explicit choice wins.)
+    enabled() {
+      const s = Settings.get("gmScreen");
+      if (s === true || s === false) return s; // explicit user choice wins
+      return !!(Sync && Sync.campaign && Sync.campaign.role === "gm"); // default for a campaign GM
+    },
 
     // Characters the GM manages: the campaign party when synced, else all local heroes.
     party() {

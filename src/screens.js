@@ -224,10 +224,10 @@ export const Screens = {
       tog3.onclick = () => { Settings.set("gmAutomation", !Settings.gmAutomation()); Router.go("about"); };
       row3.appendChild(tog3); sp.appendChild(row3);
 
-      const gs = Settings.gmScreen();
-      const row4 = el(`<div class="toggle-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px"><div><b>GM Screen</b><br><span class="stat-line">Adds a 🎲 GM tab: a live party panel (HP/WP/conditions), peek any sheet, drop monsters/NPCs into combat, hand out damage/conditions/fear, plus glanceable GM reference tables. Auto-on for a campaign GM.</span></div></div>`);
+      const gs = GM.enabled();
+      const row4 = el(`<div class="toggle-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px"><div><b>GM Screen</b><br><span class="stat-line">Adds a 🎲 GM tab: a live party panel (HP/WP/conditions), peek any sheet, drop monsters/NPCs into combat, hand out damage/conditions/fear, plus glanceable GM reference tables. Defaults on for a campaign GM; this toggle overrides.</span></div></div>`);
       const tog4 = el(`<button class="toggle ${gs ? "on" : ""}" role="switch" aria-checked="${gs}"><span class="knob"></span></button>`);
-      tog4.onclick = () => { Settings.set("gmScreen", !Settings.gmScreen()); Router.go("about"); };
+      tog4.onclick = () => { Settings.set("gmScreen", !GM.enabled()); Router.go("about"); };
       row4.appendChild(tog4); sp.appendChild(row4);
 
       const syncPanel = el(`<div class="panel" id="multiplayer-panel"><h3>Multiplayer &amp; Cloud Sync</h3></div>`);
