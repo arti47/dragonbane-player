@@ -1,4 +1,4 @@
-# Dragonbane Player
+# Dragonbane Player 
 
 A character creator and tracker for the **Dragonbane** tabletop RPG, with a real-time shared party. Runs on phone, browser, and computer as an installable, offline-capable web app (PWA). Based on the Dragonbane **core rules**.
 
