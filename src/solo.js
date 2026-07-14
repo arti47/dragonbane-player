@@ -3,12 +3,19 @@
 import { $, DB, Dice, el, esc, sectionTitle, uid } from './core.js';
 import { showToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
+import { Store } from './store.js';
+import { applyInvoluntaryConditionTo } from './derived.js';
 import { Roller } from './roller.js';
 import { Combat } from './combat.js';
 import { Router } from './router.js';
 import { init } from './main.js';
 
 export const SoloMode = {
+    HERO_KEY: "dragonbane.soloHeroId",
+    heroId() { return localStorage.getItem(this.HERO_KEY) || null; },
+    // The hero the Solo tools roll as, if one is linked and still exists.
+    linkedHero() { const id = this.heroId(); const c = id ? Store.get(id) : null; return c || null; },
+    setHero(id) { if (id) localStorage.setItem(this.HERO_KEY, id); else localStorage.removeItem(this.HERO_KEY); },
     view() {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
       const root = el(`<div></div>`);
@@ -31,6 +38,20 @@ export const SoloMode = {
       bBtn.onclick = () => { Settings.set("soloMode", !sm); Router.go("solo"); };
       banner.appendChild(bBtn);
       root.appendChild(banner);
+
+      // Link a hero so the journey/skill rolls use their real sheet values and
+      // the full dice engine (conditions, boons/banes, pushing, advancement).
+      const heroes = Store.list();
+      const linked = this.linkedHero();
+      const heroPanel = el(`<div class="panel" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px"><b>🎲 Rolling as</b><br><span class="stat-line">${linked ? "Skill/attribute rolls use " + esc(linked.identity.name) + "’s sheet." : "Pick a hero to auto-fill skills &amp; attributes, or roll manually below."}</span></div>
+      </div>`);
+      const heroSel = el(`<select class="input" style="min-width:160px"></select>`);
+      heroSel.appendChild(el(`<option value="">— No hero (type values) —</option>`));
+      heroes.forEach((h) => { const o = el(`<option value="${esc(h.id)}">${esc(h.identity.name)}</option>`); if (linked && h.id === linked.id) o.selected = true; heroSel.appendChild(o); });
+      heroSel.onchange = () => { this.setHero(heroSel.value || null); Router.go("solo"); };
+      heroPanel.appendChild(heroSel);
+      root.appendChild(heroPanel);
 
       // 1. Fortune Chart Oracle
       const f = solo.fortune;
@@ -236,26 +257,41 @@ export const SoloMode = {
       root.appendChild(nPanel);
 
       const jm = (DB.journeyMishaps || []);
+      const hero = linked; // the linked hero (or null) — journey rolls use their sheet
       const shifts = ["🌅 Morning", "☀️ Day", "🌆 Evening", "🌙 Night"];
       // Roll on the D6 journey mishap table → { r, effect }.
       const rollMishap = () => { const r = Dice.d(jm.length || 6); const row = jm.find((x) => x.d6 === r) || jm[r - 1] || { effect: "—" }; return { r, effect: row.effect }; };
       const outBox = (color, html) => `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${color};margin-top:8px">${html}</div>`;
       // A follow-up attribute check for a mishap that calls for one, e.g.
-      // "roll WIL or gain Scared" / "roll CON or suffer". No character is bound
-      // in the Solo tab, so the player enters their attribute value.
+      // "roll WIL or gain Scared" / "roll CON or suffer". When a hero is linked
+      // it uses their real attribute and applies the governed condition on a
+      // failure (WIL→Scared, CON→Sickly, …); otherwise the player types a value.
       const attrCheckRow = (attr, effectText) => {
         const cm = /roll\s+\w+\s+or\s+([^.)]+)/i.exec(effectText);
         const conseq = cm ? cm[1].trim() : "suffer the effect";
+        const condKey = ((DB.conditions || []).find((c) => c.attribute === attr) || {}).key;
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)"></div>`);
-        const input = el(`<input type="number" class="input" style="width:60px" value="10" min="1" max="18" title="your ${attr}">`);
         const btn = el(`<button class="btn secondary">🎲 Roll ${attr}</button>`);
         const out = el(`<div style="width:100%"></div>`);
+        let getLvl;
+        if (hero) {
+          row.append(el(`<span class="stat-line">${attr} ${hero.attributes[attr]} · <b>${esc(hero.identity.name)}</b></span>`), btn, out);
+          getLvl = () => (Store.get(hero.id) || hero).attributes[attr];
+        } else {
+          const input = el(`<input type="number" class="input" style="width:60px" value="10" min="1" max="18" title="your ${attr}">`);
+          row.append(el(`<span class="stat-line">${attr} ≤</span>`), input, btn, out);
+          getLvl = () => Math.max(1, Math.min(20, parseInt(input.value, 10) || 10));
+        }
         btn.onclick = () => {
-          const lvl = Math.max(1, Math.min(20, parseInt(input.value, 10) || 10));
+          const lvl = getLvl();
           const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
-          out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:6px 0 0 0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${attr} ${lvl} — ${ok ? "resisted, no ill effect." : `failed — you ${esc(conseq)}.`}</p>`;
+          let msg;
+          if (ok) msg = `${r} vs ${attr} ${lvl} — resisted, no ill effect.`;
+          else if (hero && condKey) { let label = ""; Store.update(hero.id, (ch) => { label = applyInvoluntaryConditionTo(ch, condKey); }); if (Roller.refresh) Roller.refresh(hero.id); msg = `${r} vs ${attr} ${lvl} — failed — ${esc(label)}.`; }
+          else msg = `${r} vs ${attr} ${lvl} — failed — you ${esc(conseq)}.`;
+          out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:6px 0 0 0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${msg}</p>`;
+          btn.disabled = true; btn.style.opacity = "0.5"; btn.style.cursor = "not-allowed"; // one saving roll
         };
-        row.append(el(`<span class="stat-line">${attr} ≤</span>`), input, btn, out);
         return row;
       };
       // Render a rolled journey mishap as a DOM box, appending an inline
@@ -281,41 +317,67 @@ export const SoloMode = {
       shiftSec.append(shiftBtn, shiftOut);
       jPanel.appendChild(shiftSec);
 
-      // ⛺ Camp & Rest — Bushcraft roll; failure auto-rolls the mishap table
+      // ⛺ Camp & Rest — Bushcraft roll; failure rolls the mishap table.
       const campSec = el(`<div style="margin-bottom:10px;border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0"><b>⛺ Camp &amp; Rest:</b> Roll Bushcraft. Success lets the party rest (Shift rest = full HP/WP). Failure = Journey Mishap.</p></div>`);
-      const campRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="stat-line">Bushcraft ≤</span></div>`);
-      const campSkill = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your Bushcraft level">`);
-      const campBtn = el(`<button class="btn">🎲 Roll Bushcraft</button>`);
       const campOut = el(`<div></div>`);
-      campRow.append(campSkill, campBtn);
-      campBtn.onclick = () => {
-        const lvl = Math.max(1, Math.min(20, parseInt(campSkill.value, 10) || 10));
-        const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
+      const renderCampResult = (ok) => {
         campOut.innerHTML = "";
         const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
-        box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — roll on the Journey Mishap Table:"}</p>`));
+        box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
         if (!ok) box.appendChild(mishapNode(rollMishap()));
         campOut.appendChild(box);
       };
-      campSec.append(campRow, campOut);
+      if (hero) {
+        const campBtn = el(`<button class="btn" style="margin-top:6px">🎲 Roll Bushcraft <span class="stat-line" style="color:#fff">(${esc(hero.identity.name)} · ${(Store.get(hero.id) || hero).skills.Bushcraft ? (Store.get(hero.id) || hero).skills.Bushcraft.level : "—"})</span></button>`);
+        campBtn.onclick = () => Roller.skill(hero.id, "Bushcraft", { onRoll: (success) => renderCampResult(success) });
+        campSec.append(campBtn, campOut);
+      } else {
+        const campRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="stat-line">Bushcraft ≤</span></div>`);
+        const campSkill = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your Bushcraft level">`);
+        const campBtn = el(`<button class="btn">🎲 Roll Bushcraft</button>`);
+        campBtn.onclick = () => {
+          const lvl = Math.max(1, Math.min(20, parseInt(campSkill.value, 10) || 10));
+          const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
+          campOut.innerHTML = "";
+          const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
+          box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
+          if (!ok) box.appendChild(mishapNode(rollMishap()));
+          campOut.appendChild(box);
+        };
+        campRow.append(campSkill, campBtn);
+        campSec.appendChild(campRow);
+      }
+      campSec.appendChild(campOut);
       jPanel.appendChild(campSec);
 
-      // 🍄 Foraging & Hunting — Bushcraft/Hunting roll; success gathers rations
+      // 🍄 Foraging & Hunting — Bushcraft/Hunting roll; success gathers rations.
       const forageSec = el(`<div style="margin-bottom:10px;border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0"><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making a Bushcraft or Hunting check for rations.</p></div>`);
-      const forageRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="stat-line">Skill ≤</span></div>`);
-      const forageSkill = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your Bushcraft / Hunting level">`);
-      const forageBtn = el(`<button class="btn">🎲 Forage / Hunt</button>`);
       const forageOut = el(`<div></div>`);
-      forageRow.append(forageSkill, forageBtn);
-      forageBtn.onclick = () => {
-        const lvl = Math.max(1, Math.min(20, parseInt(forageSkill.value, 10) || 10));
-        const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
-        let html;
-        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); html = `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`; }
-        else { html = `<p class="outcome bad" style="margin:0">${demon ? "👹 Demon — " : ""}${r} vs ${lvl} — no food found this shift.</p>`; }
-        forageOut.innerHTML = outBox(ok ? "var(--ok)" : "var(--bad)", html);
+      const renderForageResult = (ok, dragon) => {
+        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}Success — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); }
+        else forageOut.innerHTML = outBox("var(--bad)", `<p class="outcome bad" style="margin:0">No food found this shift.</p>`);
       };
-      forageSec.append(forageRow, forageOut);
+      if (hero) {
+        const forageRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"></div>`);
+        const skillSel = el(`<select class="input" style="width:auto"></select>`);
+        ["Bushcraft", "Hunting & Fishing"].forEach((s) => { if ((Store.get(hero.id) || hero).skills[s]) skillSel.appendChild(el(`<option value="${esc(s)}">${esc(s)} (${(Store.get(hero.id) || hero).skills[s].level})</option>`)); });
+        const forageBtn = el(`<button class="btn">🎲 Forage / Hunt</button>`);
+        forageBtn.onclick = () => Roller.skill(hero.id, skillSel.value || "Bushcraft", { onRoll: (success, dragon) => renderForageResult(success, dragon) });
+        forageRow.append(skillSel, forageBtn);
+        forageSec.append(forageRow, forageOut);
+      } else {
+        const forageRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="stat-line">Skill ≤</span></div>`);
+        const forageSkill = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your Bushcraft / Hunting level">`);
+        const forageBtn = el(`<button class="btn">🎲 Forage / Hunt</button>`);
+        forageBtn.onclick = () => {
+          const lvl = Math.max(1, Math.min(20, parseInt(forageSkill.value, 10) || 10));
+          const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
+          if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); }
+          else forageOut.innerHTML = outBox("var(--bad)", `<p class="outcome bad" style="margin:0">${demon ? "👹 Demon — " : ""}${r} vs ${lvl} — no food found this shift.</p>`);
+        };
+        forageRow.append(forageSkill, forageBtn);
+        forageSec.append(forageRow, forageOut);
+      }
       jPanel.appendChild(forageSec);
 
       // 🌩️ Journey Mishap (D6) — roll & show the result
