@@ -235,15 +235,72 @@ export const SoloMode = {
       };
       root.appendChild(nPanel);
 
+      const jm = (DB.journeyMishaps || []);
+      const shifts = ["🌅 Morning", "☀️ Day", "🌆 Evening", "🌙 Night"];
+      // Roll on the D6 journey mishap table → { r, effect }.
+      const rollMishap = () => { const r = Dice.d(jm.length || 6); const row = jm.find((x) => x.d6 === r) || jm[r - 1] || { effect: "—" }; return { r, effect: row.effect }; };
+      const outBox = (color, html) => `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${color};margin-top:8px">${html}</div>`;
+
       const jPanel = el(`<div class="panel" style="margin-top:12px;border-left:4px solid var(--ok)">
         <h3>🌲 Wilderness Journeys &amp; Travel Reference</h3>
-        <p class="stat-line"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p>
-        <p><b>⛺ Camp &amp; Rest:</b> Roll Bushcraft. Success lets party rest (Shift rest = full HP/WP). Failure = Mishap Roll.</p>
-        <p><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making Bushcraft/Hunting checks for rations.</p>
-        <details style="margin-top:8px"><summary style="color:var(--bad);font-weight:bold;cursor:pointer">🎲 View Journey Mishap Table (D6)</summary>
-          <p class="stat-line" style="margin-top:6px">1: Sudden Downpour (cold condition)<br>2: Spoiled Rations<br>3: Wild Beast Attack<br>4: Lost Way<br>5: Broken Gear<br>6: Restless Spirits (fear condition)</p>
-        </details>
       </div>`);
+
+      // ⏱️ Shifts — random shift-of-day roller
+      const shiftSec = el(`<div style="margin-bottom:10px"><p class="stat-line" style="margin:0"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p></div>`);
+      const shiftBtn = el(`<button class="btn ghost" style="margin-top:6px">🎲 Random shift (D4)</button>`);
+      const shiftOut = el(`<div></div>`);
+      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:1.3rem;font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); };
+      shiftSec.append(shiftBtn, shiftOut);
+      jPanel.appendChild(shiftSec);
+
+      // ⛺ Camp & Rest — Bushcraft roll; failure auto-rolls the mishap table
+      const campSec = el(`<div style="margin-bottom:10px;border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0"><b>⛺ Camp &amp; Rest:</b> Roll Bushcraft. Success lets the party rest (Shift rest = full HP/WP). Failure = Journey Mishap.</p></div>`);
+      const campRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="stat-line">Bushcraft ≤</span></div>`);
+      const campSkill = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your Bushcraft level">`);
+      const campBtn = el(`<button class="btn">🎲 Roll Bushcraft</button>`);
+      const campOut = el(`<div></div>`);
+      campRow.append(campSkill, campBtn);
+      campBtn.onclick = () => {
+        const lvl = Math.max(1, Math.min(20, parseInt(campSkill.value, 10) || 10));
+        const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
+        let html = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — roll on the Journey Mishap Table:"}</p>`;
+        if (!ok) { const mp = rollMishap(); html += `<p class="stat-line" style="margin:8px 0 0 0;border-left:3px solid var(--bad);padding-left:8px"><b>Mishap (D6: ${mp.r})</b> — ${esc(mp.effect)}</p>`; }
+        campOut.innerHTML = outBox(ok ? "var(--ok)" : "var(--bad)", html);
+      };
+      campSec.append(campRow, campOut);
+      jPanel.appendChild(campSec);
+
+      // 🍄 Foraging & Hunting — Bushcraft/Hunting roll; success gathers rations
+      const forageSec = el(`<div style="margin-bottom:10px;border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0"><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making a Bushcraft or Hunting check for rations.</p></div>`);
+      const forageRow = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="stat-line">Skill ≤</span></div>`);
+      const forageSkill = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your Bushcraft / Hunting level">`);
+      const forageBtn = el(`<button class="btn">🎲 Forage / Hunt</button>`);
+      const forageOut = el(`<div></div>`);
+      forageRow.append(forageSkill, forageBtn);
+      forageBtn.onclick = () => {
+        const lvl = Math.max(1, Math.min(20, parseInt(forageSkill.value, 10) || 10));
+        const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
+        let html;
+        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); html = `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`; }
+        else { html = `<p class="outcome bad" style="margin:0">${demon ? "👹 Demon — " : ""}${r} vs ${lvl} — no food found this shift.</p>`; }
+        forageOut.innerHTML = outBox(ok ? "var(--ok)" : "var(--bad)", html);
+      };
+      forageSec.append(forageRow, forageOut);
+      jPanel.appendChild(forageSec);
+
+      // 🎲 Journey Mishap Table (D6) — roll & highlight the result
+      const mishapSec = el(`<div style="border-top:1px solid var(--border);padding-top:10px"></div>`);
+      const mishapBtn = el(`<button class="btn" style="background:var(--bad);color:#fff">🎲 Roll Journey Mishap (D6)</button>`);
+      const mishapOut = el(`<div></div>`);
+      const mishapList = el(`<div style="margin-top:8px"></div>`);
+      const renderMishapList = (hi) => { mishapList.innerHTML = jm.map((x) => `<p class="stat-line" style="margin:2px 0;${hi === x.d6 ? "background:rgba(202,166,74,0.18);border-radius:4px;padding:2px 6px" : ""}"><b>${x.d6}:</b> ${esc(x.effect)}</p>`).join(""); };
+      renderMishapList(null);
+      mishapBtn.onclick = () => { const mp = rollMishap(); mishapOut.innerHTML = outBox("var(--bad)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${mp.r}</p><p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`); renderMishapList(mp.r); };
+      const mishapDet = el(`<details style="margin-top:8px"><summary style="color:var(--bad);font-weight:bold;cursor:pointer">📋 View full Journey Mishap Table (D6)</summary></details>`);
+      mishapDet.appendChild(mishapList);
+      mishapSec.append(mishapBtn, mishapOut, mishapDet);
+      jPanel.appendChild(mishapSec);
+
       root.appendChild(jPanel);
 
       return root;

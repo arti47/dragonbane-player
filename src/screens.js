@@ -335,7 +335,7 @@ export function renderRuleDetail(key, container) {
         <p><b>⛺ Camp &amp; Rest:</b> Making camp requires a Bushcraft check. Success lets party rest (Shift rest = restore full HP/WP). Failure means no rest &amp; roll on Mishap Table.</p>
         <p><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making Bushcraft/Hunting checks to gather rations.</p>
         <h4 style="margin:8px 0 4px 0;color:var(--bad)">🎲 Journey Mishaps (D6)</h4>
-        <p class="stat-line">1: Sudden Downpour (cold condition) · 2: Spoiled Rations · 3: Wild Beast Attack · 4: Lost Way · 5: Broken Gear · 6: Restless Spirits (fear condition)</p>
+        <p class="stat-line">${(DB.journeyMishaps || []).map((x) => `${x.d6}: ${esc(x.effect)}`).join(" · ")}</p>
       </div>`;
     } else if (key === "kin") {
       html = (DB.kin || []).map((k) => `

@@ -834,6 +834,17 @@ const DRAGONBANE = {
     { d6: 5, effect: "You accidentally hit a random ally — roll damage as normal, including the damage bonus." },
     { d6: 6, effect: "You hit yourself — roll the weapon's damage, but with no damage bonus." }
   ],
+  /* Wilderness journey mishaps (D6) — rolled when a Bushcraft roll to make
+   * camp fails, or as a random travel complication during a shift. */
+  journeyMishaps: [
+    { d6: 1, effect: "Sudden Downpour — a cold, soaking storm rolls in (Cold condition; roll CON or suffer)." },
+    { d6: 2, effect: "Spoiled Rations — a day's worth of the party's food has gone bad and must be discarded." },
+    { d6: 3, effect: "Wild Beast Attack — a hungry predator (or monster) stalks and attacks the camp." },
+    { d6: 4, effect: "Lost Way — you stray off course; the shift is wasted and you make no travel progress." },
+    { d6: 5, effect: "Broken Gear — a random piece of equipment breaks and needs repair before it works again." },
+    { d6: 6, effect: "Restless Spirits — an eerie presence haunts the night (Fear attack; roll WIL or gain Scared)." }
+  ],
+
   /* Consequence for leaving a cleared adventure site (D6) — GM aid. */
   leavingSite: [
     { d6: 1, effect: "Enemies from the site follow the party and strike at an opportune moment." },
