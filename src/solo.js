@@ -240,6 +240,34 @@ export const SoloMode = {
       // Roll on the D6 journey mishap table → { r, effect }.
       const rollMishap = () => { const r = Dice.d(jm.length || 6); const row = jm.find((x) => x.d6 === r) || jm[r - 1] || { effect: "—" }; return { r, effect: row.effect }; };
       const outBox = (color, html) => `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${color};margin-top:8px">${html}</div>`;
+      // A follow-up attribute check for a mishap that calls for one, e.g.
+      // "roll WIL or gain Scared" / "roll CON or suffer". No character is bound
+      // in the Solo tab, so the player enters their attribute value.
+      const attrCheckRow = (attr, effectText) => {
+        const cm = /roll\s+\w+\s+or\s+([^.)]+)/i.exec(effectText);
+        const conseq = cm ? cm[1].trim() : "suffer the effect";
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)"></div>`);
+        const input = el(`<input type="number" class="input" style="width:60px" value="10" min="1" max="18" title="your ${attr}">`);
+        const btn = el(`<button class="btn secondary">🎲 Roll ${attr}</button>`);
+        const out = el(`<div style="width:100%"></div>`);
+        btn.onclick = () => {
+          const lvl = Math.max(1, Math.min(20, parseInt(input.value, 10) || 10));
+          const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
+          out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:6px 0 0 0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${attr} ${lvl} — ${ok ? "resisted, no ill effect." : `failed — you ${esc(conseq)}.`}</p>`;
+        };
+        row.append(el(`<span class="stat-line">${attr} ≤</span>`), input, btn, out);
+        return row;
+      };
+      // Render a rolled journey mishap as a DOM box, appending an inline
+      // attribute-check row when the effect text says "roll <ATTR>".
+      const mishapNode = (mp) => {
+        const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid var(--bad);margin-top:8px"></div>`);
+        box.appendChild(el(`<p class="stat-line" style="margin:0 0 4px 0"><b>Journey Mishap</b> · Rolled ${mp.r}</p>`));
+        box.appendChild(el(`<p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`));
+        const am = /roll\s+(STR|CON|AGL|INT|WIL|CHA)\b/i.exec(mp.effect);
+        if (am) box.appendChild(attrCheckRow(am[1].toUpperCase(), mp.effect));
+        return box;
+      };
 
       const jPanel = el(`<div class="panel" style="margin-top:12px;border-left:4px solid var(--ok)">
         <h3>🌲 Wilderness Journeys &amp; Travel Tools</h3>
@@ -263,9 +291,11 @@ export const SoloMode = {
       campBtn.onclick = () => {
         const lvl = Math.max(1, Math.min(20, parseInt(campSkill.value, 10) || 10));
         const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
-        let html = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — roll on the Journey Mishap Table:"}</p>`;
-        if (!ok) { const mp = rollMishap(); html += `<p class="stat-line" style="margin:8px 0 0 0;border-left:3px solid var(--bad);padding-left:8px"><b>Mishap (D6: ${mp.r})</b> — ${esc(mp.effect)}</p>`; }
-        campOut.innerHTML = outBox(ok ? "var(--ok)" : "var(--bad)", html);
+        campOut.innerHTML = "";
+        const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
+        box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — roll on the Journey Mishap Table:"}</p>`));
+        if (!ok) box.appendChild(mishapNode(rollMishap()));
+        campOut.appendChild(box);
       };
       campSec.append(campRow, campOut);
       jPanel.appendChild(campSec);
@@ -292,7 +322,7 @@ export const SoloMode = {
       const mishapSec = el(`<div style="border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0 0 8px 0"><b>🌩️ Journey Mishap:</b> Bad luck befalls the party while travelling or resting.</p></div>`);
       const mishapBtn = el(`<button class="btn" style="background:var(--bad);color:#fff">🎲 Roll Journey Mishap (D6)</button>`);
       const mishapOut = el(`<div></div>`);
-      mishapBtn.onclick = () => { const mp = rollMishap(); mishapOut.innerHTML = outBox("var(--bad)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${mp.r}</p><p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`); };
+      mishapBtn.onclick = () => { mishapOut.innerHTML = ""; mishapOut.appendChild(mishapNode(rollMishap())); };
       mishapSec.append(mishapBtn, mishapOut);
       jPanel.appendChild(mishapSec);
 
