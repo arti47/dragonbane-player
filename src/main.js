@@ -28,20 +28,44 @@ export function init() {
     Theme.init();
     Router.init();
 
+    // ---- PWA update detection ----
+    // Show a persistent "reload to update" toast whenever a new deploy is
+    // available — for browser tabs AND installed (home-screen) PWAs. An
+    // installed app can stay resident for a long time, so we don't rely on the
+    // browser's own periodic service-worker check: we actively poll for a new
+    // worker on load, whenever the app regains focus (reopening it), and hourly.
+    // (A new worker is only detected when service-worker.js changes — i.e. when
+    // CACHE_VERSION is bumped, which every code push does per §7B/§9.)
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("service-worker.js").then((reg) => {
+      let updateToastShown = false;
+      const showUpdateToast = () => {
+        if (updateToastShown) return;
+        updateToastShown = true;
+        const toast = el(`<div class="update-toast" role="alert" title="Reload to load the latest version">🔄 Update available — tap to reload</div>`);
+        const dismiss = el(`<button class="update-toast-x" aria-label="Dismiss update notice">✕</button>`);
+        dismiss.onclick = (e) => { e.stopPropagation(); toast.remove(); };
+        toast.onclick = () => window.location.reload();
+        toast.appendChild(dismiss);
+        document.body.appendChild(toast);
+      };
+      navigator.serviceWorker.register("service-worker.js", { updateViaCache: "none" }).then((reg) => {
+        // A newer worker may already be waiting (updated while the app was closed).
+        if (reg.waiting && navigator.serviceWorker.controller) showUpdateToast();
+        // A new worker started installing — prompt once it's ready, but only if a
+        // controller already exists (so the very first install stays silent).
         reg.addEventListener("updatefound", () => {
           const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener("statechange", () => {
-              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                const toast = el(`<div class="update-toast" role="alert" title="Click to reload with updated version">Update Available: Click to Reload 🔄</div>`);
-                toast.onclick = () => window.location.reload();
-                document.body.appendChild(toast);
-              }
-            });
-          }
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) showUpdateToast();
+          });
         });
+        // Actively check for a new deploy (a resident installed PWA may not
+        // trigger the browser's own update check for a long time).
+        const checkForUpdate = () => { reg.update().catch(() => {}); };
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkForUpdate(); });
+        window.addEventListener("focus", checkForUpdate);
+        setInterval(checkForUpdate, 60 * 60 * 1000); // hourly while open
       }).catch(() => {});
     }
 

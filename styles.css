@@ -499,9 +499,17 @@ input.wt { width: 56px; padding: 6px 8px; border: 1px solid var(--line); border-
 .update-toast {
   position: fixed; left: 50%; top: 16px; transform: translate(-50%, 0);
   z-index: 100; background: var(--accent); color: #fff;
-  padding: 10px 20px; border-radius: 999px; font-weight: bold; cursor: pointer;
+  padding: 10px 12px 10px 20px; border-radius: 999px; font-weight: bold; cursor: pointer;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  display: inline-flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px);
+  padding-top: max(10px, env(safe-area-inset-top));
 }
+.update-toast-x {
+  flex: none; width: 22px; height: 22px; border: none; border-radius: 50%;
+  background: rgba(255,255,255,0.25); color: #fff; cursor: pointer;
+  font-size: 0.8rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.update-toast-x:hover { background: rgba(255,255,255,0.4); }
 
 .inv-add { flex-wrap: wrap; }
 .inv-add select { flex: 1 1 180px; min-width: 0; max-width: 100%; white-space: normal; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
