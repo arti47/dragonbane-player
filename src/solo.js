@@ -288,17 +288,12 @@ export const SoloMode = {
       forageSec.append(forageRow, forageOut);
       jPanel.appendChild(forageSec);
 
-      // 🎲 Journey Mishap Table (D6) — roll & highlight the result
+      // 🎲 Journey Mishap Table (D6) — roll & show the result
       const mishapSec = el(`<div style="border-top:1px solid var(--border);padding-top:10px"></div>`);
       const mishapBtn = el(`<button class="btn" style="background:var(--bad);color:#fff">🎲 Roll Journey Mishap (D6)</button>`);
       const mishapOut = el(`<div></div>`);
-      const mishapList = el(`<div style="margin-top:8px"></div>`);
-      const renderMishapList = (hi) => { mishapList.innerHTML = jm.map((x) => `<p class="stat-line" style="margin:2px 0;${hi === x.d6 ? "background:rgba(202,166,74,0.18);border-radius:4px;padding:2px 6px" : ""}"><b>${x.d6}:</b> ${esc(x.effect)}</p>`).join(""); };
-      renderMishapList(null);
-      mishapBtn.onclick = () => { const mp = rollMishap(); mishapOut.innerHTML = outBox("var(--bad)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${mp.r}</p><p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`); renderMishapList(mp.r); };
-      const mishapDet = el(`<details style="margin-top:8px"><summary style="color:var(--bad);font-weight:bold;cursor:pointer">📋 View full Journey Mishap Table (D6)</summary></details>`);
-      mishapDet.appendChild(mishapList);
-      mishapSec.append(mishapBtn, mishapOut, mishapDet);
+      mishapBtn.onclick = () => { const mp = rollMishap(); mishapOut.innerHTML = outBox("var(--bad)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${mp.r}</p><p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`); };
+      mishapSec.append(mishapBtn, mishapOut);
       jPanel.appendChild(mishapSec);
 
       root.appendChild(jPanel);
