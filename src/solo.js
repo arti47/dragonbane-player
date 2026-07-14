@@ -242,7 +242,7 @@ export const SoloMode = {
       const outBox = (color, html) => `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${color};margin-top:8px">${html}</div>`;
 
       const jPanel = el(`<div class="panel" style="margin-top:12px;border-left:4px solid var(--ok)">
-        <h3>🌲 Wilderness Journeys &amp; Travel Reference</h3>
+        <h3>🌲 Wilderness Journeys &amp; Travel Tools</h3>
       </div>`);
 
       // ⏱️ Shifts — random shift-of-day roller
@@ -288,8 +288,8 @@ export const SoloMode = {
       forageSec.append(forageRow, forageOut);
       jPanel.appendChild(forageSec);
 
-      // 🎲 Journey Mishap Table (D6) — roll & show the result
-      const mishapSec = el(`<div style="border-top:1px solid var(--border);padding-top:10px"></div>`);
+      // 🌩️ Journey Mishap (D6) — roll & show the result
+      const mishapSec = el(`<div style="border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0 0 8px 0"><b>🌩️ Journey Mishap:</b> Bad luck befalls the party while travelling or resting.</p></div>`);
       const mishapBtn = el(`<button class="btn" style="background:var(--bad);color:#fff">🎲 Roll Journey Mishap (D6)</button>`);
       const mishapOut = el(`<div></div>`);
       mishapBtn.onclick = () => { const mp = rollMishap(); mishapOut.innerHTML = outBox("var(--bad)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${mp.r}</p><p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`); };
