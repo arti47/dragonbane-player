@@ -141,6 +141,7 @@ export const Screens = {
         </div>`);
 
       const cats = [
+        ["📘 How to Play (Tutorial)", "howtoplay"],
         ["🔄 Core Loop & Gameplay Stages", "stages"],
         ["🌲 Wilderness Journeys & Travel", "journeys"],
         ["🧑 Kin", "kin"],
@@ -315,7 +316,21 @@ export const Screens = {
 
 export function renderRuleDetail(key, container) {
     let html = "";
-    if (key === "stages") {
+    if (key === "howtoplay") {
+      const acc = (title, body, open) => `<details class="rule-accordion" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:6px"${open ? " open" : ""}><summary style="font-weight:bold;cursor:pointer">${title}</summary><div style="margin-top:8px" class="stat-line">${body}</div></details>`;
+      html = `<div class="panel" style="border-left:4px solid var(--accent)">
+        <h3>📘 How to Play</h3>
+        <p class="stat-line">Combined rules primer + how to drive this app. Nav tabs: <b>⚔ Heroes</b>, <b>🛡 Combat</b>, <b>🧭 Solo</b> (when enabled), <b>🎲 GM</b> (when enabled), <b>📖 Rules</b>, <b>⚙ About</b>.</p>
+        ${acc("① Setup &amp; storage", "The app runs offline in <b>Local</b> mode (top-right pill) — no login. For a shared party, tap the pill or <b>About → Multiplayer</b> to <b>create a campaign</b> (get a join code) or <b>join</b> one. Optional Google link in About backs up across devices. Content toggles in About: <b>Book of Magic</b>, <b>Solo Mode</b>, <b>GM Automation</b>, <b>GM Screen</b>.", true)}
+        ${acc("② Make a hero", "<b>Heroes → Forge a new hero</b> runs the 9-step wizard: roll 4D6-drop-lowest ×6 and assign to STR/CON/AGL/INT/WIL/CHA, pick kin, profession (mages/Harmonism-bards pick a school), age, trained skills (6 + age bonus), heroic ability or magic, gear, details. Or <b>Use a pre-generated hero</b> for a Core Set PC. Everything derived (HP=CON, WP=WIL, movement, damage bonus, skill chances) is computed for you.", false)}
+        ${acc("③ Core roll mechanic", "Roll <b>D20 ≤ skill</b> (tap a skill on the sheet). <b>1 = Dragon</b> (crit), <b>20 = Demon</b> (fumble) — both auto-add an advancement mark. A <b>boon</b> rolls 2D20 keep lowest, a <b>bane</b> keep highest (net stepper; conditions/worn-armor auto-apply banes). Fail a roll → <b>Push</b>: take a condition (its attribute is then baned) and re-roll. Six conditions: Exhausted/STR, Sickly/CON, Dazed/AGL, Angry/INT, Scared/WIL, Disheartened/CHA.", false)}
+        ${acc("④ Combat", "<b>Combat</b> tab: add heroes, Bestiary monsters, rulebook NPCs, or custom foes. <b>Draw initiative</b> (cards 1–10, low acts first). Each turn = move + action; expand a row for weapon attacks (auto damage bonus + armor mitigation via the damage applier), spell casting, movement pool, and parry/dodge reactions. Monsters auto-hit (roll their D6 table ×Ferocity); NPCs roll d20. <b>Next turn/round</b> redraws. GM-locked in a synced campaign.", false)}
+        ${acc("⑤ Magic", "Tap a spell/trick on the sheet or in combat. Tricks (rank 0) cost 1 WP, auto-succeed. Spells cost 2 WP/level (power level 1–3), roll the school skill; failure still spends WP; Demon → mishap table. Metal armor/weapon blocks casting. The VTT resolution card handles heal/damage/AoE/summon/etc. Learn new spells/schools via the sheet's Magic panel.", false)}
+        ${acc("⑥ Rest, death &amp; advancement", "<b>Round rest</b> +D6 WP (once/shift), <b>Stretch rest</b> +D6 HP/WP + heal a condition (once/shift), <b>Shift rest</b> full HP/WP + clear conditions. At <b>0 HP</b> a dying panel runs death rolls (D20 ≤ CON; 3 successes stabilize, 3 fail = death). <b>End session — advancement</b> answers the 5 questions then rolls each marked skill (improve on a roll over its level, max 18).", false)}
+        ${acc("▶ Running a NON-SOLO game (group + GM)", "One player <b>creates a campaign</b> (About) → becomes GM → shares the join code; others <b>join</b>. Add your PC to the party (Heroes card toggle / sheet). Sheets, party HP/WP/conditions, and the combat tracker sync live. GM turns on <b>GM Screen</b> (About) for the <b>🎲 GM</b> tab: live party panel, peek any sheet, drop monsters/NPCs into combat, hand out damage/conditions/fear, roll+push private tables, broadcast messages. Combat controls (initiative/turns/reset) are GM-locked in a synced campaign. Loop: GM frames a scene → players roll skills → combat as needed → rest → end-of-session advancement.", false)}
+        ${acc("🧭 Running a SOLO game (no GM)", "Enable <b>Solo Mode</b> (About) → <b>🧭 Solo</b> tab; creation grants a 2nd free heroic ability (Army of One / Sole Survivor). Solo tab tools: <b>Fortune Chart</b> oracle (ask yes/no etc. at a likelihood), <b>Inspiration</b> (3D20 prompt), <b>Dragon/Demon</b> narrative twists, <b>NPC generator</b> + attack-table AI, and <b>Wilderness Journeys &amp; Travel Tools</b> (random shift, Camp/Forage skill rolls, Journey Mishap with follow-up WIL/CON check). <b>Link a hero</b> at the top of the Solo tab so those rolls use your sheet + full dice engine. Loop: set a scene → ask the oracle → roll skills/combat → mishaps → advance (Solo: <b>Mission +5 marks</b>). Fail-forward turns failures into complications.", false)}
+      </div>`;
+    } else if (key === "stages") {
       html = `<div class="panel" style="border-left:4px solid var(--accent)">
         <h3>Core Gameplay Loop &amp; Stages</h3>
         <details style="margin-bottom:8px" open><summary style="cursor:pointer"><b>⏱️ Time Scales (Rounds vs Shifts)</b></summary>
