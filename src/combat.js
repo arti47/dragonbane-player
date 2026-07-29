@@ -1,6 +1,6 @@
 /* combat.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, Dice, el, esc, sectionTitle, uid } from './core.js';
+import { $, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast } from './ui.js';
 import { resolveEquippedWeapons } from './rules.js';
 import { effHpMax, effWpMax, equippedArmor } from './derived.js';
@@ -192,7 +192,13 @@ export const Combat = {
       const root = el(`<div></div>`);
       if (typeof renderPartyBanner === "function") { const pb = renderPartyBanner(); if (pb) root.appendChild(pb); }
       root.appendChild(el(sectionTitle("Combat tracker")));
-      root.appendChild(el(`<p class="stat-line">An all-in-one tabletop dashboard: track initiative order, step HP/WP vitals (+/−), and roll monster auto-hits or hero attacks inline.</p>`));
+      root.appendChild(helpBox("Combat tracker", [
+        "Add fighters: pick a <b>hero</b>, <b>Bestiary monster</b>, <b>rulebook NPC</b>, or type a custom NPC → <b>Add</b>.",
+        "Tap <b>Draw initiative</b> (cards 1–10; lower acts first).",
+        "Use the row's <b>⚔️/🎲</b> to quick-roll the main attack; the damage applier subtracts armor and updates HP.",
+        "Expand a row for all weapons, spells, movement pool, and parry/dodge reactions.",
+        "<b>Next turn / Next round</b> advance play (GM-locked in a synced campaign)."
+      ]));
 
       // Add controls panel
       const addPanel = el(`<div class="panel"></div>`);

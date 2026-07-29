@@ -1,6 +1,6 @@
 /* sheet.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, uid } from './core.js';
+import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, helpBox, uid } from './core.js';
 import { confirmModal, modal, promptModal, showToast } from './ui.js';
 import { Calc, classifyItem, heroicReqMet, resolveEquippedWeapons } from './rules.js';
 import { applyInvoluntaryConditionTo, effHpMax, effWpMax, encLimit, encUsed, isConcentration, isSummonSpell, isTrackableSpell, lightDieFor, normalizeInventory } from './derived.js';
@@ -706,6 +706,13 @@ export const Sheet = {
 
       // Header
       root.appendChild(el(`<div class="wiz-head"><button class="btn ghost" id="sheet-back">← Heroes</button><div class="wiz-progress">${esc(c.identity.name)}</div></div>`));
+      root.appendChild(helpBox("Character sheet", [
+        "Step <b>HP / WP</b> with the −/+ buttons; at 0 HP a death-roll panel appears.",
+        "Tap a <b>skill</b> to roll it (D20 ≤ level); toggle its <b>◦/●</b> to set an advancement mark.",
+        "Toggle <b>conditions</b> — each puts a bane on rolls using its attribute.",
+        "Tap a <b>spell</b> to cast; add/equip <b>inventory</b> below (equipped gear is encumbrance-free).",
+        "Use <b>Rest</b> buttons to recover, and <b>End session — advancement</b> to improve marked skills."
+      ]));
       if (!canEdit) {
         root.appendChild(el(`<div class="panel" style="border-color:var(--bad);background:rgba(180,50,50,0.1);padding:10px 14px;margin-bottom:12px">
           <b style="color:var(--bad)">🔒 Read-Only View</b><br>

@@ -1,6 +1,6 @@
 /* screens.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, CORE_SCHOOLS, DB, MAGICX, el, esc, sectionTitle } from './core.js';
+import { $, CORE_SCHOOLS, DB, MAGICX, el, esc, helpBox, sectionTitle } from './core.js';
 import { confirmModal, promptModal, showToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
@@ -110,6 +110,12 @@ export const Screens = {
           <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>`;
       }
       const root = el(`<div>${body}</div>`);
+      root.insertBefore(helpBox("Heroes", [
+        "Tap <b>Forge a new hero</b> to run the character-creation wizard.",
+        "Or <b>Use a pre-generated hero</b> for a ready-made Core Set PC.",
+        "Tap any hero card to open its full sheet.",
+        "In a party campaign, toggle a card's <b>In Party / Private</b> chip to share or hide that hero."
+      ]), root.firstChild);
       const pb = renderPartyBanner(); if (pb) root.insertBefore(pb, root.firstChild);
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
@@ -139,6 +145,12 @@ export const Screens = {
           </div>
           <div id="rules-acc-wrap" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>`);
+      root.insertBefore(helpBox("Rules library", [
+        "Tap a category header to expand it; tap again to collapse.",
+        "Type in the <b>search</b> box to filter across every rule, spell, and item.",
+        "New to the game? Start with <b>📘 How to Play</b> for the full tutorial.",
+        "Extra magic schools appear only with <b>Book of Magic</b> on (About)."
+      ]), root.querySelector("#rules-acc-wrap"));
 
       const cats = [
         ["📘 How to Play (Tutorial)", "howtoplay"],
@@ -206,6 +218,12 @@ export const Screens = {
           </div>
         </div>`);
 
+      root.insertBefore(helpBox("Settings & About", [
+        "Toggle content: <b>Book of Magic</b>, <b>Solo Mode</b>, <b>GM Automation</b>, <b>GM Screen</b>.",
+        "<b>Multiplayer</b>: <b>Create</b> a campaign (get a join code) or <b>Join</b> one to sync your party.",
+        "Optionally <b>Link Google</b> to back up characters across devices.",
+        "<b>Export / Import / Clear</b> manage your locally-stored heroes."
+      ]), root.firstChild);
       const sp = root.querySelector("#settings-panel");
       const bom = Settings.bookOfMagic();
       const row = el(`<div class="toggle-row"><div><b>Book of Magic content</b><br><span class="stat-line">Adds the 9 new schools &amp; extra spells to the Rules browser and character creation. Revised core spells apply either way.</span></div></div>`);

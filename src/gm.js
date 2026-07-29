@@ -5,7 +5,7 @@
    stats, Demon fumble tables, fear table, leaving-a-site). Gated behind the
    "GM Screen" setting (or an actual campaign GM). Strictly additive — invisible
    to plain players. Rules numbers all come from the data libraries (§9). */
-import { $, DB, Dice, el, esc, sectionTitle, uid } from './core.js';
+import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { Store } from './store.js';
 import { Sync } from './sync.js';
 import { Settings } from './settings.js';
@@ -39,6 +39,13 @@ export const GM = {
     view() {
       const root = el(`<div class="screen-gm"></div>`);
       root.appendChild(el(sectionTitle("🎲 GM Screen")));
+      root.appendChild(helpBox("GM Screen", [
+        "<b>Party</b>: glance at each hero's HP/WP/conditions; use <b>Open sheet</b>, <b>− Damage</b>, <b>+ Condition</b>, <b>😱 Fear</b>.",
+        "<b>Drop into combat</b>: add a Bestiary monster or rulebook NPC straight to the shared tracker.",
+        "<b>Message players</b>: broadcast a note to everyone (synced campaign GM).",
+        "<b>GM reference</b>: roll fumble / fear / leaving-site tables privately, then <b>📢 Push</b> to reveal.",
+        "Turn this tab off anytime with the <b>GM Screen</b> toggle in About."
+      ]));
 
       // ---- Party panel -------------------------------------------------
       const party = this.party();

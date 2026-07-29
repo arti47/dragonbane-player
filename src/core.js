@@ -18,6 +18,18 @@ export const uid = () => "c" + Date.now().toString(36) + Math.random().toString(
 
 export const mountScreen = (node) => { const s = $("#screen"); s.innerHTML = ""; s.appendChild(node); window.scrollTo(0, 0); };
 
+// Collapsed "how to use" help accordion for a screen. steps = array of HTML
+// bullet strings (already trusted markup). Returns a <details> DOM node.
+export const helpBox = (title, steps) => {
+    const d = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent)">❓ How to use — ${esc(title)}</summary></details>`);
+    const ul = document.createElement("ul");
+    ul.className = "stat-line";
+    ul.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
+    (steps || []).forEach((s) => { const li = document.createElement("li"); li.style.margin = "3px 0"; li.innerHTML = s; ul.appendChild(li); });
+    d.appendChild(ul);
+    return d;
+  };
+
   /* =================================================================
    * Dice + rules calculations (from data.js tables)
    * ================================================================= */

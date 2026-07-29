@@ -1,6 +1,6 @@
 /* solo.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, DB, Dice, el, esc, sectionTitle, uid } from './core.js';
+import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { showToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
@@ -20,6 +20,13 @@ export const SoloMode = {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
       const root = el(`<div></div>`);
       root.appendChild(el(sectionTitle("Solo Assistant")));
+      root.appendChild(helpBox("Solo Assistant", [
+        "Turn on <b>Solo Mode</b> (below or in About) to unlock solo heroic abilities at creation.",
+        "<b>🎲 Rolling as</b>: pick a hero so journey/skill rolls use their sheet and full dice engine.",
+        "<b>Fortune Chart</b>: set a likelihood + question type → <b>Roll Oracle</b> for a yes/no-style answer.",
+        "<b>Inspiration / Twists / NPC generator</b>: tap to roll prompts, complications, or quick foes.",
+        "<b>Journey Tools</b>: random shift, Camp &amp; Forage rolls, and Journey Mishap with its follow-up WIL/CON check."
+      ]));
       if (!solo) {
         root.appendChild(el(`<div class="panel"><p class="stat-line">Solo rules library not loaded.</p></div>`));
         return root;
