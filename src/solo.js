@@ -20,7 +20,7 @@ export const SoloMode = {
     setHero(id) { if (id) localStorage.setItem(this.HERO_KEY, id); else localStorage.removeItem(this.HERO_KEY); },
     // Solo journal — a persisted scene note + running log, keyed per linked hero.
     journalKey() { return this.JOURNAL_KEY + ":" + (this.heroId() || "global"); },
-    loadJournal() { try { return JSON.parse(localStorage.getItem(this.journalKey())) || { scene: "", entries: [] }; } catch (_) { return { scene: "", entries: [] }; } },
+    loadJournal() { let j; try { j = JSON.parse(localStorage.getItem(this.journalKey())) || {}; } catch (_) { j = {}; } j.scene = j.scene || ""; j.entries = Array.isArray(j.entries) ? j.entries : []; j.threads = Array.isArray(j.threads) ? j.threads : []; j.npcs = Array.isArray(j.npcs) ? j.npcs : []; return j; },
     saveJournal(j) { localStorage.setItem(this.journalKey(), JSON.stringify(j)); },
     view() {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
@@ -108,8 +108,6 @@ export const SoloMode = {
       };
       renderLog();
       const addLog = (text) => { if (!text) return; const j = this.loadJournal(); j.entries.push({ ts: Date.now(), text }); this.saveJournal(j); renderLog(); showToast("Logged to journal.", "success"); };
-      // A "＋ Log" button that records the given text (string or getter) to the journal.
-      const logBtn = (getText) => { const b = el(`<button class="btn ghost" style="margin-top:6px;font-size:0.85rem">＋ Log to journal</button>`); b.onclick = () => addLog(typeof getText === "function" ? getText() : getText); return b; };
       const addRow = el(`<div class="inv-add"></div>`);
       const noteIn = el(`<input type="text" placeholder="Add a journal note…">`);
       const noteBtn = el(`<button class="btn secondary">Log</button>`);
@@ -117,9 +115,70 @@ export const SoloMode = {
       noteBtn.onclick = doNote; noteIn.onkeydown = (e) => { if (e.key === "Enter") doNote(); };
       addRow.append(noteIn, noteBtn);
       const clearB = el(`<button class="btn ghost" style="margin-top:6px;color:var(--bad)">Clear log</button>`);
-      clearB.onclick = async () => { if (await confirmModal("Clear the journal log? The scene note is kept.", { title: "Clear log", okText: "Clear", danger: true })) { const j = this.loadJournal(); j.entries = []; this.saveJournal(j); renderLog(); } };
+      clearB.onclick = async () => { if (await confirmModal("Clear the journal log? Scene, threads and NPCs are kept.", { title: "Clear log", okText: "Clear", danger: true })) { const j = this.loadJournal(); j.entries = []; this.saveJournal(j); renderLog(); } };
       journalPanel.append(logList, addRow, clearB);
+
+      // Plot threads (open questions) — add / toggle-resolved / delete.
+      const threadsList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>`);
+      const renderThreads = () => {
+        const j = this.loadJournal(); threadsList.innerHTML = "";
+        if (!j.threads.length) { threadsList.appendChild(el(`<p class="stat-line">No open threads.</p>`)); return; }
+        j.threads.forEach((th) => {
+          const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:4px"></div>`);
+          const tog = el(`<button class="skill-chip ${th.done ? "picked" : ""}" title="toggle resolved" aria-pressed="${th.done}">${th.done ? "✓" : "○"}</button>`);
+          tog.onclick = () => { const jj = this.loadJournal(); const x = jj.threads.find((y) => y.id === th.id); if (x) x.done = !x.done; this.saveJournal(jj); renderThreads(); };
+          const txt = el(`<span style="flex:1;${th.done ? "text-decoration:line-through;opacity:0.6" : ""}">${esc(th.text)}</span>`);
+          const rm = el(`<button class="step rm" aria-label="Delete thread">✕</button>`);
+          rm.onclick = () => { const jj = this.loadJournal(); jj.threads = jj.threads.filter((y) => y.id !== th.id); this.saveJournal(jj); renderThreads(); };
+          row.append(tog, txt, rm); threadsList.appendChild(row);
+        });
+      };
+      renderThreads();
+      const addThread = (text) => { if (!text) return; const j = this.loadJournal(); j.threads.push({ id: uid(), text, done: false }); this.saveJournal(j); renderThreads(); showToast("Added thread.", "success"); };
+      const thRow = el(`<div class="inv-add"></div>`);
+      const thIn = el(`<input type="text" placeholder="Add a plot thread / open question…">`);
+      const thBtn = el(`<button class="btn secondary">Add</button>`);
+      const doTh = () => { const t = thIn.value.trim(); if (!t) return; thIn.value = ""; addThread(t); };
+      thBtn.onclick = doTh; thIn.onkeydown = (e) => { if (e.key === "Enter") doTh(); };
+      thRow.append(thIn, thBtn);
+      const thDet = el(`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600">🧵 Threads</summary></details>`);
+      thDet.append(threadsList, thRow);
+      journalPanel.appendChild(thDet);
+
+      // NPCs met — a lightweight roster (name + note).
+      const npcsList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>`);
+      const renderNpcs = () => {
+        const j = this.loadJournal(); npcsList.innerHTML = "";
+        if (!j.npcs.length) { npcsList.appendChild(el(`<p class="stat-line">No NPCs recorded.</p>`)); return; }
+        j.npcs.forEach((n) => {
+          const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:4px"><span style="flex:1"><b>${esc(n.name)}</b>${n.note ? ` — ${esc(n.note)}` : ""}</span></div>`);
+          const rm = el(`<button class="step rm" aria-label="Delete NPC">✕</button>`);
+          rm.onclick = () => { const jj = this.loadJournal(); jj.npcs = jj.npcs.filter((y) => y.id !== n.id); this.saveJournal(jj); renderNpcs(); };
+          row.appendChild(rm); npcsList.appendChild(row);
+        });
+      };
+      renderNpcs();
+      const addNpc = (name, note) => { name = (name || "").trim(); if (!name) return; const j = this.loadJournal(); j.npcs.push({ id: uid(), name, note: (note || "").trim() }); this.saveJournal(j); renderNpcs(); showToast("Recorded NPC.", "success"); };
+      const npcRow = el(`<div class="inv-add"></div>`);
+      const npcNameIn = el(`<input type="text" placeholder="NPC name…">`);
+      const npcNoteIn = el(`<input type="text" placeholder="note (optional)…">`);
+      const npcBtn = el(`<button class="btn secondary">Add</button>`);
+      const doNpcRow = () => { if (!npcNameIn.value.trim()) return; addNpc(npcNameIn.value, npcNoteIn.value); npcNameIn.value = ""; npcNoteIn.value = ""; };
+      npcBtn.onclick = doNpcRow; npcNameIn.onkeydown = (e) => { if (e.key === "Enter") doNpcRow(); };
+      npcRow.append(npcNameIn, npcNoteIn, npcBtn);
+      const npcDet = el(`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">👥 NPCs met</summary></details>`);
+      npcDet.append(npcsList, npcRow);
+      journalPanel.appendChild(npcDet);
       root.appendChild(journalPanel);
+
+      // ＋ Log / ＋ Thread buttons appended to every roll result.
+      const resultBtns = (getText) => {
+        const wrap = el(`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>`);
+        const t = () => (typeof getText === "function" ? getText() : getText);
+        const lb = el(`<button class="btn ghost" style="font-size:0.85rem">＋ Log</button>`); lb.onclick = () => addLog(t());
+        const tb = el(`<button class="btn ghost" style="font-size:0.85rem">＋ Thread</button>`); tb.onclick = () => addThread(t());
+        wrap.append(lb, tb); return wrap;
+      };
 
       // 1. Fortune Chart Oracle
       const f = solo.fortune;
@@ -145,9 +204,14 @@ export const SoloMode = {
           <div id="solo-f-out" style="margin-top:12px"></div>
         </div>`);
 
+      // Remember the last-used likelihood + question column across visits.
+      let oPref = {}; try { oPref = JSON.parse(localStorage.getItem("dragonbane.soloOraclePref")) || {}; } catch (_) {}
+      if (oPref.like) fPanel.querySelector("#solo-f-like").value = oPref.like;
+      if (oPref.col) fPanel.querySelector("#solo-f-col").value = oPref.col;
       fPanel.querySelector("#solo-f-roll").onclick = () => {
         const likeKey = fPanel.querySelector("#solo-f-like").value;
         const colKey = fPanel.querySelector("#solo-f-col").value;
+        localStorage.setItem("dragonbane.soloOraclePref", JSON.stringify({ like: likeKey, col: colKey }));
         const colMap = { "yes/no": "yesNo", "number": "number", "scale": "scale", "power": "power", "quality": "quality", "reaction": "reaction" };
         const prop = colMap[colKey] || "yesNo";
 
@@ -174,7 +238,7 @@ export const SoloMode = {
             <p style="font-size:1.4rem;font-weight:bold;margin:0;color:${twist ? "var(--accent)" : "var(--ok)"}">${esc(ans)}</p>
             ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent)">★ Extreme result / twist!</p>` : ""}
           </div>`;
-        fPanel.querySelector("#solo-f-out").appendChild(logBtn(`Oracle (${colKey}, ${likeKey}): ${ans}${twist ? " [twist]" : ""}`));
+        fPanel.querySelector("#solo-f-out").appendChild(resultBtns(`Oracle (${colKey}, ${likeKey}): ${ans}${twist ? " [twist]" : ""}`));
       };
       root.appendChild(fPanel);
 
@@ -210,7 +274,7 @@ export const SoloMode = {
             ${res}
           </div>`;
         const plain = mode === "all" ? `${row1.action} · ${row2.attribute} · ${row3.thing}` : mode === "act" ? row1.action : mode === "att" ? row2.attribute : row3.thing;
-        iPanel.querySelector("#solo-i-out").appendChild(logBtn(`Inspiration: ${plain}`));
+        iPanel.querySelector("#solo-i-out").appendChild(resultBtns(`Inspiration: ${plain}`));
       };
       iPanel.querySelector("#solo-i-all").onclick = () => doInsp("all");
       iPanel.querySelector("#solo-i-act").onclick = () => doInsp("act");
@@ -239,7 +303,7 @@ export const SoloMode = {
             <p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p>
             <p style="font-size:1.2rem;margin:0;color:${isDrag ? "var(--ok)" : "var(--bad)"}">${esc(txt)}</p>
           </div>`;
-        tPanel.querySelector("#solo-t-out").appendChild(logBtn(`${isDrag ? "Dragon" : "Demon"} twist: ${txt}`));
+        tPanel.querySelector("#solo-t-out").appendChild(resultBtns(`${isDrag ? "Dragon" : "Demon"} twist: ${txt}`));
       };
       tPanel.querySelector("#solo-t-drag").onclick = () => doTwist(true);
       tPanel.querySelector("#solo-t-dem").onclick = () => doTwist(false);
@@ -270,6 +334,7 @@ export const SoloMode = {
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn secondary" id="solo-n-add" style="flex:1;min-width:150px">⚡ Add to Combat Tracker</button>
             <button class="btn" id="solo-n-fight" style="flex:1;min-width:150px">⚔ Fight it${linked ? " (with " + esc(linked.identity.name) + ")" : ""}</button>
+            <button class="btn ghost" id="solo-n-remember" style="flex:1;min-width:150px" title="Save this NPC to the journal">👥 Remember NPC</button>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
@@ -321,6 +386,7 @@ export const SoloMode = {
         showToast(`Fight on — ${foe.name}${linked ? " vs " + linked.identity.name : ""}!`, "success");
         Router.go("party");
       };
+      nPanel.querySelector("#solo-n-remember").onclick = () => { const foe = buildFoe(); addNpc(foe.name, foe.notes || ""); };
 
       nPanel.querySelector("#solo-n-atk").onclick = () => {
         const role = nPanel.querySelector("#solo-n-role").value;
@@ -342,7 +408,7 @@ export const SoloMode = {
             <p class="stat-line" style="margin:0 0 4px 0">${esc(role)} · Rolled ${r}</p>
             <p style="font-size:1.15rem;margin:0;font-weight:bold">${esc(actionText)}</p>
           </div>`;
-        nPanel.querySelector("#solo-n-out").appendChild(logBtn(`NPC ${role}: ${actionText}`));
+        nPanel.querySelector("#solo-n-out").appendChild(resultBtns(`NPC ${role}: ${actionText}`));
       };
       root.appendChild(nPanel);
 
@@ -392,7 +458,7 @@ export const SoloMode = {
         box.appendChild(el(`<p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`));
         const am = /roll\s+(STR|CON|AGL|INT|WIL|CHA)\b/i.exec(mp.effect);
         if (am) box.appendChild(attrCheckRow(am[1].toUpperCase(), mp.effect));
-        box.appendChild(logBtn(`Journey Mishap (D6:${mp.r}): ${mp.effect}`));
+        box.appendChild(resultBtns(`Journey Mishap (D6:${mp.r}): ${mp.effect}`));
         return box;
       };
 
@@ -404,7 +470,7 @@ export const SoloMode = {
       const shiftSec = el(`<div style="margin-bottom:10px"><p class="stat-line" style="margin:0"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p></div>`);
       const shiftBtn = el(`<button class="btn ghost" style="margin-top:6px">🎲 Random shift (D4)</button>`);
       const shiftOut = el(`<div></div>`);
-      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:1.3rem;font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(logBtn(`Shift: ${shifts[r - 1]}`)); };
+      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:1.3rem;font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(resultBtns(`Shift: ${shifts[r - 1]}`)); };
       shiftSec.append(shiftBtn, shiftOut);
       jPanel.appendChild(shiftSec);
 
@@ -416,7 +482,7 @@ export const SoloMode = {
         const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
         box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
         if (!ok) box.appendChild(mishapNode(rollMishap()));
-        else box.appendChild(logBtn("Camp made — party rests."));
+        else box.appendChild(resultBtns("Camp made — party rests."));
         campOut.appendChild(box);
       };
       if (hero) {
@@ -434,7 +500,7 @@ export const SoloMode = {
           const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
           box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
           if (!ok) box.appendChild(mishapNode(rollMishap()));
-          else box.appendChild(logBtn("Camp made — party rests."));
+          else box.appendChild(resultBtns("Camp made — party rests."));
           campOut.appendChild(box);
         };
         campRow.append(campSkill, campBtn);
@@ -447,7 +513,7 @@ export const SoloMode = {
       const forageSec = el(`<div style="margin-bottom:10px;border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0"><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making a Bushcraft or Hunting check for rations.</p></div>`);
       const forageOut = el(`<div></div>`);
       const renderForageResult = (ok, dragon) => {
-        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}Success — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); forageOut.appendChild(logBtn(`Foraged ${rations} ration${rations === 1 ? "" : "s"}.`)); }
+        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}Success — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); forageOut.appendChild(resultBtns(`Foraged ${rations} ration${rations === 1 ? "" : "s"}.`)); }
         else forageOut.innerHTML = outBox("var(--bad)", `<p class="outcome bad" style="margin:0">No food found this shift.</p>`);
       };
       if (hero) {
@@ -465,7 +531,7 @@ export const SoloMode = {
         forageBtn.onclick = () => {
           const lvl = Math.max(1, Math.min(20, parseInt(forageSkill.value, 10) || 10));
           const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
-          if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); forageOut.appendChild(logBtn(`Foraged ${rations} ration${rations === 1 ? "" : "s"}.`)); }
+          if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); forageOut.appendChild(resultBtns(`Foraged ${rations} ration${rations === 1 ? "" : "s"}.`)); }
           else forageOut.innerHTML = outBox("var(--bad)", `<p class="outcome bad" style="margin:0">${demon ? "👹 Demon — " : ""}${r} vs ${lvl} — no food found this shift.</p>`);
         };
         forageRow.append(forageSkill, forageBtn);
