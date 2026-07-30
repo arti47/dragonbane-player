@@ -1,30 +1,37 @@
 /* solo.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
-import { showToast } from './ui.js';
+import { confirmModal, showToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
-import { applyInvoluntaryConditionTo } from './derived.js';
+import { applyInvoluntaryConditionTo, effHpMax, effWpMax, equippedArmor } from './derived.js';
 import { Roller } from './roller.js';
 import { Combat } from './combat.js';
+import { Sheet } from './sheet.js';
 import { Router } from './router.js';
 import { init } from './main.js';
 
 export const SoloMode = {
     HERO_KEY: "dragonbane.soloHeroId",
+    JOURNAL_KEY: "dragonbane.soloJournal",
     heroId() { return localStorage.getItem(this.HERO_KEY) || null; },
     // The hero the Solo tools roll as, if one is linked and still exists.
     linkedHero() { const id = this.heroId(); const c = id ? Store.get(id) : null; return c || null; },
     setHero(id) { if (id) localStorage.setItem(this.HERO_KEY, id); else localStorage.removeItem(this.HERO_KEY); },
+    // Solo journal — a persisted scene note + running log, keyed per linked hero.
+    journalKey() { return this.JOURNAL_KEY + ":" + (this.heroId() || "global"); },
+    loadJournal() { try { return JSON.parse(localStorage.getItem(this.journalKey())) || { scene: "", entries: [] }; } catch (_) { return { scene: "", entries: [] }; } },
+    saveJournal(j) { localStorage.setItem(this.journalKey(), JSON.stringify(j)); },
     view() {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
       const root = el(`<div></div>`);
       root.appendChild(el(sectionTitle("Solo Assistant")));
       root.appendChild(helpBox("Solo Assistant", [
         "Turn on <b>Solo Mode</b> (below or in About) to unlock solo heroic abilities at creation.",
-        "<b>🎲 Rolling as</b>: pick a hero so journey/skill rolls use their sheet and full dice engine.",
+        "<b>🎲 Rolling as</b>: pick a hero → a vitals strip (HP/WP, Open sheet, quick rests, 🏅 Mission +5) appears and journey/skill rolls use their sheet + full dice engine.",
+        "<b>📓 Journal</b>: set your current scene, and tap <b>＋ Log</b> on any roll result to save story beats (persisted per hero).",
         "<b>Fortune Chart</b>: set a likelihood + question type → <b>Roll Oracle</b> for a yes/no-style answer.",
-        "<b>Inspiration / Twists / NPC generator</b>: tap to roll prompts, complications, or quick foes.",
+        "<b>NPC generator</b>: build a foe, then <b>⚔ Fight it</b> to drop it + your hero into Combat and jump there.",
         "<b>Journey Tools</b>: random shift, Camp &amp; Forage rolls, and Journey Mishap with its follow-up WIL/CON check."
       ]));
       if (!solo) {
@@ -59,6 +66,60 @@ export const SoloMode = {
       heroSel.onchange = () => { this.setHero(heroSel.value || null); Router.go("solo"); };
       heroPanel.appendChild(heroSel);
       root.appendChild(heroPanel);
+
+      // Linked-hero strip: glanceable vitals + one-tap sheet/rest/mission.
+      if (linked) {
+        const strip = el(`<div class="panel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        const vit = el(`<span style="font-weight:bold;flex:1;min-width:150px"></span>`);
+        const upd = () => { const c = Store.get(linked.id); if (c) vit.innerHTML = `❤️ ${c.state.hp}/${effHpMax(c)} · ⚡ ${c.state.wp}/${effWpMax(c)}`; };
+        upd();
+        const openB = el(`<button class="btn ghost">Open sheet</button>`); openB.onclick = () => Sheet.open(linked.id);
+        const rr = el(`<button class="btn ghost" title="Round rest: +D6 WP">Round</button>`);
+        rr.onclick = () => { const w = Dice.roll("D6"); Store.update(linked.id, (ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); }); upd(); showToast(`Round rest: +${w} WP.`, "success"); };
+        const sr = el(`<button class="btn ghost" title="Stretch rest: +D6 HP/WP">Stretch</button>`);
+        sr.onclick = () => { const h = Dice.roll("D6"), w = Dice.roll("D6"); Store.update(linked.id, (ch) => { ch.state.hp = Math.min(effHpMax(ch), ch.state.hp + h); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); }); upd(); showToast(`Stretch rest: +${h} HP, +${w} WP.`, "success"); };
+        const shr = el(`<button class="btn ghost" title="Shift rest: full HP/WP, clear conditions">Shift</button>`);
+        shr.onclick = () => { Store.update(linked.id, (ch) => { ch.state.hp = effHpMax(ch); ch.state.wp = effWpMax(ch); ch.state.conditions = {}; }); upd(); showToast("Shift rest: full HP/WP, conditions cleared.", "success"); };
+        const mission = el(`<button class="btn ghost" style="border-color:var(--accent)">🏅 Mission +5</button>`);
+        mission.onclick = () => { Sheet.open(linked.id); Sheet.soloMissionMarks(); };
+        strip.append(vit, openB, rr, sr, shr, mission);
+        root.appendChild(strip);
+      }
+
+      // Solo journal — persisted scene + running log with ＋ Log on every result.
+      const journalPanel = el(`<div class="panel"><h3>📓 Solo Journal &amp; Scene</h3></div>`);
+      const sceneWrap = el(`<div class="form-field"><label>Current scene / next step</label></div>`);
+      const sceneIn = el(`<textarea rows="2" placeholder="Where are you, and what's the immediate goal?"></textarea>`);
+      sceneIn.value = this.loadJournal().scene || "";
+      sceneIn.oninput = () => { const j = this.loadJournal(); j.scene = sceneIn.value; this.saveJournal(j); };
+      sceneWrap.appendChild(sceneIn); journalPanel.appendChild(sceneWrap);
+      const logList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>`);
+      const renderLog = () => {
+        const j = this.loadJournal(); logList.innerHTML = "";
+        if (!j.entries.length) { logList.appendChild(el(`<p class="stat-line">No log yet — tap <b>＋ Log</b> on any roll result, or add a note below.</p>`)); return; }
+        j.entries.slice().reverse().forEach((e, ri) => {
+          const idx = j.entries.length - 1 - ri;
+          const when = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+          const row = el(`<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 6px;background:var(--bg);border-radius:4px"><span class="stat-line" style="min-width:46px">${esc(when)}</span><span style="flex:1">${esc(e.text)}</span></div>`);
+          const x = el(`<button class="step rm" aria-label="Delete entry">✕</button>`);
+          x.onclick = () => { const jj = this.loadJournal(); jj.entries.splice(idx, 1); this.saveJournal(jj); renderLog(); };
+          row.appendChild(x); logList.appendChild(row);
+        });
+      };
+      renderLog();
+      const addLog = (text) => { if (!text) return; const j = this.loadJournal(); j.entries.push({ ts: Date.now(), text }); this.saveJournal(j); renderLog(); showToast("Logged to journal.", "success"); };
+      // A "＋ Log" button that records the given text (string or getter) to the journal.
+      const logBtn = (getText) => { const b = el(`<button class="btn ghost" style="margin-top:6px;font-size:0.85rem">＋ Log to journal</button>`); b.onclick = () => addLog(typeof getText === "function" ? getText() : getText); return b; };
+      const addRow = el(`<div class="inv-add"></div>`);
+      const noteIn = el(`<input type="text" placeholder="Add a journal note…">`);
+      const noteBtn = el(`<button class="btn secondary">Log</button>`);
+      const doNote = () => { const t = noteIn.value.trim(); if (!t) return; noteIn.value = ""; addLog(t); };
+      noteBtn.onclick = doNote; noteIn.onkeydown = (e) => { if (e.key === "Enter") doNote(); };
+      addRow.append(noteIn, noteBtn);
+      const clearB = el(`<button class="btn ghost" style="margin-top:6px;color:var(--bad)">Clear log</button>`);
+      clearB.onclick = async () => { if (await confirmModal("Clear the journal log? The scene note is kept.", { title: "Clear log", okText: "Clear", danger: true })) { const j = this.loadJournal(); j.entries = []; this.saveJournal(j); renderLog(); } };
+      journalPanel.append(logList, addRow, clearB);
+      root.appendChild(journalPanel);
 
       // 1. Fortune Chart Oracle
       const f = solo.fortune;
@@ -113,6 +174,7 @@ export const SoloMode = {
             <p style="font-size:1.4rem;font-weight:bold;margin:0;color:${twist ? "var(--accent)" : "var(--ok)"}">${esc(ans)}</p>
             ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent)">★ Extreme result / twist!</p>` : ""}
           </div>`;
+        fPanel.querySelector("#solo-f-out").appendChild(logBtn(`Oracle (${colKey}, ${likeKey}): ${ans}${twist ? " [twist]" : ""}`));
       };
       root.appendChild(fPanel);
 
@@ -147,6 +209,8 @@ export const SoloMode = {
           <div style="padding:10px;background:var(--bg);border-radius:6px;font-size:1.3rem;text-align:center;margin-top:8px">
             ${res}
           </div>`;
+        const plain = mode === "all" ? `${row1.action} · ${row2.attribute} · ${row3.thing}` : mode === "act" ? row1.action : mode === "att" ? row2.attribute : row3.thing;
+        iPanel.querySelector("#solo-i-out").appendChild(logBtn(`Inspiration: ${plain}`));
       };
       iPanel.querySelector("#solo-i-all").onclick = () => doInsp("all");
       iPanel.querySelector("#solo-i-act").onclick = () => doInsp("act");
@@ -175,6 +239,7 @@ export const SoloMode = {
             <p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p>
             <p style="font-size:1.2rem;margin:0;color:${isDrag ? "var(--ok)" : "var(--bad)"}">${esc(txt)}</p>
           </div>`;
+        tPanel.querySelector("#solo-t-out").appendChild(logBtn(`${isDrag ? "Dragon" : "Demon"} twist: ${txt}`));
       };
       tPanel.querySelector("#solo-t-drag").onclick = () => doTwist(true);
       tPanel.querySelector("#solo-t-dem").onclick = () => doTwist(false);
@@ -202,8 +267,11 @@ export const SoloMode = {
               </div>
             </div>
           </div>
-          <button class="btn secondary block" id="solo-n-add">⚡ Add to Combat Tracker</button>
-          
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn secondary" id="solo-n-add" style="flex:1;min-width:150px">⚡ Add to Combat Tracker</button>
+            <button class="btn" id="solo-n-fight" style="flex:1;min-width:150px">⚔ Fight it${linked ? " (with " + esc(linked.identity.name) + ")" : ""}</button>
+          </div>
+
           <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
             <b>🎲 NPC Attack Table AI Roller</b>
             <p class="stat-line" style="margin:2px 0 8px 0">Select a combat role to roll their D6 action turn:</p>
@@ -227,17 +295,31 @@ export const SoloMode = {
         };
       }
 
-      nPanel.querySelector("#solo-n-add").onclick = () => {
+      const buildFoe = () => {
         const tmplName = nPanel.querySelector("#solo-n-tmpl").value;
         const tmpl = npcs.find(x => x.name === tmplName) || npcs[0];
         const custom = nPanel.querySelector("#solo-n-name").value.trim();
         const foeName = custom || `Solo ${tmpl.name}`;
-        
-        Combat.mutate(st => st.combatants.push({
-          id: uid(), name: foeName, kind: "npc", init: null, done: false,
-          hp: tmpl.hp, maxHp: tmpl.hp, armor: tmpl.armor || 0, notes: `${tmpl.name} template (${tmpl.damage})`
-        }));
-        showToast(`Added "${foeName}" to the Combat Tracker!`, "success");
+        return { id: uid(), name: foeName, kind: "npc", init: null, done: false, hp: tmpl.hp, maxHp: tmpl.hp, armor: tmpl.armor || 0, notes: `${tmpl.name} template (${tmpl.damage})` };
+      };
+      nPanel.querySelector("#solo-n-add").onclick = () => {
+        const foe = buildFoe();
+        Combat.mutate(st => st.combatants.push(foe));
+        showToast(`Added "${foe.name}" to the Combat Tracker!`, "success");
+      };
+      // ⚔ One-tap fight: drop the foe (and the linked hero, if not already in the
+      // tracker) into Combat and jump straight to the Combat tab.
+      nPanel.querySelector("#solo-n-fight").onclick = () => {
+        const foe = buildFoe();
+        Combat.mutate(st => {
+          st.combatants.push(foe);
+          if (linked && !st.combatants.some(c => c.charId === linked.id)) {
+            const h = Store.get(linked.id); const arm = equippedArmor(h);
+            st.combatants.push({ id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false, hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h), armor: arm ? arm.rating : 0 });
+          }
+        });
+        showToast(`Fight on — ${foe.name}${linked ? " vs " + linked.identity.name : ""}!`, "success");
+        Router.go("party");
       };
 
       nPanel.querySelector("#solo-n-atk").onclick = () => {
@@ -260,6 +342,7 @@ export const SoloMode = {
             <p class="stat-line" style="margin:0 0 4px 0">${esc(role)} · Rolled ${r}</p>
             <p style="font-size:1.15rem;margin:0;font-weight:bold">${esc(actionText)}</p>
           </div>`;
+        nPanel.querySelector("#solo-n-out").appendChild(logBtn(`NPC ${role}: ${actionText}`));
       };
       root.appendChild(nPanel);
 
@@ -309,6 +392,7 @@ export const SoloMode = {
         box.appendChild(el(`<p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`));
         const am = /roll\s+(STR|CON|AGL|INT|WIL|CHA)\b/i.exec(mp.effect);
         if (am) box.appendChild(attrCheckRow(am[1].toUpperCase(), mp.effect));
+        box.appendChild(logBtn(`Journey Mishap (D6:${mp.r}): ${mp.effect}`));
         return box;
       };
 
@@ -320,7 +404,7 @@ export const SoloMode = {
       const shiftSec = el(`<div style="margin-bottom:10px"><p class="stat-line" style="margin:0"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p></div>`);
       const shiftBtn = el(`<button class="btn ghost" style="margin-top:6px">🎲 Random shift (D4)</button>`);
       const shiftOut = el(`<div></div>`);
-      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:1.3rem;font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); };
+      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:1.3rem;font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(logBtn(`Shift: ${shifts[r - 1]}`)); };
       shiftSec.append(shiftBtn, shiftOut);
       jPanel.appendChild(shiftSec);
 
@@ -332,6 +416,7 @@ export const SoloMode = {
         const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
         box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
         if (!ok) box.appendChild(mishapNode(rollMishap()));
+        else box.appendChild(logBtn("Camp made — party rests."));
         campOut.appendChild(box);
       };
       if (hero) {
@@ -349,6 +434,7 @@ export const SoloMode = {
           const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
           box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
           if (!ok) box.appendChild(mishapNode(rollMishap()));
+          else box.appendChild(logBtn("Camp made — party rests."));
           campOut.appendChild(box);
         };
         campRow.append(campSkill, campBtn);
@@ -361,7 +447,7 @@ export const SoloMode = {
       const forageSec = el(`<div style="margin-bottom:10px;border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0"><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making a Bushcraft or Hunting check for rations.</p></div>`);
       const forageOut = el(`<div></div>`);
       const renderForageResult = (ok, dragon) => {
-        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}Success — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); }
+        if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}Success — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); forageOut.appendChild(logBtn(`Foraged ${rations} ration${rations === 1 ? "" : "s"}.`)); }
         else forageOut.innerHTML = outBox("var(--bad)", `<p class="outcome bad" style="margin:0">No food found this shift.</p>`);
       };
       if (hero) {
@@ -379,7 +465,7 @@ export const SoloMode = {
         forageBtn.onclick = () => {
           const lvl = Math.max(1, Math.min(20, parseInt(forageSkill.value, 10) || 10));
           const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
-          if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); }
+          if (ok) { const rations = Dice.roll("D6") + (dragon ? Dice.roll("D6") : 0); forageOut.innerHTML = outBox("var(--ok)", `<p class="outcome ok" style="margin:0">${dragon ? "🐉 Dragon — bumper haul! " : ""}${r} vs ${lvl} — found <b>${rations}</b> ration${rations === 1 ? "" : "s"}.</p>`); forageOut.appendChild(logBtn(`Foraged ${rations} ration${rations === 1 ? "" : "s"}.`)); }
           else forageOut.innerHTML = outBox("var(--bad)", `<p class="outcome bad" style="margin:0">${demon ? "👹 Demon — " : ""}${r} vs ${lvl} — no food found this shift.</p>`);
         };
         forageRow.append(forageSkill, forageBtn);
