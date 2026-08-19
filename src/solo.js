@@ -34,6 +34,20 @@ export const SoloMode = {
         "<b>NPC generator</b>: build a foe, then <b>⚔ Fight it</b> to drop it + your hero into Combat and jump there.",
         "<b>Journey Tools</b>: random shift, Camp &amp; Forage rolls, and Journey Mishap with its follow-up WIL/CON check."
       ]));
+      // Newcomer aids: one-tap tutorial link + the solo loop step-by-step.
+      const tut = el(`<button class="btn ghost block" style="margin-bottom:10px">📘 New to solo RPGs? Read How to Play</button>`);
+      tut.onclick = () => { Router.go("rules"); setTimeout(() => { const a = document.querySelector("details.rule-accordion[data-cat='howtoplay']"); if (a) { a.open = true; a.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 60); };
+      root.appendChild(tut);
+      const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent)">🧭 The solo loop — what to do each scene</summary></details>`);
+      const loopUl = document.createElement("ul"); loopUl.className = "stat-line"; loopUl.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
+      [
+        "① <b>Set the scene</b> in the Journal below — where you are and your goal.",
+        "② <b>Ask the Oracle</b> a yes/no question to decide what happens; tap <b>＋ Log</b> to record it.",
+        "③ <b>Act</b>: open your hero's sheet and tap a skill to roll it (or use the Journey / Combat tools).",
+        "④ On a failure, <b>Push</b> the roll or use <b>🎲 Fail forward</b> to keep the story moving.",
+        "⑤ Track open questions as <b>🧵 Threads</b>; when the mission is done, tap <b>🏅 Mission +5</b> to advance."
+      ].forEach((s) => { const li = document.createElement("li"); li.style.margin = "3px 0"; li.innerHTML = s; loopUl.appendChild(li); });
+      loop.appendChild(loopUl); root.appendChild(loop);
       if (!solo) {
         root.appendChild(el(`<div class="panel"><p class="stat-line">Solo rules library not loaded.</p></div>`));
         return root;

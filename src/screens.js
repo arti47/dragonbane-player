@@ -63,6 +63,15 @@ export function renderPartyBanner() {
 export const Screens = {
     solo() { return SoloMode.view(); },
     gm() { return GM.view(); },
+    // Deep-link to the "How to Play" tutorial: open the Rules tab, expand and
+    // scroll to that accordion. Used by the "New here?" buttons.
+    openTutorial() {
+      Router.go("rules");
+      setTimeout(() => {
+        const acc = document.querySelector("details.rule-accordion[data-cat='howtoplay']");
+        if (acc) { acc.open = true; acc.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      }, 60);
+    },
     home() {
       const chars = Store.list();
       let body;
@@ -72,11 +81,13 @@ export const Screens = {
             <div class="empty">
               <div class="big">⚔</div>
               <h2>No heroes yet</h2>
-              <p class="stat-line">Create a character to begin your adventures in the Misty Vale.</p>
+              <p class="stat-line">Create a character to begin your adventures in the Misty Vale.<br><b>New to Dragonbane or solo play? Tap 📘 How to Play first.</b></p>
             </div>
             <button class="btn block" id="new-hero">Forge a new hero</button>
             <p></p>
             <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
+            <p></p>
+            <button class="btn ghost block" id="open-tutorial">📘 New here? How to Play</button>
           </div>`;
       } else {
         const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
@@ -107,7 +118,9 @@ export const Screens = {
           <p></p>
           <button class="btn block" id="new-hero">Forge a new hero</button>
           <p></p>
-          <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>`;
+          <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
+          <p></p>
+          <button class="btn ghost block" id="open-tutorial">📘 How to Play</button>`;
       }
       const root = el(`<div>${body}</div>`);
       root.insertBefore(helpBox("Heroes", [
@@ -119,6 +132,7 @@ export const Screens = {
       const pb = renderPartyBanner(); if (pb) root.insertBefore(pb, root.firstChild);
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
+      root.querySelector("#open-tutorial")?.addEventListener("click", () => Screens.openTutorial());
       root.querySelectorAll(".card[data-id]").forEach((card) =>
         card.addEventListener("click", (e) => {
           if (e.target.closest(".btn-toggle-party")) return;
@@ -347,6 +361,7 @@ export function renderRuleDetail(key, container) {
         ${acc("⑥ Rest, death &amp; advancement", "<b>Round rest</b> +D6 WP (once/shift), <b>Stretch rest</b> +D6 HP/WP + heal a condition (once/shift), <b>Shift rest</b> full HP/WP + clear conditions. At <b>0 HP</b> a dying panel runs death rolls (D20 ≤ CON; 3 successes stabilize, 3 fail = death). <b>End session — advancement</b> answers the 5 questions then rolls each marked skill (improve on a roll over its level, max 18).", false)}
         ${acc("▶ Running a NON-SOLO game (group + GM)", "One player <b>creates a campaign</b> (About) → becomes GM → shares the join code; others <b>join</b>. Add your PC to the party (Heroes card toggle / sheet). Sheets, party HP/WP/conditions, and the combat tracker sync live. GM turns on <b>GM Screen</b> (About) for the <b>🎲 GM</b> tab: live party panel, peek any sheet, drop monsters/NPCs into combat, hand out damage/conditions/fear, roll+push private tables, broadcast messages. Combat controls (initiative/turns/reset) are GM-locked in a synced campaign. Loop: GM frames a scene → players roll skills → combat as needed → rest → end-of-session advancement.", false)}
         ${acc("🧭 Running a SOLO game (no GM)", "Enable <b>Solo Mode</b> (About) → <b>🧭 Solo</b> tab; creation grants a 2nd free heroic ability (Army of One / Sole Survivor). Solo tab tools: <b>Fortune Chart</b> oracle (ask yes/no etc. at a likelihood), <b>Inspiration</b> (3D20 prompt), <b>Dragon/Demon</b> narrative twists, <b>NPC generator</b> + attack-table AI, and <b>Wilderness Journeys &amp; Travel Tools</b> (random shift, Camp/Forage skill rolls, Journey Mishap with follow-up WIL/CON check). <b>Link a hero</b> at the top of the Solo tab so those rolls use your sheet + full dice engine. Loop: set a scene → ask the oracle → roll skills/combat → mishaps → advance (Solo: <b>Mission +5 marks</b>). Fail-forward turns failures into complications.", false)}
+        ${acc("🔤 Glossary (game terms)", "<b>HP</b> Hit Points — how much damage you can take (0 = dying). · <b>WP</b> Willpower Points — the fuel for spells &amp; heroic abilities. · <b>Skill</b> a rating 1–18; you succeed by rolling D20 <b>≤</b> it (roll-under). · <b>Boon</b> roll 2D20, keep the lower (better). · <b>Bane</b> roll 2D20, keep the higher (worse). · <b>Push</b> re-roll a failed check by taking a Condition. · <b>Condition</b> one of six states (Exhausted/Sickly/Dazed/Angry/Scared/Disheartened); each banes rolls using its attribute. · <b>Dragon</b> a natural 1 = critical success. · <b>Demon</b> a natural 20 = fumble. · <b>Kin</b> your ancestry (Human, Elf, Dwarf…). · <b>Heroic ability</b> a special power (some cost WP). · <b>Round</b> ~10s of combat. · <b>Stretch</b> a short break (minutes). · <b>Shift</b> ~6 hours (Morning/Day/Evening/Night). · <b>Advancement mark</b> a tick a skill earns on a Dragon/Demon; at session end you may roll to improve it. · <b>Oracle</b> (solo) a yes/no answer engine that stands in for a GM.", false)}
       </div>`;
     } else if (key === "stages") {
       html = `<div class="panel" style="border-left:4px solid var(--accent)">
