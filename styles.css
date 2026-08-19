@@ -496,6 +496,8 @@ input.wt { width: 56px; padding: 6px 8px; border: 1px solid var(--line); border-
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .modal-actions .btn { flex: 1; min-width: 110px; }
 .btn.danger { background: var(--bad, #9b2c2c); border-color: var(--bad, #9b2c2c); color: #fff; }
+.gloss { border-bottom: 1px dotted currentColor; cursor: help; }
+
 .update-toast {
   position: fixed; left: 50%; top: 16px; transform: translate(-50%, 0);
   z-index: 100; background: var(--accent); color: #fff;

@@ -52,6 +52,27 @@ export const Dice = {
   };
 
 
+// Inline glossary — term key → plain definition. `gloss(term,label)` wraps text
+// in a tap/hover-to-define token; a delegated handler in main.js shows the def.
+export const GLOSSARY = {
+    hp: "Hit Points — the damage you can take before dropping (0 = dying).",
+    wp: "Willpower Points — the fuel for spells and heroic abilities.",
+    boon: "Roll 2D20 and keep the lower (better) die.",
+    bane: "Roll 2D20 and keep the higher (worse) die.",
+    push: "Re-roll a failed check by taking a Condition.",
+    dragon: "A natural 1 on the D20 — a critical success.",
+    demon: "A natural 20 on the D20 — a fumble.",
+    condition: "One of six states (Exhausted/Sickly/Dazed/Angry/Scared/Disheartened); each banes rolls using its attribute.",
+    "damage bonus": "Extra damage die from a high STR/AGL: +D4 at 13–16, +D6 at 17+.",
+    encumbrance: "Carry limit = STR ÷ 2 (rounded up). Over it, you must roll STR to move.",
+    movement: "How many metres you can move on your turn.",
+    round: "About 10 seconds — one combat turn each.",
+    stretch: "A short rest of a few minutes.",
+    shift: "About 6 hours (Morning, Day, Evening, or Night)."
+  };
+
+export const gloss = (term, label) => `<span class="gloss" data-gloss="${esc(term)}" title="${esc(GLOSSARY[term] || "")}" role="button" tabindex="0">${esc(label != null ? label : term)}</span>`;
+
 export const MAGICX = window.DRAGONBANE_MAGIC || {};
 
 export const CORE_SCHOOLS = ["general", "animism", "elementalism", "mentalism"];

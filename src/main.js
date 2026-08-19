@@ -1,6 +1,7 @@
 /* main.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, el } from './core.js';
+import { $, el, GLOSSARY } from './core.js';
+import { showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
 import { Router } from './router.js';
 
@@ -27,6 +28,11 @@ export function init() {
 
     Theme.init();
     Router.init();
+
+    // Inline glossary: tap (or Enter/Space on) any .gloss token to show its definition.
+    const showGloss = (node) => { const d = GLOSSARY[node.dataset.gloss]; if (d) showToast(d); };
+    document.addEventListener("click", (e) => { const g = e.target.closest && e.target.closest("[data-gloss]"); if (g) { e.preventDefault(); showGloss(g); } });
+    document.addEventListener("keydown", (e) => { if (e.key !== "Enter" && e.key !== " ") return; const g = e.target.closest && e.target.closest("[data-gloss]"); if (g) { e.preventDefault(); showGloss(g); } });
 
     // ---- PWA update detection ----
     // Show a persistent "reload to update" toast whenever a new deploy is

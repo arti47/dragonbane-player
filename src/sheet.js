@@ -1,6 +1,6 @@
 /* sheet.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, helpBox, uid } from './core.js';
+import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
 import { confirmModal, modal, promptModal, showToast } from './ui.js';
 import { Calc, classifyItem, heroicReqMet, resolveEquippedWeapons } from './rules.js';
 import { applyInvoluntaryConditionTo, effHpMax, effWpMax, encLimit, encUsed, isConcentration, isSummonSpell, isTrackableSpell, lightDieFor, normalizeInventory } from './derived.js';
@@ -750,14 +750,15 @@ export const Sheet = {
       top.appendChild(idWrap);
       const attrRow = el(`<div class="rolled-row" style="margin-top:8px">${(DB.attributes||[]).map((at)=>`<span class="tag ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":""}">${at.key} ${a[at.key]}${condByAttr[at.key]?" ⚠":""}</span>`).join("")}</div>`);
       top.appendChild(attrRow);
-      top.appendChild(el(`<p class="stat-line">Move ${c.derived.movement} · STR dmg ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"} · AGL dmg ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"} · Enc. limit ${encLimit(c)}</p>`));
+      top.appendChild(el(`<p class="stat-line">${gloss("movement","Move")} ${c.derived.movement} · ${gloss("damage bonus","STR dmg")} ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"} · ${gloss("damage bonus","AGL dmg")} ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"} · ${gloss("encumbrance","Enc. limit")} ${encLimit(c)}</p>`));
       // HP / WP steppers
       const stepper = (label, cur, max, key, cls) => {
+        const plainLabel = String(label).replace(/<[^>]+>/g, ""); // aria text without gloss markup
         const w = el(`<div class="vital ${cls}"><div class="vital-label">${label}</div></div>`);
         const ctrl = el(`<div class="stepper"></div>`);
-        const minus = el(`<button class="step" type="button" aria-label="Decrease ${label}">−</button>`);
+        const minus = el(`<button class="step" type="button" aria-label="Decrease ${plainLabel}">−</button>`);
         const val = el(`<span class="vital-val" role="status" aria-live="polite">${cur} / ${max}</span>`);
-        const plus = el(`<button class="step" type="button" aria-label="Increase ${label}">+</button>`);
+        const plus = el(`<button class="step" type="button" aria-label="Increase ${plainLabel}">+</button>`);
         const doStep = (d) => {
           const prevHp = c.state.hp;
           Store.update(this.id, ch => {
@@ -784,8 +785,8 @@ export const Sheet = {
         return w;
       };
       const vitals = el(`<div class="vitals"></div>`);
-      vitals.appendChild(stepper("Hit Points", c.state.hp, effHpMax(c), "hp", "hp"));
-      vitals.appendChild(stepper("Willpower", c.state.wp, effWpMax(c), "wp", "wp"));
+      vitals.appendChild(stepper(gloss("hp", "Hit Points"), c.state.hp, effHpMax(c), "hp", "hp"));
+      vitals.appendChild(stepper(gloss("wp", "Willpower"), c.state.wp, effWpMax(c), "wp", "wp"));
       top.appendChild(vitals);
 
       // Movement Tracker
