@@ -921,13 +921,15 @@ export const Sheet = {
       // Abilities
       root.appendChild(el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p><b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`));
 
-      // Magic
-      if ((c.spells.tricks||[]).length || (c.spells.known||[]).length) {
-        const magicPanel = el(`<details class="panel rule-accordion" open style="padding:10px"><summary style="font-size:1.2rem;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></summary><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"></div></details>`);
+      // Magic — always shown so a non-caster can still Learn magic (Magic Talent, Dracomancy, …).
+      {
+        const hasMagic = (c.spells.tricks||[]).length || (c.spells.known||[]).length;
+        const magicPanel = el(`<details class="panel rule-accordion"${hasMagic ? " open" : ""} style="padding:10px"><summary style="font-size:1.2rem;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></summary><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"></div></details>`);
         const inner = magicPanel.querySelector("div");
         const learnBtn = el(`<button class="btn ghost" style="margin-bottom:8px">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
         inner.appendChild(learnBtn);
+        if (!hasMagic) inner.appendChild(el(`<p class="stat-line">No spells known. If your hero can learn magic (e.g. the Magic Talent heroic ability), tap ＋ above.</p>`));
         const spellRow = (x, isTrick) => {
           const isPrep = isTrick || x.prepared !== false;
           const tagStr = isTrick ? "Trick · 1 WP" : `Rank ${x.rank}` + (isPrep ? " · Prepared" : " · Grimoire");
@@ -958,8 +960,9 @@ export const Sheet = {
         root.appendChild(magicPanel);
       }
 
-      // Active spells & effects (Phase 4B) — concentration spells, runes, illusions, buffs
-      if ((c.effects || []).length || (c.spells.known || []).length) {
+      // Active spells & effects (Phase 4B) — always shown so any hero can track a
+      // buff/effect (e.g. an ally-cast spell), not just casters.
+      {
         const fxPanel = el(`<div class="panel"><h3>Active Spells &amp; Effects</h3></div>`);
         if (!(c.effects || []).length) fxPanel.appendChild(el(`<p class="stat-line">Nothing active. Use “+ Track” on a lasting spell, or add one below.</p>`));
         (c.effects || []).forEach((fx, i) => {
