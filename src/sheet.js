@@ -1155,8 +1155,24 @@ export const Sheet = {
 
       // Flavor + notes
       const flav = el(`<div class="panel"><h3>Character</h3>
-        ${c.identity.appearance?`<p class="stat-line"><b>Appearance:</b> ${esc(c.identity.appearance)}</p>`:""}
+        ${(!canEdit && c.identity.appearance)?`<p class="stat-line"><b>Appearance:</b> ${esc(c.identity.appearance)}</p>`:""}
         ${c.identity.weakness?`<p class="stat-line"><b>Weakness:</b> ${esc(c.identity.weakness)}</p>`:""}</div>`);
+      // Editable identity (name / appearance / memento) — the promised "rename & adjust".
+      if (canEdit) {
+        const idField = (label, key, ph, rows) => {
+          // Textareas (even single-row) respect their CSS width; <input> reports an
+          // unshrinkable scrollWidth on narrow screens, so use textarea throughout.
+          const f = el(`<div class="form-field"><label>${label}</label></div>`);
+          const inp = el(`<textarea rows="${rows}" placeholder="${esc(ph)}" style="resize:vertical"></textarea>`);
+          inp.value = c.identity[key] || "";
+          if (key === "name") inp.onchange = () => { const v = inp.value.replace(/\s+/g, " ").trim(); if (v) this.mutate((ch) => { ch.identity.name = v; }); }; // re-render updates the header
+          else inp.oninput = () => Store.update(this.id, (ch) => { ch.identity[key] = inp.value; }); // save without re-render
+          f.appendChild(inp); return f;
+        };
+        flav.appendChild(idField("Name", "name", "Hero name", 1));
+        flav.appendChild(idField("Appearance", "appearance", "A few distinctive details", 2));
+        flav.appendChild(idField("Memento", "memento", "A meaningful keepsake", 1));
+      }
       // Overcome Weakness / re-choose after cooldown.
       if (c.identity.weakness) {
         const owBtn = el(`<button class="btn ghost" style="border-color:var(--accent)">⚡ Overcome Weakness (+2 marks)</button>`);

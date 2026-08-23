@@ -353,7 +353,7 @@ button {
 
 .form-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .form-field label { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; }
-.form-field input, .form-field textarea { width: 100%; }
+.form-field input, .form-field textarea { width: 100%; min-width: 0; box-sizing: border-box; }
 
 /* ---- Tracker: vitals, conditions, skills, inventory ---------------- */
 .tag.baned { border-color: var(--bad); color: var(--bad); }
