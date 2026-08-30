@@ -1,7 +1,7 @@
 /* main.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { $, el, GLOSSARY } from './core.js';
-import { showToast } from './ui.js';
+import { modal, showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
 import { Router } from './router.js';
 
@@ -78,6 +78,26 @@ export function init() {
     if (!window.DRAGONBANE) {
       $("#screen").innerHTML = `<div class="panel notice">Could not load the rules library (data.js). Check that all files are served together.</div>`;
     }
+
+    // One-time welcome: the whole game in three beats + a link to the full tutorial.
+    try {
+      if (window.DRAGONBANE && !localStorage.getItem("dragonbane.welcomed")) {
+        const m = modal("👋 Welcome to Dragonbane");
+        m.body.appendChild(el(`<p class="modal-msg">New here? The whole game in three beats:</p>`));
+        m.body.appendChild(el(`<ul class="stat-line" style="padding-left:20px;line-height:1.6">
+          <li><b>Start</b> — make or pick a hero, then choose <b>solo</b> (🧭 Solo tab) or <b>with friends</b> (⚙ About → campaign).</li>
+          <li><b>Keep playing</b> — set a scene, ask the GM/oracle what happens, tap a skill to roll <b>D20 ≤ its level</b>, fight on the 🛡 Combat tab, rest to recover.</li>
+          <li><b>End well</b> — tap <b>End session — advancement</b> (solo: <b>🏅 Mission +5</b>) to improve your skills.</li>
+        </ul>`));
+        const row = el(`<div class="modal-actions"></div>`);
+        const later = el(`<button class="btn ghost">Got it</button>`);
+        const show = el(`<button class="btn block">📖 Show me How to Play</button>`);
+        later.onclick = () => m.close();
+        show.onclick = () => { m.close(); Router.go("rules"); setTimeout(() => { const a = document.querySelector("details.rule-accordion[data-cat='howtoplay']"); if (a) { a.open = true; a.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 80); };
+        row.append(later, show); m.body.appendChild(row);
+        localStorage.setItem("dragonbane.welcomed", "1");
+      }
+    } catch (_) {}
   }
 
   document.addEventListener("DOMContentLoaded", init);

@@ -37,6 +37,8 @@ async function newPage(browser, settings, viewport) {
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push("console: " + m.text()); });
   await page.route("**/firebasejs/**", (r) => r.abort());
+  // Suppress the one-time welcome popup so it never intercepts test interactions.
+  await page.addInitScript(() => { try { localStorage.setItem("dragonbane.welcomed", "1"); } catch (_) {} });
   if (settings) await page.addInitScript((s) => localStorage.setItem("dragonbane.settings", JSON.stringify(s)), settings);
   page._errors = errors;
   return page;
