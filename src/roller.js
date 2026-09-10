@@ -550,12 +550,53 @@ export const Roller = {
         const prop = roleMap[role] || "melee";
         const r = Dice.d(6);
         const row = nat.rows.find(x => (x.d6 === "4" && r === 4) || (x.d6 === "5" && r === 5) || (x.d6 === "6" && r === 6) || (x.d6 === "1-3" && r <= 3)) || nat.rows[0];
+        const actionText = row[prop] || "—";
         out.innerHTML = `<div style="padding:12px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
           <p class="outcome ok" style="font-size:1.4rem;margin:0">Rolled ${r}: ${role}</p>
-          <p class="stat-line" style="margin-top:6px;font-size:1.15rem">${row[prop] || "—"}</p>
+          <p class="stat-line" style="margin-top:6px;font-size:1.15rem">${esc(actionText)}</p>
         </div>`;
+        const cb = combatantId ? (Combat.load().combatants || []).find((c) => c.id === combatantId) : null;
+        // The NPC makes an attack → resolve it (roll + damage applier) with its weapon.
+        if (cb && cb.weapons && cb.weapons[0] && /\b(attack|blow|shot|strike)\b/i.test(actionText)) {
+          const b = el(`<button class="btn secondary block" style="margin-top:8px">🎲 Resolve ${esc(cb.weapons[0].name)}</button>`);
+          b.onclick = () => this.npcAttack(npcName, cb.weapons[0], combatantId);
+          out.appendChild(b);
+        }
+        // The action demands the player roll an attribute (e.g. "roll WIL to resist fear").
+        const am = /\broll\s+(?:a |an )?(STR|CON|AGL|INT|WIL|CHA)\b/i.exec(actionText) || /\b(STR|CON|AGL|INT|WIL|CHA)\s+roll\b/i.exec(actionText);
+        if (am) out.appendChild(this.playerAttrCheck(am[1].toUpperCase(), /fear/i.test(actionText)));
       };
       m.body.append(el(`<p class="stat-line">Select NPC role:</p>`), sel, rollBtn, out);
+    },
+    // An inline attribute check the app demands of the player (e.g. a fear roll
+    // from the NPC AI table). Uses the hero combatant's real attribute when one
+    // is in the tracker; else an editable value. On a failed fear roll, applies
+    // Scared to the hero. Works in the default solo loop (no GM Automation needed).
+    playerAttrCheck(attr, isFear) {
+      const wrap = el(`<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)"></div>`);
+      const hero = (Combat.load().combatants || []).find((c) => c.kind === "hero" && c.charId);
+      const btn = el(`<button class="btn block">🎲 Roll ${attr}${isFear ? " to resist fear" : ""}</button>`);
+      const o = el(`<div style="margin-top:6px"></div>`);
+      let getLvl, onFail;
+      if (hero) {
+        const ch0 = Store.get(hero.charId);
+        wrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0">${esc(ch0.identity.name)} · ${attr} ${ch0.attributes[attr]}</p>`));
+        getLvl = () => (Store.get(hero.charId) || ch0).attributes[attr];
+        onFail = () => { if (!isFear) return ""; let lbl = ""; Store.update(hero.charId, (c2) => { lbl = applyInvoluntaryConditionTo(c2, "scared"); }); this.refresh(hero.charId); return " — " + lbl; };
+      } else {
+        const inp = el(`<input type="number" class="input" style="width:64px" value="10" min="1" max="18" title="your ${attr}">`);
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"></div>`);
+        row.append(el(`<span class="stat-line">${attr} ≤</span>`), inp); wrap.appendChild(row);
+        getLvl = () => Math.max(1, Math.min(20, parseInt(inp.value, 10) || 10));
+        onFail = () => (isFear ? " — gain Scared" : "");
+      }
+      btn.onclick = () => {
+        const lvl = getLvl(), r = Dice.d(20), ok = r <= lvl;
+        o.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${r} vs ${attr} ${lvl} — ${ok ? "resisted, no ill effect." : "failed" + onFail() + "."}</p>`;
+        btn.disabled = true; btn.style.opacity = "0.5"; btn.style.cursor = "not-allowed";
+      };
+      wrap.append(btn, o);
+      return wrap;
     },
 
     npcCast(npcName, spell, combatantId) {

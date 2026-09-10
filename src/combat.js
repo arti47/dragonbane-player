@@ -194,7 +194,7 @@ export const Combat = {
       root.appendChild(el(sectionTitle("Combat tracker")));
       root.appendChild(helpBox("Combat tracker", [
         "Add fighters: pick a <b>hero</b>, <b>Bestiary monster</b>, <b>rulebook NPC</b>, or type a custom NPC → <b>Add</b>.",
-        "Tap <b>Draw initiative</b> (cards 1–10; lower acts first).",
+        "Adding a fighter <b>draws initiative automatically</b> (cards 1–10; lower acts first); tap <b>Re-draw</b> to reshuffle.",
         "Use the row's <b>⚔️/🎲</b> to quick-roll the main attack; the damage applier subtracts armor and updates HP.",
         "Expand a row for all weapons, spells, movement pool, and parry/dodge reactions.",
         "<b>Next turn / Next round</b> advance play (GM-locked in a synced campaign)."

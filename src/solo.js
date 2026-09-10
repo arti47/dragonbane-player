@@ -379,7 +379,10 @@ export const SoloMode = {
         const tmpl = npcs.find(x => x.name === tmplName) || npcs[0];
         const custom = nPanel.querySelector("#solo-n-name").value.trim();
         const foeName = custom || `Solo ${tmpl.name}`;
-        return { id: uid(), name: foeName, kind: "npc", init: null, done: false, hp: tmpl.hp, maxHp: tmpl.hp, armor: tmpl.armor || 0, notes: `${tmpl.name} template (${tmpl.damage})` };
+        // Give the foe a weapon so its turn is resolvable in combat (attack roll +
+        // damage applier), matching Bestiary parity — skill parsed from the template.
+        const skill = parseInt((String(tmpl.skills || "").match(/(\d+)/) || [])[1], 10) || 12;
+        return { id: uid(), name: foeName, kind: "npc", init: null, done: false, hp: tmpl.hp, maxHp: tmpl.hp, armor: tmpl.armor || 0, weapons: [{ name: `${tmpl.name} attack`, skill, damage: tmpl.damage }], notes: `${tmpl.name} template (${tmpl.damage})` };
       };
       nPanel.querySelector("#solo-n-add").onclick = () => {
         const foe = buildFoe();
