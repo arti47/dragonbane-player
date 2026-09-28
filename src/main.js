@@ -1,6 +1,6 @@
 /* main.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, el, GLOSSARY } from './core.js';
+import { $, el, GLOSSARY, placeHelp } from './core.js';
 import { modal, showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
 import { Router } from './router.js';
@@ -35,7 +35,11 @@ export function init() {
     setHdr();
     if (hdr && window.ResizeObserver) new ResizeObserver(setHdr).observe(hdr);
     window.addEventListener("resize", setHdr);
+    // Help ⓘ buttons: whenever a screen mounts, slot its help into the title row.
+    const screenEl = $("#screen");
+    new MutationObserver(() => placeHelp(screenEl, modal)).observe(screenEl, { childList: true });
     Router.init();
+    placeHelp(screenEl, modal);
 
     // Inline glossary: tap (or Enter/Space on) any .gloss token to show its definition.
     const showGloss = (node) => { const d = GLOSSARY[node.dataset.gloss]; if (d) showToast(d); };

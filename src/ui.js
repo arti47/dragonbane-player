@@ -74,13 +74,20 @@ export function showToast(msg, type) {
     // Stack multiple toasts so they don't overlap; tap an error toast to dismiss.
     const existing = document.querySelectorAll(".toast").length;
     t.style.bottom = (84 + existing * 46) + "px";
-    if (isErr) { t.style.pointerEvents = "auto"; t.style.cursor = "pointer"; }
+    t.style.pointerEvents = "auto"; t.style.cursor = "pointer";
+    const dur = isErr ? 5200 : 2600;
+    t.style.setProperty("--dur", dur + "ms");
     document.body.appendChild(t);
     requestAnimationFrame(() => t.classList.add("show"));
-    const dur = isErr ? 5200 : 2600;
     const kill = () => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); };
     let timer = setTimeout(kill, dur);
     t.onclick = () => { clearTimeout(timer); kill(); };
+    // Swipe sideways to dismiss.
+    let x0 = null;
+    t.addEventListener("pointerdown", (e) => { x0 = e.clientX; t.style.transition = "none"; });
+    t.addEventListener("pointermove", (e) => { if (x0 == null) return; const dx = e.clientX - x0; t.style.transform = `translate(calc(-50% + ${dx}px), 0)`; t.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160)); });
+    const end = (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; t.style.transition = ""; if (Math.abs(dx) > 60) { clearTimeout(timer); t.onclick = null; t.remove(); } else { t.style.transform = ""; t.style.opacity = ""; } };
+    t.addEventListener("pointerup", end); t.addEventListener("pointercancel", end);
     return t;
   }
   // Promise<boolean>. opts: { title, okText, cancelText, danger }

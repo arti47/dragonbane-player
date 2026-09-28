@@ -57,7 +57,7 @@ export const Roller = {
       minus.onclick = () => { net--; lbl.textContent = this.netLabel(net); };
       plus.onclick = () => { net++; lbl.textContent = this.netLabel(net); };
       ctl.append(el(`<span class="stat-line">Boon / Bane</span>`), minus, lbl, plus);
-      const rollBtn = el(`<button class="btn block" style="margin-top:12px">Roll d20</button>`);
+      const rollBtn = el(`<button class="btn block roll-go" style="margin-top:12px">Roll d20</button>`);
       const result = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doRoll = (pushedCondition) => {
         if (!pushedCondition) {
@@ -120,8 +120,8 @@ export const Roller = {
       const targets = (cst.combatants || []).filter(cb => cb.id !== attackerCombatantId && !cb.defeated && (cb.hp == null || cb.hp > 0));
       if (!targets.length) return el(`<p class="stat-line" style="color:var(--muted);margin-top:12px">💡 No active opponent targets in combat tracker. (Add monsters or NPCs in the <b>Combat</b> tab to apply damage directly to their HP)</p>`);
 
-      const wrap = el(`<div style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--ok);border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)"></div>`);
-      wrap.appendChild(el(`<p class="stat-line" style="margin:0 0 8px 0;color:var(--ok);font-size:1.1rem"><b>🎯 Apply Damage to Target:</b></p>`));
+      const wrap = el(`<div style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--ok);border-radius:var(--r-md);box-shadow:0 2px 8px var(--tint-shade)"></div>`);
+      wrap.appendChild(el(`<p class="stat-line" style="margin:0 0 8px 0;color:var(--ok);font-size:var(--fs-lg)"><b>🎯 Apply Damage to Target:</b></p>`));
 
       const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"></div>`);
       const sel = el(`<select class="input" style="flex:1;min-width:180px"></select>`);
@@ -131,11 +131,11 @@ export const Roller = {
       });
       row.appendChild(sel);
 
-      const chkLbl = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;cursor:pointer"><input type="checkbox" ${defaultIgnoreArmor ? "checked" : ""}> Ignore Target Armor</label>`);
+      const chkLbl = el(`<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);cursor:pointer"><input type="checkbox" ${defaultIgnoreArmor ? "checked" : ""}> Ignore Target Armor</label>`);
       row.appendChild(chkLbl);
       wrap.appendChild(row);
 
-      const applyBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:1.15rem;padding:10px">💥 Apply ${rawDamage} Damage Now</button>`);
+      const applyBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:var(--fs-lg);padding:10px">💥 Apply ${rawDamage} Damage Now</button>`);
       applyBtn.onclick = () => {
         const targetId = sel.value;
         const ignoreArm = chkLbl.querySelector("input").checked;
@@ -194,16 +194,16 @@ export const Roller = {
       const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       
       // Top section: Attack Roll
-      const atkDiv = el(`<div class="panel" style="margin-bottom:12px;background:var(--card-bg);padding:12px"></div>`);
-      const head = el(`<div class="rest-row" style="margin-bottom:8px"></div>`);
-      head.appendChild(el(`<span class="stat-line" style="margin:0;font-size:1.2rem"><b>Attack Roll:</b> ${esc(skillName)} ≤ ${target}</span>`));
+      const atkDiv = el(`<div class="roll-setup"></div>`);
+      const head = el(`<div></div>`);
+      head.appendChild(el(`<p class="stat-line"><b>Attack Roll:</b> ${esc(skillName)} ≤ ${target}</p>`));
       
-      const ctl = el(`<div class="net-control"></div>`);
+      const ctl = el(`<div class="roll-ctl"><span class="stat-line">Boon / Bane</span></div>`);
       let net = 0;
-      const lbl = el(`<span class="net-val">0</span>`);
+      const lbl = el(`<span class="net-lbl">Normal</span>`);
       const minus = el(`<button class="step" title="bane">−</button>`);
       const plus = el(`<button class="step" title="boon">+</button>`);
-      const upd = () => { lbl.textContent = net === 0 ? "Normal" : net > 0 ? `+${net} Boon` : `${net} Bane`; lbl.className = `net-val ${net > 0 ? "boon" : net < 0 ? "bane" : ""}`; };
+      const upd = () => { lbl.textContent = net === 0 ? "Normal" : net > 0 ? `+${net} Boon` : `${net} Bane`; lbl.className = `net-lbl ${net > 0 ? "boon" : net < 0 ? "bane" : ""}`; };
       minus.onclick = () => { net--; upd(); }; plus.onclick = () => { net++; upd(); };
       ctl.append(minus, lbl, plus);
       head.appendChild(ctl);
@@ -228,7 +228,7 @@ export const Roller = {
         const refreshStr = () => { strNote.textContent = `⚠ STR ${heroStr} < requirement ${effStrReq()} → bane`; strNote.style.display = strShortfall() ? "block" : "none"; };
         // Two-handed grip toggle only matters for a 1H weapon (a 2H weapon is already two-handed).
         if (weapon.grip === "1H") {
-          const gripRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Two-handed grip (−3 STR req; no shield/off-hand)</label>`);
+          const gripRow = el(`<label class="roll-opt" style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);margin:6px 0;cursor:pointer"><input type="checkbox"> Two-handed grip (−3 STR req; no shield/off-hand)</label>`);
           gripRow.querySelector("input").onchange = (e) => { twoHandGrip = e.target.checked; refreshStr(); };
           atkDiv.appendChild(gripRow);
         }
@@ -240,30 +240,31 @@ export const Roller = {
           atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ Great Helm → bane on all ranged attacks</p>`));
         }
         if (typeof c.state.combatAmmo !== "number") c.state.combatAmmo = 12;
-        const pbRow = el(`<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem;margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
+        const pbRow = el(`<label class="roll-opt" style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
         pbRow.querySelector("input").onchange = (e) => { net += e.target.checked ? -1 : 1; upd(); };
         atkDiv.appendChild(pbRow);
         const ammoRow = el(`<div style="display:flex;align-items:center;gap:8px;margin-top:8px"></div>`);
-        const aMin = el(`<button class="step" style="width:28px;height:28px;font-size:1.2rem">−</button>`);
-        const aPl = el(`<button class="step" style="width:28px;height:28px;font-size:1.2rem">+</button>`);
-        const aLbl = el(`<span style="font-weight:bold;font-size:1.1rem">Arrows / Bolts: ${c.state.combatAmmo}</span>`);
+        const aMin = el(`<button class="step" aria-label="One less arrow or bolt">−</button>`);
+        const aPl = el(`<button class="step" aria-label="One more arrow or bolt">+</button>`);
+        const aLbl = el(`<span class="ammo-lbl" style="font-weight:bold">Arrows / Bolts: ${c.state.combatAmmo}</span>`);
         aMin.onclick = () => { c.state.combatAmmo = Math.max(0, c.state.combatAmmo - 1); Store.update(charId, ch => { ch.state.combatAmmo = c.state.combatAmmo; }); aLbl.textContent = `Arrows / Bolts: ${c.state.combatAmmo}`; };
         aPl.onclick = () => { c.state.combatAmmo++; Store.update(charId, ch => { ch.state.combatAmmo = c.state.combatAmmo; }); aLbl.textContent = `Arrows / Bolts: ${c.state.combatAmmo}`; };
         ammoRow.append(aMin, aLbl, aPl);
         atkDiv.appendChild(ammoRow);
       }
 
-      const rollAtkBtn = el(`<button class="btn block" style="margin-top:10px">Roll Attack (d20 ≤ ${target})</button>`);
+      const rollAtkBtn = el(`<button class="btn block roll-go" style="margin-top:10px">Roll Attack (d20 ≤ ${target})</button>`);
       
       // Bottom section: Damage Roll
       const dmgDiv = el(`<div style="margin-top:12px"></div>`);
+      const dmgOut = el(`<div class="dmg-result" role="status" aria-live="polite"></div>`);
       const rollDmgBtn = el(`<button class="btn secondary block" disabled style="opacity:0.4;cursor:not-allowed">Roll Damage (${esc(weapon.damage)}${bonusDie ? " +" + bonusDie : ""})</button>`);
       rollDmgBtn.onclick = () => {
         const base = Dice.roll(weapon.damage);
         let tot = base; let p = `${weapon.damage} = <b>${base}</b>`;
         if (bonusDie) { const b = Dice.roll(bonusDie); tot += b; p += ` · ${attr} bonus ${bonusDie} = <b>${b}</b>`; }
-        out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><p class="outcome ok" style="font-size:1.6rem;margin:0">${tot} damage</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
-        out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
+        dmgOut.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">${tot} damage</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
+        dmgOut.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
       };
       dmgDiv.appendChild(rollDmgBtn);
 
@@ -297,7 +298,7 @@ export const Roller = {
             ch.state.combatAmmo = c.state.combatAmmo;
             if (invItem && ch.inventory) ch.inventory.items = c.inventory.items;
           });
-          const aLbl = atkDiv.querySelector("span[style*='Arrows']");
+          const aLbl = atkDiv.querySelector(".ammo-lbl");
           if (aLbl) aLbl.textContent = `Arrows / Bolts: ${c.state.combatAmmo}`;
         }
         let effNet = net;
@@ -312,7 +313,7 @@ export const Roller = {
           Store.update(charId, (ch) => { if (ch.skills?.[skillName]) ch.skills[skillName].mark = true; });
         }
 
-        let outcomeHtml = `<div style="margin-top:10px"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:1.6rem;margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:1rem;font-weight:normal">(${r.used} vs ${target})</small></p>`;
+        let outcomeHtml = `<div style="margin-top:10px"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:var(--fs-2xl);margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:var(--fs-md);font-weight:normal">(${r.used} vs ${target})</small></p>`;
         if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
         outcomeHtml += `</div>`;
         out.innerHTML = outcomeHtml;
@@ -324,7 +325,7 @@ export const Roller = {
           if (tbl.length) {
             const fr = Dice.d(6);
             const row = tbl.find((x) => x.d6 === fr) || tbl[0];
-            out.appendChild(el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px;border-left:3px solid var(--bad)"><p class="stat-line" style="margin:0"><b>👿 ${isRanged ? "Ranged" : "Melee"} fumble (D6: ${fr})</b> — ${esc(row.effect)}</p></div>`));
+            out.appendChild(el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--r-sm);border-left:3px solid var(--bad)"><p class="stat-line" style="margin:0"><b>👿 ${isRanged ? "Ranged" : "Melee"} fumble (D6: ${fr})</b> — ${esc(row.effect)}</p></div>`));
           }
         }
 
@@ -334,18 +335,18 @@ export const Roller = {
           const unchosen = (DB.conditions||[]).filter(cn => !curConds[cn.key]);
           const hasSS = curChar?.abilities?.some(a => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
           // Append real DOM nodes (not outerHTML) so the push handlers survive.
-          const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:6px"></div>`);
+          const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--r-sm)"></div>`);
           const pushHdr = el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (mark a condition & re-roll):</p>`);
           if (!unchosen.length) pushHdr.innerHTML = hasSS ? "<b>Push roll</b> — all six conditions held; only Sole Survivor lets you push:" : "<b>Push roll</b> — all six conditions held; you cannot push.";
           pushWrap.appendChild(pushHdr);
           const cw = el(`<div class="push-conditions" style="display:flex;flex-wrap:wrap;gap:4px"></div>`);
           unchosen.forEach(cn => {
-            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px">${esc(cn.name)}</button>`);
+            const chip = el(`<button class="skill-chip" style="font-size:var(--fs-sm);padding:4px 8px">${esc(cn.name)}</button>`);
             chip.onclick = () => { Store.update(charId, ch => { ch.state.conditions[cn.key] = true; }); doRoll(true); };
             cw.appendChild(chip);
           });
           if (hasSS) {
-            const chip = el(`<button class="skill-chip" style="font-size:0.9rem;padding:4px 8px;border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
+            const chip = el(`<button class="skill-chip" style="font-size:var(--fs-sm);padding:4px 8px;border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
             chip.onclick = () => { Store.update(charId, ch => { ch.state.wp -= 3; }); doRoll(true); };
             cw.appendChild(chip);
           }
@@ -363,7 +364,7 @@ export const Roller = {
           rollDmgBtn.disabled = true; rollDmgBtn.style.opacity = "0.4"; rollDmgBtn.style.cursor = "not-allowed";
           rollDmgBtn.textContent = `Choose a critical effect first…`;
           rollDmgBtn.className = "btn secondary block"; rollDmgBtn.style.background = ""; rollDmgBtn.style.color = "";
-          const choiceWrap = el(`<div style="margin-top:10px;padding:8px;background:rgba(202,166,74,0.1);border:1px dashed var(--gold);border-radius:6px"></div>`);
+          const choiceWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--tint-gold);border:1px dashed var(--gold);border-radius:var(--r-sm)"></div>`);
           choiceWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>🐉 Dragon — choose one critical effect:</b></p>`));
           const chips = el(`<div class="chip-wrap"></div>`);
           const armChip = el(`<button class="skill-chip">🗡 Ignore armor (piercing)</button>`);
@@ -379,7 +380,7 @@ export const Roller = {
                 const b1 = Dice.roll(weapon.damage), b2 = Dice.roll(weapon.damage);
                 let tot = b1 + b2; let p = `${weapon.damage} crit (${b1}+${b2}) = <b>${b1 + b2}</b>`;
                 if (bonusDie) { const b = Dice.roll(bonusDie); tot += b; p += ` · ${attr} bonus ${bonusDie} = <b>${b}</b>`; }
-                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:1.8rem;margin:0">💥 ${tot} CRITICAL DAMAGE!</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
+                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:var(--fs-3xl);margin:0">💥 ${tot} CRITICAL DAMAGE!</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
                 out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
               };
             } else {
@@ -390,7 +391,7 @@ export const Roller = {
                 const base = Dice.roll(weapon.damage);
                 let tot = base; let p = `${weapon.damage} = <b>${base}</b>`;
                 if (bonusDie) { const b = Dice.roll(bonusDie); tot += b; p += ` · ${attr} bonus ${bonusDie} = <b>${b}</b>`; }
-                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:1.6rem;margin:0">${tot} damage${ignore ? " (ignores armor)" : ""}</p><p class="stat-line" style="margin:4px 0 0 0">${p}${second ? " · you may make a free attack against another enemy within reach" : ""}</p></div>`;
+                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">${tot} damage${ignore ? " (ignores armor)" : ""}</p><p class="stat-line" style="margin:4px 0 0 0">${p}${second ? " · you may make a free attack against another enemy within reach" : ""}</p></div>`;
                 out.appendChild(Roller.renderDamageApplier(combatantId, tot, ignore));
               };
             }
@@ -427,7 +428,7 @@ export const Roller = {
       rollAtkBtn.onclick = () => doRoll(false);
       atkDiv.appendChild(rollAtkBtn);
 
-      m.body.append(atkDiv, dmgDiv, out);
+      m.body.append(atkDiv, out, dmgDiv, dmgOut);
     },
 
     // ---- Monster attack (auto-hit) ----
@@ -449,12 +450,12 @@ export const Roller = {
       const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const bodyElems = [];
       if (d6Roll) {
-        bodyElems.push(el(`<p class="stat-line" style="font-size:1.2rem;color:var(--ok);margin:0 0 8px 0"><b>🎲 Rolled ${d6Roll} on Monster Attack Table!</b></p>`));
+        bodyElems.push(el(`<p class="stat-line" style="font-size:var(--fs-lg);color:var(--ok);margin:0 0 8px 0"><b>🎲 Rolled ${d6Roll} on Monster Attack Table!</b></p>`));
       }
       bodyElems.push(el(`<p class="stat-line" style="margin:0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
       if (atk.damage) {
         const base = Dice.roll(atk.damage);
-        out.innerHTML = `<div style="margin-top:12px;padding:10px;background:var(--bg-raised);border-radius:8px;border:1px solid var(--line)"><p class="outcome ok" style="font-size:1.6rem;margin:0">💥 ${base} damage</p><p class="stat-line" style="margin:4px 0 0 0">${atk.damage} = <b>${base}</b></p></div>`;
+        out.innerHTML = `<div style="margin-top:12px;padding:10px;background:var(--bg-raised);border-radius:var(--r-md);border:1px solid var(--line)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">💥 ${base} damage</p><p class="stat-line" style="margin:4px 0 0 0">${atk.damage} = <b>${base}</b></p></div>`;
         const ignoreArm = /ignores armor/i.test(atk.desc || "");
         out.appendChild(Roller.renderDamageApplier(combatantId, base, ignoreArm));
       }
@@ -481,11 +482,11 @@ export const Roller = {
         const idx = Math.min(cb.attacks.length - 1, Math.floor((d6 - 1) / (6 / cb.attacks.length)));
         const atk = cb.attacks[idx] || cb.attacks[0];
         const block = el(`<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)"></div>`);
-        block.appendChild(el(`<p class="stat-line" style="margin:0 0 4px 0;font-size:1.1rem;color:var(--ok)"><b>🎲 Attack ${k + 1}/${fero} — rolled ${d6}: ${esc(atk.name)}</b></p>`));
+        block.appendChild(el(`<p class="stat-line" style="margin:0 0 4px 0;font-size:var(--fs-lg);color:var(--ok)"><b>🎲 Attack ${k + 1}/${fero} — rolled ${d6}: ${esc(atk.name)}</b></p>`));
         block.appendChild(el(`<p class="stat-line" style="margin:0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
         if (atk.damage) {
           const base = Dice.roll(atk.damage);
-          block.appendChild(el(`<p class="outcome ok" style="font-size:1.4rem;margin:6px 0 0 0">💥 ${base} damage <small style="font-weight:normal">(${atk.damage})</small></p>`));
+          block.appendChild(el(`<p class="outcome ok" style="font-size:var(--fs-xl);margin:6px 0 0 0">💥 ${base} damage <small style="font-weight:normal">(${atk.damage})</small></p>`));
           block.appendChild(Roller.renderDamageApplier(cb.id, base, /ignores armor/i.test(atk.desc || ""), true));
         }
         m.body.appendChild(block);
@@ -519,7 +520,7 @@ export const Roller = {
           if (w.bonus) {
             const b = Dice.roll(w.bonus); tot += b; p += ` · bonus ${w.bonus} = <b>${b}</b>`;
           }
-          out.innerHTML += `<p class="outcome ok" style="font-size:1.6rem;margin-top:12px">${tot} damage</p><p class="stat-line">${p}</p>`;
+          out.innerHTML += `<p class="outcome ok" style="font-size:var(--fs-2xl);margin-top:12px">${tot} damage</p><p class="stat-line">${p}</p>`;
           out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
         };
       }
@@ -528,7 +529,7 @@ export const Roller = {
         const d = Dice.d(20);
         const ok = d <= w.skill;
         const crit = d === 1; const fumble = d === 20;
-        out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="font-size:1.6rem;margin-top:12px">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : ok ? "Hit!" : "Miss!"} (rolled ${d} vs ${w.skill})</p>`;
+        out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="font-size:var(--fs-2xl);margin-top:12px">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : ok ? "Hit!" : "Miss!"} (rolled ${d} vs ${w.skill})</p>`;
         this.stage(out, d, w.skill, ok, crit, fumble);
         if (dmgBtn) {
           dmgBtn.disabled = !ok;
@@ -566,9 +567,9 @@ export const Roller = {
         const r = Dice.d(6);
         const row = nat.rows.find(x => (x.d6 === "4" && r === 4) || (x.d6 === "5" && r === 5) || (x.d6 === "6" && r === 6) || (x.d6 === "1-3" && r <= 3)) || nat.rows[0];
         const actionText = row[prop] || "—";
-        out.innerHTML = `<div style="padding:12px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
-          <p class="outcome ok" style="font-size:1.4rem;margin:0">Rolled ${r}: ${role}</p>
-          <p class="stat-line" style="margin-top:6px;font-size:1.15rem">${esc(actionText)}</p>
+        out.innerHTML = `<div style="padding:12px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid var(--accent)">
+          <p class="outcome ok" style="font-size:var(--fs-xl);margin:0">Rolled ${r}: ${role}</p>
+          <p class="stat-line" style="margin-top:6px;font-size:var(--fs-lg)">${esc(actionText)}</p>
         </div>`;
         const cb = combatantId ? (Combat.load().combatants || []).find((c) => c.id === combatantId) : null;
         // The NPC makes an attack → resolve it (roll + damage applier) with its weapon.
@@ -624,7 +625,7 @@ export const Roller = {
       const m = modal(`${npcName}: Cast ${spell.name}`);
       const sDetail = el(`<div class="spell-detail-card" style="margin-bottom:12px;padding:10px;background:var(--bg-raised);border-left:4px solid var(--accent)">
         <p style="margin:0;font-weight:bold">${esc(spell.name)} <span class="tag">${spell.rank ? `Rank ${spell.rank}` : "Trick"}</span></p>
-        <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">${esc(spell.text || spell.desc || "Magical spell.")}</p>
+        <p class="stat-line" style="margin:4px 0 0 0;font-size:var(--fs-sm)">${esc(spell.text || spell.desc || "Magical spell.")}</p>
       </div>`);
 
       const skillRow = el(`<div class="roll-ctl" style="margin-bottom:10px">
@@ -643,8 +644,8 @@ export const Roller = {
         const r = Dice.d(20);
         const success = r <= skillLvl;
         if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
-        out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${success ? "var(--ok)" : "var(--bad)"}">
-          <p class="outcome ${success ? "ok" : "bad"}" style="margin:0;font-size:1.3rem">Rolled ${r} vs Skill ${skillLvl} — ${success ? "SUCCESS!" : "FAILED!"}</p>
+        out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${success ? "var(--ok)" : "var(--bad)"}">
+          <p class="outcome ${success ? "ok" : "bad"}" style="margin:0;font-size:var(--fs-xl)">Rolled ${r} vs Skill ${skillLvl} — ${success ? "SUCCESS!" : "FAILED!"}</p>
           ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
         this.stage(out, r, skillLvl, success, r === 1, r === 20);
@@ -657,8 +658,8 @@ export const Roller = {
       const autoBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);border:none">✓ Auto-Succeed (Self / Ally Buff)</button>`);
       autoBtn.onclick = () => {
         if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
-        out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid var(--ok)">
-          <p class="outcome ok" style="margin:0;font-size:1.3rem">Spell Cast Automatically!</p>
+        out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid var(--ok)">
+          <p class="outcome ok" style="margin:0;font-size:var(--fs-xl)">Spell Cast Automatically!</p>
           ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
         const pl = spell.rank || 1;
@@ -687,8 +688,8 @@ export const Roller = {
       
       const sDetail = el(`<div class="spell-detail-card" style="margin-bottom:12px;padding:10px;background:var(--bg-raised);border-left:4px solid var(--gold)">
         <p style="margin:0;font-weight:bold">${esc(spell.name)} <span class="tag">${spell.rank ? `Rank ${spell.rank}` : "Trick"}</span></p>
-        <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">${esc(spell.text || spell.desc || "Magical incantation.")}</p>
-        ${spell.range ? `<p class="stat-line" style="margin:4px 0 0 0;font-size:0.85rem"><b>Range:</b> ${esc(spell.range)} · <b>Time:</b> ${esc(spell.time || "Action")}</p>` : ""}
+        <p class="stat-line" style="margin:4px 0 0 0;font-size:var(--fs-sm)">${esc(spell.text || spell.desc || "Magical incantation.")}</p>
+        ${spell.range ? `<p class="stat-line" style="margin:4px 0 0 0;font-size:var(--fs-sm)"><b>Range:</b> ${esc(spell.range)} · <b>Time:</b> ${esc(spell.time || "Action")}</p>` : ""}
       </div>`);
 
       const _am = equippedArmor(c), _hm = equippedHelmet(c);
@@ -700,22 +701,22 @@ export const Roller = {
       });
       const hasMetal = (_am && _am.metal) || (_hm && _hm.metal) || _metalWpn;
       if (hasMetal) {
-        sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⛔ <b>Metal blocks magic:</b> You cannot cast while wearing metal armor/helmet or with a metal weapon at hand. Unequip it first.</div>`));
+        sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:var(--tint-bad);color:var(--bad);margin-top:8px">⛔ <b>Metal blocks magic:</b> You cannot cast while wearing metal armor/helmet or with a metal weapon at hand. Unequip it first.</div>`));
       }
       if (spell.school === "necromancy" && ((spell.name || "").match(/animate|skeleton|ghost|corpse/i) || (spell.text || "").match(/corpse|body|skeleton/i))) {
         const hasCorpse = (c.inventory?.items || []).some(x => (x.name || "").match(/corpse|body|skeleton|bone/i));
         if (!hasCorpse) {
-          sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:rgba(200,0,0,0.1);color:var(--bad);margin-top:8px">⚠️ <b>Ingredient Warning:</b> No Corpse/Bones found in inventory. You may cast anyway assuming ambient battlefield corpses.</div>`));
+          sDetail.appendChild(el(`<div class="notice" style="border-color:var(--bad);background:var(--tint-bad);color:var(--bad);margin-top:8px">⚠️ <b>Ingredient Warning:</b> No Corpse/Bones found in inventory. You may cast anyway assuming ambient battlefield corpses.</div>`));
         }
       }
 
       const isHeal = spell.name?.toLowerCase().match(/heal|cure|treat|resurrect/);
       if (c.state.wp <= 1) {
         if (isHeal) {
-          sDetail.appendChild(el(`<div style="margin-top:8px;padding:6px;background:rgba(200,0,0,0.1);border-radius:4px;color:var(--bad);font-size:0.85rem">⚠️ Desperate? Power from the Body cannot be used for healing spells.</div>`));
+          sDetail.appendChild(el(`<div style="margin-top:8px;padding:6px;background:var(--tint-bad);border-radius:var(--r-sm);color:var(--bad);font-size:var(--fs-sm)">⚠️ Desperate? Power from the Body cannot be used for healing spells.</div>`));
         } else {
-          const pWrap = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px dashed var(--bad);border-radius:6px">
-            <div style="color:var(--bad);font-weight:bold;font-size:0.9rem;margin-bottom:6px">🩸 Power from the Body (Convert HP to WP)</div>
+          const pWrap = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px dashed var(--bad);border-radius:var(--r-sm)">
+            <div style="color:var(--bad);font-weight:bold;font-size:var(--fs-sm);margin-bottom:6px">🩸 Power from the Body (Convert HP to WP)</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap"></div>
           </div>`);
           const btnsWrap = pWrap.querySelector("div:nth-child(2)");
@@ -767,12 +768,12 @@ export const Roller = {
       plRow.append(el(`<span class="stat-line">Power</span>`), pm, plLbl, pp);
       
       const isReaction = spell.time?.toLowerCase().includes("reaction") || spell.castingTime?.toLowerCase().includes("reaction");
-      const grimWrap = el(`<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.95rem;cursor:pointer">
+      const grimWrap = el(`<label class="roll-opt" style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:var(--fs-sm);cursor:pointer">
         <input type="checkbox" id="cast-unprepared" ${spell.prepared === false ? "checked" : ""}>
         <span>📖 Cast Unprepared from Grimoire (Doubles time)</span>
       </label>`);
 
-      const castBtn = el(`<button class="btn block" style="margin-top:12px">Cast</button>`);
+      const castBtn = el(`<button class="btn block roll-go" style="margin-top:12px">Cast</button>`);
       if (hasMetal) { castBtn.disabled = true; castBtn.style.opacity = "0.4"; castBtn.style.cursor = "not-allowed"; castBtn.title = "Remove metal armor/weapon to cast"; }
       const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doCast = (pushedCondition) => {

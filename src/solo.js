@@ -37,8 +37,8 @@ export const SoloMode = {
       // Newcomer aids: one-tap tutorial link + the solo loop step-by-step.
       const tut = el(`<button class="btn ghost block" style="margin-bottom:10px">📘 New to solo RPGs? Read How to Play</button>`);
       tut.onclick = () => { Router.go("rules"); setTimeout(() => { const a = document.querySelector("details.rule-accordion[data-cat='howtoplay']"); if (a) { a.open = true; a.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 60); };
-      help.appendChild(tut); // one "getting started" collapsible: help + tutorial + loop
-      const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">🧭 The solo loop — what to do each scene</summary></details>`);
+      help.steps.appendChild(tut); // one "getting started" dialog: help + tutorial + loop
+      const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">🧭 The solo loop — what to do each scene</summary></details>`);
       const loopUl = document.createElement("ul"); loopUl.className = "stat-line"; loopUl.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
       [
         "① <b>Set the scene</b> in the Journal below — where you are and your goal.",
@@ -47,7 +47,7 @@ export const SoloMode = {
         "④ On a failure, <b>Push</b> the roll or use <b>🎲 Fail forward</b> to keep the story moving.",
         "⑤ Track open questions as <b>🧵 Threads</b>; when the mission is done, tap <b>🏅 Mission +5</b> to advance."
       ].forEach((s) => { const li = document.createElement("li"); li.style.margin = "3px 0"; li.innerHTML = s; loopUl.appendChild(li); });
-      loop.appendChild(loopUl); help.appendChild(loop);
+      loop.appendChild(loopUl); help.steps.appendChild(loop);
       if (!solo) {
         root.appendChild(el(`<div class="panel"><p class="stat-line">Solo rules library not loaded.</p></div>`));
         return root;
@@ -55,31 +55,34 @@ export const SoloMode = {
 
       // Play mode switch banner
       const sm = Settings.soloMode();
+      // One compact context bar: solo mode status + who you're rolling as.
       const banner = el(`
-        <div class="panel" style="background:var(--card);border:1px solid var(--accent);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;min-width:200px">
-            <b>🧭 Solo Campaign Mode: <span style="color:${sm ? "var(--ok)" : "var(--muted)"}">${sm ? "Active" : "Standard"}</span></b><br>
-            <span class="stat-line">When active, unlocks solo heroic abilities (Army of One, Sole Survivor) in character creation.</span>
+        <div class="panel solo-ctx">
+          <div class="solo-ctx-row">
+            <div class="solo-ctx-main">
+              <b>🧭 Solo Campaign Mode: <span style="color:${sm ? "var(--ok)" : "var(--muted)"}">${sm ? "Active" : "Standard"}</span></b>
+              <span class="stat-line solo-ctx-note">When active, unlocks solo heroic abilities (Army of One, Sole Survivor) in character creation.</span>
+            </div>
           </div>
         </div>`);
-      const bBtn = el(`<button class="btn ${sm ? "ghost" : ""}">${sm ? "Disable Solo Mode" : "Enable Solo Mode"}</button>`);
+      const bBtn = el(`<button class="btn ${sm ? "ghost" : ""} solo-ctx-btn">${sm ? "Disable Solo Mode" : "Enable Solo Mode"}</button>`);
       bBtn.onclick = () => { Settings.set("soloMode", !sm); Router.go("solo"); };
-      banner.appendChild(bBtn);
+      banner.querySelector(".solo-ctx-row").appendChild(bBtn);
       root.appendChild(banner);
 
       // Link a hero so the journey/skill rolls use their real sheet values and
       // the full dice engine (conditions, boons/banes, pushing, advancement).
       const heroes = Store.list();
       const linked = this.linkedHero();
-      const heroPanel = el(`<div class="panel" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px"><b>🎲 Rolling as</b><br><span class="stat-line">${linked ? "Skill/attribute rolls use " + esc(linked.identity.name) + "’s sheet." : "Pick a hero to auto-fill skills &amp; attributes, or roll manually below."}</span></div>
+      const heroPanel = el(`<div class="solo-ctx-row solo-ctx-hero">
+        <div class="solo-ctx-main"><b>🎲 Rolling as</b><span class="stat-line solo-ctx-note">${linked ? "Skill/attribute rolls use " + esc(linked.identity.name) + "’s sheet." : "Pick a hero to auto-fill skills &amp; attributes, or roll manually below."}</span></div>
       </div>`);
-      const heroSel = el(`<select class="input" style="min-width:160px"></select>`);
+      const heroSel = el(`<select class="input solo-ctx-sel"></select>`);
       heroSel.appendChild(el(`<option value="">— No hero (type values) —</option>`));
       heroes.forEach((h) => { const o = el(`<option value="${esc(h.id)}">${esc(h.identity.name)}</option>`); if (linked && h.id === linked.id) o.selected = true; heroSel.appendChild(o); });
       heroSel.onchange = () => { this.setHero(heroSel.value || null); Router.go("solo"); };
       heroPanel.appendChild(heroSel);
-      root.appendChild(heroPanel);
+      banner.appendChild(heroPanel);
 
       // Linked-hero strip: glanceable vitals + one-tap sheet/rest/mission.
       if (linked) {
@@ -110,9 +113,11 @@ export const SoloMode = {
         cur = k; try { localStorage.setItem("dragonbane.soloTab", k); } catch (_) {}
         tabBar.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.tab === k; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
         Object.entries(panes).forEach(([pk, pn]) => { pn.hidden = pk !== k; });
+        if (selectTab._ready) { panes[k].classList.remove("pane-in"); void panes[k].offsetWidth; panes[k].classList.add("pane-in"); }
+        selectTab._ready = true;
       };
       TABS.forEach(([k, label]) => {
-        panes[k] = el(`<div class="tab-panel" role="tabpanel" id="solo-pane-${k}" aria-labelledby="solo-tab-${k}" data-tab="${k}"></div>`);
+        panes[k] = el(`<div class="tab-panel${k === "play" ? " two-col" : ""}" role="tabpanel" id="solo-pane-${k}" aria-labelledby="solo-tab-${k}" data-tab="${k}"></div>`);
         const b = el(`<button type="button" class="tab" role="tab" id="solo-tab-${k}" data-tab="${k}" aria-controls="solo-pane-${k}">${label}</button>`);
         b.onclick = () => selectTab(k);
         tabBar.appendChild(b);
@@ -136,11 +141,11 @@ export const SoloMode = {
       const logList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>`);
       const renderLog = () => {
         const j = this.loadJournal(); logList.innerHTML = "";
-        if (!j.entries.length) { logList.appendChild(el(`<p class="stat-line">No log yet — tap <b>＋ Log</b> on any roll result, or add a note below.</p>`)); return; }
+        if (!j.entries.length) { logList.appendChild(el(`<p class="stat-line empty-note">No log yet — tap <b>＋ Log</b> on any roll result, or add a note below.</p>`)); return; }
         j.entries.slice().reverse().forEach((e, ri) => {
           const idx = j.entries.length - 1 - ri;
           const when = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-          const row = el(`<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 6px;background:var(--bg);border-radius:4px"><span class="stat-line" style="min-width:46px">${esc(when)}</span><span style="flex:1">${esc(e.text)}</span></div>`);
+          const row = el(`<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"><span class="stat-line" style="min-width:46px">${esc(when)}</span><span style="flex:1">${esc(e.text)}</span></div>`);
           const x = el(`<button class="step rm" aria-label="Delete entry">✕</button>`);
           x.onclick = () => { const jj = this.loadJournal(); jj.entries.splice(idx, 1); this.saveJournal(jj); renderLog(); };
           row.appendChild(x); logList.appendChild(row);
@@ -162,9 +167,9 @@ export const SoloMode = {
       const threadsList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>`);
       const renderThreads = () => {
         const j = this.loadJournal(); threadsList.innerHTML = "";
-        if (!j.threads.length) { threadsList.appendChild(el(`<p class="stat-line">No open threads.</p>`)); return; }
+        if (!j.threads.length) { threadsList.appendChild(el(`<p class="stat-line empty-note">No open threads.</p>`)); return; }
         j.threads.forEach((th) => {
-          const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:4px"></div>`);
+          const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"></div>`);
           const tog = el(`<button class="skill-chip ${th.done ? "picked" : ""}" title="toggle resolved" aria-pressed="${th.done}">${th.done ? "✓" : "○"}</button>`);
           tog.onclick = () => { const jj = this.loadJournal(); const x = jj.threads.find((y) => y.id === th.id); if (x) x.done = !x.done; this.saveJournal(jj); renderThreads(); };
           const txt = el(`<span style="flex:1;${th.done ? "text-decoration:line-through;opacity:0.6" : ""}">${esc(th.text)}</span>`);
@@ -189,9 +194,9 @@ export const SoloMode = {
       const npcsList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>`);
       const renderNpcs = () => {
         const j = this.loadJournal(); npcsList.innerHTML = "";
-        if (!j.npcs.length) { npcsList.appendChild(el(`<p class="stat-line">No NPCs recorded.</p>`)); return; }
+        if (!j.npcs.length) { npcsList.appendChild(el(`<p class="stat-line empty-note">No NPCs recorded.</p>`)); return; }
         j.npcs.forEach((n) => {
-          const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:4px"><span style="flex:1"><b>${esc(n.name)}</b>${n.note ? ` — ${esc(n.note)}` : ""}</span></div>`);
+          const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"><span style="flex:1"><b>${esc(n.name)}</b>${n.note ? ` — ${esc(n.note)}` : ""}</span></div>`);
           const rm = el(`<button class="step rm" aria-label="Delete NPC">✕</button>`);
           rm.onclick = () => { const jj = this.loadJournal(); jj.npcs = jj.npcs.filter((y) => y.id !== n.id); this.saveJournal(jj); renderNpcs(); };
           row.appendChild(rm); npcsList.appendChild(row);
@@ -215,8 +220,8 @@ export const SoloMode = {
       const resultBtns = (getText) => {
         const wrap = el(`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>`);
         const t = () => (typeof getText === "function" ? getText() : getText);
-        const lb = el(`<button class="btn ghost" style="font-size:0.85rem">＋ Log</button>`); lb.onclick = () => addLog(t());
-        const tb = el(`<button class="btn ghost" style="font-size:0.85rem">＋ Thread</button>`); tb.onclick = () => addThread(t());
+        const lb = el(`<button class="btn ghost" style="font-size:var(--fs-sm)">＋ Log</button>`); lb.onclick = () => addLog(t());
+        const tb = el(`<button class="btn ghost" style="font-size:var(--fs-sm)">＋ Thread</button>`); tb.onclick = () => addThread(t());
         wrap.append(lb, tb); return wrap;
       };
 
@@ -273,9 +278,9 @@ export const SoloMode = {
         const twist = used === 1 || used === 6;
 
         fPanel.querySelector("#solo-f-out").innerHTML = `
-          <div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
+          <div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
             <p class="stat-line" style="margin:0 0 4px 0">Rolled ${rollText}</p>
-            <p style="font-size:1.4rem;font-weight:bold;margin:0;color:${twist ? "var(--accent-ink)" : "var(--ok)"}">${esc(ans)}</p>
+            <p style="font-size:var(--fs-xl);font-weight:bold;margin:0;color:${twist ? "var(--accent-ink)" : "var(--ok)"}">${esc(ans)}</p>
             ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent-ink)">★ Extreme result / twist!</p>` : ""}
           </div>`;
         fPanel.querySelector("#solo-f-out").appendChild(resultBtns(`Oracle (${colKey}, ${likeKey}): ${ans}${twist ? " [twist]" : ""}`));
@@ -310,7 +315,7 @@ export const SoloMode = {
         else if (mode === "thg") res = `Thing (${r3}): <b>${row3.thing}</b>`;
 
         iPanel.querySelector("#solo-i-out").innerHTML = `
-          <div style="padding:10px;background:var(--bg);border-radius:6px;font-size:1.3rem;text-align:center;margin-top:8px">
+          <div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);font-size:var(--fs-xl);text-align:center;margin-top:8px">
             ${res}
           </div>`;
         const plain = mode === "all" ? `${row1.action} · ${row2.attribute} · ${row3.thing}` : mode === "act" ? row1.action : mode === "att" ? row2.attribute : row3.thing;
@@ -339,9 +344,9 @@ export const SoloMode = {
         const row = tw.find(x => x.d6 === r) || tw[0];
         const txt = isDrag ? row.dragon : row.demon;
         tPanel.querySelector("#solo-t-out").innerHTML = `
-          <div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${isDrag ? "var(--ok)" : "var(--bad)"}">
+          <div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${isDrag ? "var(--ok)" : "var(--bad)"}">
             <p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p>
-            <p style="font-size:1.2rem;margin:0;color:${isDrag ? "var(--ok)" : "var(--bad)"}">${esc(txt)}</p>
+            <p style="font-size:var(--fs-lg);margin:0;color:${isDrag ? "var(--ok)" : "var(--bad)"}">${esc(txt)}</p>
           </div>`;
         tPanel.querySelector("#solo-t-out").appendChild(resultBtns(`${isDrag ? "Dragon" : "Demon"} twist: ${txt}`));
       };
@@ -447,9 +452,9 @@ export const SoloMode = {
 
         const actionText = row[prop] || "—";
         nPanel.querySelector("#solo-n-out").innerHTML = `
-          <div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
+          <div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid var(--accent)">
             <p class="stat-line" style="margin:0 0 4px 0">${esc(role)} · Rolled ${r}</p>
-            <p style="font-size:1.15rem;margin:0;font-weight:bold">${esc(actionText)}</p>
+            <p style="font-size:var(--fs-lg);margin:0;font-weight:bold">${esc(actionText)}</p>
           </div>`;
         nPanel.querySelector("#solo-n-out").appendChild(resultBtns(`NPC ${role}: ${actionText}`));
       };
@@ -460,7 +465,7 @@ export const SoloMode = {
       const shifts = ["🌅 Morning", "☀️ Day", "🌆 Evening", "🌙 Night"];
       // Roll on the D6 journey mishap table → { r, effect }.
       const rollMishap = () => { const r = Dice.d(jm.length || 6); const row = jm.find((x) => x.d6 === r) || jm[r - 1] || { effect: "—" }; return { r, effect: row.effect }; };
-      const outBox = (color, html) => `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${color};margin-top:8px">${html}</div>`;
+      const outBox = (color, html) => `<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${color};margin-top:8px">${html}</div>`;
       // A follow-up attribute check for a mishap that calls for one, e.g.
       // "roll WIL or gain Scared" / "roll CON or suffer". When a hero is linked
       // it uses their real attribute and applies the governed condition on a
@@ -496,9 +501,9 @@ export const SoloMode = {
       // Render a rolled journey mishap as a DOM box, appending an inline
       // attribute-check row when the effect text says "roll <ATTR>".
       const mishapNode = (mp) => {
-        const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid var(--bad);margin-top:8px"></div>`);
+        const box = el(`<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid var(--bad);margin-top:8px"></div>`);
         box.appendChild(el(`<p class="stat-line" style="margin:0 0 4px 0"><b>Journey Mishap</b> · Rolled ${mp.r}</p>`));
-        box.appendChild(el(`<p style="font-size:1.2rem;font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`));
+        box.appendChild(el(`<p style="font-size:var(--fs-lg);font-weight:bold;margin:0;color:var(--bad)">${esc(mp.effect)}</p>`));
         const am = /roll\s+(STR|CON|AGL|INT|WIL|CHA)\b/i.exec(mp.effect);
         if (am) box.appendChild(attrCheckRow(am[1].toUpperCase(), mp.effect));
         box.appendChild(resultBtns(`Journey Mishap (D6:${mp.r}): ${mp.effect}`));
@@ -513,7 +518,7 @@ export const SoloMode = {
       const shiftSec = el(`<div style="margin-bottom:10px"><p class="stat-line" style="margin:0"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p></div>`);
       const shiftBtn = el(`<button class="btn ghost" style="margin-top:6px">🎲 Random shift (D4)</button>`);
       const shiftOut = el(`<div></div>`);
-      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:1.3rem;font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(resultBtns(`Shift: ${shifts[r - 1]}`)); };
+      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line" style="margin:0 0 4px 0">Rolled ${r}</p><p style="font-size:var(--fs-xl);font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(resultBtns(`Shift: ${shifts[r - 1]}`)); };
       shiftSec.append(shiftBtn, shiftOut);
       jPanel.appendChild(shiftSec);
 
@@ -522,7 +527,7 @@ export const SoloMode = {
       const campOut = el(`<div></div>`);
       const renderCampResult = (ok) => {
         campOut.innerHTML = "";
-        const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
+        const box = el(`<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
         box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
         if (!ok) box.appendChild(mishapNode(rollMishap()));
         else box.appendChild(resultBtns("Camp made — party rests."));
@@ -540,7 +545,7 @@ export const SoloMode = {
           const lvl = Math.max(1, Math.min(20, parseInt(campSkill.value, 10) || 10));
           const r = Dice.d(20), dragon = r === 1, demon = r === 20, ok = r <= lvl;
           campOut.innerHTML = "";
-          const box = el(`<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
+          const box = el(`<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${ok ? "var(--ok)" : "var(--bad)"};margin-top:8px"></div>`);
           box.appendChild(el(`<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${dragon ? "🐉 Dragon — " : demon ? "👹 Demon — " : ""}${r} vs ${lvl} — ${ok ? "Camp made! The party may take a Shift rest (full HP/WP)." : "Failed to make camp — Journey Mishap:"}</p>`));
           if (!ok) box.appendChild(mishapNode(rollMishap()));
           else box.appendChild(resultBtns("Camp made — party rests."));

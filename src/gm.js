@@ -56,7 +56,7 @@ export const GM = {
       party.forEach((c) => {
         const conds = this.heldConditions(c);
         const dying = (c.state && c.state.hp <= 0);
-        const row = el(`<div class="gm-row" style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px"></div>`);
+        const row = el(`<div class="gm-row"></div>`);
         row.appendChild(el(`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
           <b>${esc(c.identity.name)}</b>
           <span class="stat-line">${esc(c.identity.kin || "")} ${esc(c.identity.profession || "")}</span>
@@ -67,14 +67,14 @@ export const GM = {
           ${dying ? ' · <b style="color:var(--bad)">🩸 DYING</b>' : ""}
           ${conds.length ? ` · <span style="color:var(--bad)">${conds.map(esc).join(", ")}</span>` : ""}
         </div>`));
-        const actions = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
-        const open = el(`<button class="btn ghost" style="flex:1;min-width:90px">Open sheet ↗</button>`);
+        const actions = el(`<div class="gm-tools"></div>`);
+        const open = el(`<button class="btn ghost">Open sheet ↗</button>`);
         open.onclick = () => Sheet.open(c.id);
-        const dmg = el(`<button class="btn ghost" style="flex:1;min-width:90px">− Damage</button>`);
+        const dmg = el(`<button class="btn ghost">− Damage</button>`);
         dmg.onclick = () => this.handDamage(c.id);
-        const cond = el(`<button class="btn ghost" style="flex:1;min-width:90px">+ Condition</button>`);
+        const cond = el(`<button class="btn ghost">+ Condition</button>`);
         cond.onclick = () => this.handCondition(c.id);
-        const fear = el(`<button class="btn ghost" style="flex:1;min-width:90px;border-color:var(--bad)">😱 Fear</button>`);
+        const fear = el(`<button class="btn ghost gm-fear">😱 Fear</button>`);
         fear.onclick = () => this.handFear(c.id);
         actions.append(open, dmg, cond, fear);
         row.appendChild(actions);
@@ -135,7 +135,7 @@ export const GM = {
           const r = Dice.d(6);
           const row = (rows || []).find((x) => x.d6 === r) || {};
           out.innerHTML = "";
-          out.appendChild(el(`<p class="outcome" style="margin:4px 0;font-size:1.05rem"><b>D6: ${r}</b> — ${esc(row.effect || "")}</p>`));
+          out.appendChild(el(`<p class="outcome" style="margin:4px 0;font-size:var(--fs-md)"><b>D6: ${r}</b> — ${esc(row.effect || "")}</p>`));
           if (Sync.isGm()) {
             const push = el(`<button class="btn ghost" style="border-color:var(--accent)">📢 Push to players</button>`);
             push.onclick = () => Sync.pushBroadcast(`${title} (D6: ${r}) — ${row.effect || ""}`);

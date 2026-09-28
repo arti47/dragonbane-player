@@ -291,9 +291,9 @@ export const Combat = {
       if (!s.combatants.length) { main.appendChild(el(`<div class="empty"><div class="big">⚔</div><p class="stat-line">Add combatants to begin.</p></div>`)); return root; }
 
       // Round controls
-      const ctrl = el(`<div class="panel"></div>`);
-      ctrl.appendChild(el(`<p><b>${s.round ? "Round " + s.round : "Not started"}</b></p>`));
-      const btns = el(`<div class="rest-row"></div>`);
+      const ctrl = el(`<div class="panel round-bar"></div>`);
+      ctrl.appendChild(el(`<div class="round-badge"><span class="round-lbl">${s.round ? "Round" : "Not started"}</span>${s.round ? `<span class="round-num">${s.round}</span>` : ""}</div>`));
+      const btns = el(`<div class="round-actions"></div>`);
       const drawBtn = el(`<button class="btn ${s.round ? "ghost" : ""}">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
       drawBtn.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; }));
       const nextTurn = el(`<button class="btn ${s.round ? "" : "ghost"}">Next turn</button>`);
@@ -314,14 +314,20 @@ export const Combat = {
           const freeBtn = el(`<button class="btn block" style="background:var(--bad-fill);color:var(--on-fill)">🎲 Roll Enemy Free Attack</button>`);
           freeBtn.onclick = () => { freeBtn.disabled = true; showToast("🎲 GM rolls Enemy Free Attack! Apply damage as usual.", "warn"); };
           fm.body.append(
-            el(`<p class="outcome bad" style="font-size:1.4rem">Rolled ${d} (Failed Evade)</p>`),
+            el(`<p class="outcome bad" style="font-size:var(--fs-xl)">Rolled ${d} (Failed Evade)</p>`),
             el(`<p class="stat-line">You fail to break away cleanly. The engaged enemy gets an immediate Free Attack against you!</p>`),
             freeBtn
           );
         }
       };
-      if (s.round) btns.append(nextTurn, nextRound, drawBtn, resetTurns, fleeBtn, end);
-      else btns.append(drawBtn, nextTurn, nextRound, resetTurns, fleeBtn, end);
+      // Primary actions stay visible; the rest live in a ⋯ menu.
+      const more = el(`<details class="round-more"><summary class="btn ghost" aria-label="More combat actions">⋯</summary><div class="round-menu"></div></details>`);
+      const menu = more.querySelector(".round-menu");
+      if (s.round) { btns.append(nextTurn, nextRound); menu.append(drawBtn, resetTurns, fleeBtn, end); }
+      else { btns.append(drawBtn, nextTurn); menu.append(nextRound, resetTurns, fleeBtn, end); }
+      menu.querySelectorAll(".btn").forEach((b) => b.addEventListener("click", () => { more.open = false; }));
+      if (!Combat._menuCloser) { Combat._menuCloser = true; document.addEventListener("click", (e) => document.querySelectorAll("details.round-more[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; })); }
+      btns.appendChild(more);
       ctrl.appendChild(btns);
       side.insertBefore(ctrl, addPanel);
 
@@ -333,12 +339,12 @@ export const Combat = {
         const isCur = cb.id === currentId;
         const isDyingHero = cb.kind === "hero" && cb.hp != null && cb.hp <= 0 && !cb.defeated;
         const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0 && !isDyingHero);
-        const card = el(`<div class="panel ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""}" style="margin:0;padding:0;overflow:hidden;border:1px solid ${isCur ? "var(--accent)" : "var(--border)"};opacity:${isDefeated ? "0.55" : "1"}"></div>`);
+        const card = el(`<div class="panel cb-card ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""} ${isDefeated ? "defeated" : ""}" style="margin:0;padding:0;overflow:hidden"></div>`);
         
-        const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:rgba(0,0,0,0.15)" : ""}">
+        const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:var(--tint-shade)" : ""}">
           <div style="display:flex;align-items:center;gap:10px;width:100%">
-            <span class="init-card" style="margin:0;flex-shrink:0">${cb.init == null ? "–" : cb.init}</span>
-            <span class="cb-name" style="font-weight:bold;font-size:1.3rem;color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
+            <span class="init-card play-card ${cb.done || cb.acted ? "spent" : ""}" style="margin:0;flex-shrink:0" aria-label="Initiative ${cb.init == null ? "none" : cb.init}"><span class="pc-pip" aria-hidden="true" data-n="${cb.init == null ? "" : cb.init}"></span>${cb.init == null ? "–" : cb.init}</span>
+            <span class="cb-name" style="font-weight:bold;font-size:var(--fs-xl);color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
             <div class="row-top-actions" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap">
@@ -347,7 +353,7 @@ export const Combat = {
             ${isDefeated ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">💀 DEFEATED</span>' : ""}
             ${isDyingHero ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">🩸 DYING (0 HP)</span>' : ""}
             <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end"></div>
-            <span class="cb-hp" style="font-weight:bold;font-size:1.15rem;color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
+            <span class="cb-hp" style="font-weight:bold;font-size:var(--fs-lg);color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
           </div>
           ${cb.hp != null ? (() => { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)); return `<div class="hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}" aria-hidden="true"><i style="--pct:${pct}%"></i></div>`; })() : ""}
         </div>`);
@@ -386,7 +392,7 @@ export const Combat = {
             quickWrap.appendChild(nQuick);
           }
 
-          const actedBadge = el(`<button class="skill-chip quick-chip ${cb.acted ? "picked" : ""}" title="Toggle whether character has acted this round">${cb.acted ? "Done ✓" : "Turn [ ]"}</button>`);
+          const actedBadge = el(`<button class="skill-chip quick-chip turn-chip ${cb.acted ? "picked" : ""}" role="checkbox" aria-checked="${cb.acted ? "true" : "false"}" title="Toggle whether character has acted this round"><span class="turn-txt">${cb.acted ? "Done ✓" : "Turn [ ]"}</span></button>`);
           actedBadge.onclick = (e) => {
             e.stopPropagation();
             this.guardGm(() => this.mutate(st => {
@@ -402,6 +408,7 @@ export const Combat = {
         head.onclick = (e) => {
           if (e.target.tagName === "BUTTON") return;
           body.style.display = body.style.display === "none" ? "block" : "none";
+          card.classList.toggle("expanded", body.style.display !== "none");
         };
 
         const topActions = head.querySelector(".row-top-actions");
@@ -422,9 +429,9 @@ export const Combat = {
         // Vitals
         if (cb.hp != null) {
           const vitRow = el(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>`);
-          const hpMin = el(`<button class="step" style="width:34px;height:34px;font-size:1.5rem" type="button">−</button>`);
-          const hpPl = el(`<button class="step" style="width:34px;height:34px;font-size:1.5rem" type="button">+</button>`);
-          const hpSpan = el(`<span style="font-size:1.3rem;font-weight:bold;min-width:48px;text-align:center">${cb.hp} / ${cb.maxHp || cb.hp}</span>`);
+          const hpMin = el(`<button class="step" style="width:34px;height:34px;font-size:var(--fs-2xl)" type="button">−</button>`);
+          const hpPl = el(`<button class="step" style="width:34px;height:34px;font-size:var(--fs-2xl)" type="button">+</button>`);
+          const hpSpan = el(`<span style="font-size:var(--fs-xl);font-weight:bold;min-width:48px;text-align:center">${cb.hp} / ${cb.maxHp || cb.hp}</span>`);
           const doHp = (d) => {
             const st = this.load();
             const ref = st.combatants.find(c => c.id === cb.id);
@@ -453,14 +460,14 @@ export const Combat = {
           const atkDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
           atkDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Monster Attacks (Auto-hit):</b>${(cb.ferocity || 1) > 1 ? ` <span class="tag">Ferocity ${cb.ferocity} — ${cb.ferocity} attacks/turn</span>` : ""}</p>`));
 
-          const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:1.15rem;padding:10px;margin-bottom:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
+          const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:var(--fs-lg);padding:10px;margin-bottom:6px;box-shadow:0 2px 6px var(--tint-shade)">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
           d6BannerBtn.onclick = () => Roller.monsterTableRoll(cb);
           atkDiv.appendChild(d6BannerBtn);
 
           const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
           cb.attacks.forEach((atk, i) => {
             const rangeStr = (cb.attacks.length === 6) ? `${i+1}` : (cb.attacks.length === 3 ? `${i*2+1}-${i*2+2}` : `${i+1}`);
-            const b = el(`<button class="btn secondary block combat-action" style="font-size:1.1rem;background:var(--card-bg);color:var(--text)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small style="color:var(--muted)">(${atk.damage})</small>` : ""}</button>`);
+            const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg);background:var(--card-bg);color:var(--text)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small style="color:var(--muted)">(${atk.damage})</small>` : ""}</button>`);
             b.onclick = () => Roller.monsterAttack(cb.name, atk, null, cb.id);
             grid.appendChild(b);
           });
@@ -470,9 +477,9 @@ export const Combat = {
           if (h) {
             const hDiv = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
             if (isDyingHero) {
-              const drBox = el(`<div style="padding:10px;border:1px dashed var(--bad);border-radius:6px;background:rgba(180,50,50,0.08);margin-bottom:8px">
+              const drBox = el(`<div style="padding:10px;border:1px dashed var(--bad);border-radius:var(--r-sm);background:var(--tint-bad);margin-bottom:8px">
                 <b style="color:var(--bad)">🩸 Unconscious & Dying</b><br>
-                <span class="stat-line" style="font-size:0.9rem">Your hero is down at 0 HP. Roll a death roll each round. 3 successes = stabilize (+D6 HP); 3 failures = death.</span>
+                <span class="stat-line" style="font-size:var(--fs-sm)">Your hero is down at 0 HP. Roll a death roll each round. 3 successes = stabilize (+D6 HP); 3 failures = death.</span>
               </div>`);
               const bigRoll = el(`<button class="btn block" style="border-color:var(--bad);color:var(--bad);margin-top:6px">💀 Death roll</button>`);
               bigRoll.onclick = () => Sheet.deathRollModal(cb.charId);
@@ -484,7 +491,7 @@ export const Combat = {
               hDiv.appendChild(el(`<p class="stat-line" style="margin:0"><b>Equipped Weapons:</b></p>`));
               const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
               hWeapons.forEach(w => {
-                const b = el(`<button class="btn secondary block combat-action" style="font-size:1.15rem">${esc(w.name)} <br><small>${esc(w.skill)} (${w.damage})</small></button>`);
+                const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg)">${esc(w.name)} <br><small>${esc(w.skill)} (${w.damage})</small></button>`);
                 b.onclick = () => Roller.heroWeaponAttack(cb.charId, w, cb.id);
                 grid.appendChild(b);
               });
@@ -535,11 +542,11 @@ export const Combat = {
           }
         } else if (cb.kind === "npc") {
           const npcDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
-          if (cb.desc) npcDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0;font-size:1.15rem">${esc(cb.desc)}</p>`));
+          if (cb.desc) npcDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0;font-size:var(--fs-lg)">${esc(cb.desc)}</p>`));
           if (cb.weapons && cb.weapons.length) {
             const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
             cb.weapons.forEach(w => {
-              const b = el(`<button class="btn secondary block combat-action" style="font-size:1.15rem">${esc(w.name)} <br><small>Skill ${w.skill}${w.damage ? ` (${w.damage}${w.bonus ? "+"+w.bonus : ""})` : ""}</small></button>`);
+              const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg)">${esc(w.name)} <br><small>Skill ${w.skill}${w.damage ? ` (${w.damage}${w.bonus ? "+"+w.bonus : ""})` : ""}</small></button>`);
               b.onclick = () => Roller.npcAttack(cb.name, w, cb.id);
               grid.appendChild(b);
             });
@@ -565,6 +572,7 @@ export const Combat = {
           body.appendChild(npcDiv);
         }
 
+        if (body.style.display !== "none") card.classList.add("expanded");
         card.append(head, body);
         list.appendChild(card);
       });

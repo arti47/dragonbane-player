@@ -4,6 +4,7 @@ import { $, CORE_SCHOOLS, DB, MAGICX, el, esc, helpBox, sectionTitle } from './c
 import { confirmModal, promptModal, showToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
+import { effHpMax, effWpMax } from './derived.js';
 import { Sync } from './sync.js';
 import { Pregens, Wizard } from './wizard.js';
 import { Sheet } from './sheet.js';
@@ -16,10 +17,10 @@ import { Router } from './router.js';
 export function renderPartyBanner() {
     if (typeof Sync === "undefined" || !Sync.enabled) return null;
     if (!Sync.campaign) {
-      const banner = el(`<div class="panel" style="border-left:4px solid var(--accent);background:var(--bg-raised);cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+      const banner = el(`<div class="panel" style="border-left:4px solid var(--accent);background:var(--bg-raised);cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;box-shadow:0 2px 8px var(--tint-shade)">
         <div>
-          <h3 style="margin:0;color:var(--accent-ink);font-size:1.2rem">🛡️ Multiplayer Cloud Sync Ready</h3>
-          <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">You are offline/local. Join or create a party campaign to sync characters and combat live across devices.</p>
+          <h3 style="margin:0;color:var(--accent-ink);font-size:var(--fs-lg)">🛡️ Multiplayer Cloud Sync Ready</h3>
+          <p class="stat-line" style="margin:4px 0 0 0;font-size:var(--fs-sm)">You are offline/local. Join or create a party campaign to sync characters and combat live across devices.</p>
         </div>
         <button class="btn secondary" style="flex-shrink:0;margin-left:12px">⚡ Join Party</button>
       </div>`);
@@ -37,14 +38,14 @@ export function renderPartyBanner() {
     const items = chars.map(c => {
       const isMe = c.owner === Sync.uid;
       const conds = Object.entries(c.state?.conditions || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
-      return `<div class="roster-row" data-id="${esc(c.id)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px;transition:background 0.15s">
+      return `<div class="roster-row" data-id="${esc(c.id)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:var(--r-sm);transition:background 0.15s">
         <div><b>${esc(c.identity?.name || "Hero")}</b> ${isMe ? '<span class="tag" style="background:var(--accent);color:var(--on-accent)">YOU</span>' : ''}<br>
-        <span class="stat-line" style="font-size:0.8rem">${esc(c.identity?.kin||"")} ${esc(c.identity?.profession||"")}</span></div>
+        <span class="stat-line" style="font-size:var(--fs-xs)">${esc(c.identity?.kin||"")} ${esc(c.identity?.profession||"")}</span></div>
         <div style="text-align:right"><b>❤️ ${c.state?.hp}/${c.derived?.hpMax} · ⚡ ${c.state?.wp}/${c.derived?.wpMax}</b>
-        ${conds ? `<br><span style="color:var(--bad);font-size:0.8rem">⚠ ${esc(conds)}</span>` : ''}</div>
+        ${conds ? `<br><span style="color:var(--bad);font-size:var(--fs-xs)">⚠ ${esc(conds)}</span>` : ''}</div>
       </div>`;
     }).join("");
-    const bannerEl = el(`<div class="panel" style="border-color:var(--accent);background:rgba(122,46,29,0.05);margin-bottom:12px">
+    const bannerEl = el(`<div class="panel" style="border-color:var(--accent);background:var(--tint-accent);margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <h3 style="margin:0">🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
         <span class="tag code">${esc(Sync.campaign.joinCode)}</span>
@@ -78,17 +79,18 @@ export const Screens = {
       let body;
       if (!chars.length) {
         body = `
+          ${sectionTitle("Your heroes")}
           <div class="panel">
             <div class="empty">
               <div class="big">⚔</div>
               <h2>No heroes yet</h2>
               <p class="stat-line">Create a character to begin your adventures in the Misty Vale.<br><b>New to Dragonbane or solo play? Tap 📘 How to Play first.</b></p>
             </div>
-            <button class="btn block" id="new-hero">Forge a new hero</button>
-            <p></p>
-            <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
-            <p></p>
-            <button class="btn ghost block" id="open-tutorial">📘 New here? How to Play</button>
+            <div class="home-actions">
+              <button class="btn block" id="new-hero">Forge a new hero</button>
+              <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
+              <button class="btn ghost block" id="open-tutorial">📘 New here? How to Play</button>
+            </div>
           </div>`;
       } else {
         const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
@@ -99,15 +101,30 @@ export const Screens = {
         const renderCard = (c) => {
           const inParty = inPartyCamp && c.campaignId === Sync.campaign.id;
           const iconBtn = inPartyCamp
-            ? `<button class="btn secondary step btn-toggle-party" data-id="${esc(c.id)}" style="font-size:0.75rem;padding:3px 10px;border-radius:4px;flex-shrink:0" type="button" title="${inParty ? "In Party (Click to make private)" : "Private (Click to share with party)"}">${inParty ? "🛡️ In Party" : "⚡ Private"}</button>`
+            ? `<button class="btn secondary step btn-toggle-party" data-id="${esc(c.id)}" style="font-size:var(--fs-xs);padding:3px 10px;border-radius:var(--r-sm);flex-shrink:0" type="button" title="${inParty ? "In Party (Click to make private)" : "Private (Click to share with party)"}">${inParty ? "🛡️ In Party" : "⚡ Private"}</button>`
             : "";
+          const words = String(c.identity?.name || "?").trim().split(/\s+/);
+          const ini = (words.length > 1 ? words[0][0] + words[words.length - 1][0] : words[0].slice(0, 2)).toUpperCase();
+          const hp = c.state?.hp ?? 0, wp = c.state?.wp ?? 0;
+          let hpM = 0, wpM = 0; try { hpM = effHpMax(c); wpM = effWpMax(c); } catch (_) {}
+          const pct = (v, m) => (m > 0 ? Math.max(0, Math.min(100, (v / m) * 100)) : 0);
+          const conds = (DB.conditions || []).filter((cn) => c.state?.conditions?.[cn.key]);
+          const portrait = c.identity?.portraitUrl ? `<img class="hc-mono" src="${esc(c.identity.portraitUrl)}" alt="">` : `<span class="hc-mono" aria-hidden="true">${esc(ini)}</span>`;
           return `
-            <div class="card" data-id="${esc(c.id)}" style="cursor:pointer;display:flex;flex-direction:column;align-items:stretch">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%">
-                <h3 style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.identity?.name || "Unnamed")}</h3>
-                ${iconBtn}
+            <div class="card hero-card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="Open ${esc(c.identity?.name || "hero")}">
+              ${portrait}
+              <div class="hc-body">
+                <div class="hc-top">
+                  <h3>${esc(c.identity?.name || "Unnamed")}</h3>
+                  ${iconBtn}
+                </div>
+                <div class="meta">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
+                <div class="hc-vitals" aria-hidden="true">
+                  <span class="hc-bar hp${hp <= 0 ? " down" : ""}"><i style="width:${pct(hp, hpM)}%"></i><b>HP ${hp}/${hpM}</b></span>
+                  <span class="hc-bar wp"><i style="width:${pct(wp, wpM)}%"></i><b>WP ${wp}/${wpM}</b></span>
+                </div>
+                ${conds.length ? `<div class="hc-conds" title="${esc(conds.map((x) => x.name).join(", "))}">${conds.map((x) => `<span class="hc-dot">${esc(x.name)}</span>`).join("")}</div>` : ""}
               </div>
-              <div class="meta" style="margin-top:4px">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
             </div>`;
         };
 
@@ -116,12 +133,11 @@ export const Screens = {
         body = `
           ${sectionTitle("Your heroes")}
           <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
-          <p></p>
-          <button class="btn block" id="new-hero">Forge a new hero</button>
-          <p></p>
-          <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
-          <p></p>
-          <button class="btn ghost block" id="open-tutorial">📘 How to Play</button>`;
+          <div class="home-actions">
+            <button class="btn block" id="new-hero">Forge a new hero</button>
+            <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
+            <button class="btn ghost block" id="open-tutorial">📘 How to Play</button>
+          </div>`;
       }
       const root = el(`<div>${body}</div>`);
       root.insertBefore(helpBox("Heroes", [
@@ -134,11 +150,13 @@ export const Screens = {
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
       root.querySelector("#open-tutorial")?.addEventListener("click", () => Screens.openTutorial());
-      root.querySelectorAll(".card[data-id]").forEach((card) =>
+      root.querySelectorAll(".card[data-id]").forEach((card) => {
         card.addEventListener("click", (e) => {
           if (e.target.closest(".btn-toggle-party")) return;
           Sheet.open(card.dataset.id);
-        }));
+        });
+        card.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === card) { e.preventDefault(); Sheet.open(card.dataset.id); } });
+      });
       root.querySelectorAll(".btn-toggle-party").forEach(btn => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -188,7 +206,7 @@ export const Screens = {
       const accWrap = root.querySelector("#rules-acc-wrap");
       cats.forEach(([label, key]) => {
         const contentHtml = renderRuleDetail(key, null);
-        const acc = el(`<details class="rule-accordion" data-cat="${key}" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;overflow:hidden">
+        const acc = el(`<details class="rule-accordion" data-cat="${key}" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px;overflow:hidden">
           <summary class="cat-summary">
             <span>${label}</span><span class="chev" aria-hidden="true"></span>
           </summary>
@@ -280,7 +298,7 @@ export const Screens = {
         syncPanel.appendChild(el(`<p class="stat-line">Cloud sync is currently disabled. To enable party sharing across devices, configure your Firebase keys in <code>firebase-config.js</code>.</p>`));
       } else {
         const authName = Sync.user?.isAnonymous ? `Anonymous Player (${Sync.uid.slice(0,6)})` : (Sync.user?.displayName || Sync.user?.email || "Connected Player");
-        const authLine = `<p class="stat-line"><b>Identity:</b> ${esc(authName)} ${Sync.user?.isAnonymous ? `<button class="btn ghost small" id="link-google" style="margin-left:8px;padding:2px 8px;font-size:0.8rem">🔗 Link Google</button>` : '✓ Google Linked'}</p>`;
+        const authLine = `<p class="stat-line"><b>Identity:</b> ${esc(authName)} ${Sync.user?.isAnonymous ? `<button class="btn ghost small" id="link-google" style="margin-left:8px;padding:2px 8px;font-size:var(--fs-xs)">🔗 Link Google</button>` : '✓ Google Linked'}</p>`;
         syncPanel.appendChild(el(authLine));
         if (Sync.user?.isAnonymous) {
           syncPanel.querySelector("#link-google").onclick = () => Sync.linkGoogle();
@@ -302,10 +320,10 @@ export const Screens = {
           };
           syncPanel.append(createRow, joinRow);
         } else {
-          const campInfo = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
+          const campInfo = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid var(--accent)">
             <b>Active Campaign:</b> ${esc(Sync.campaign.name)}<br>
-            <b>Join Code:</b> <code style="font-size:1.1rem;color:var(--accent-ink)">${esc(Sync.campaign.joinCode)}</code><br>
-            <span class="stat-line" style="font-size:0.85rem">Share this code with players so they can join your party.</span>
+            <b>Join Code:</b> <code style="font-size:var(--fs-lg);color:var(--accent-ink)">${esc(Sync.campaign.joinCode)}</code><br>
+            <span class="stat-line" style="font-size:var(--fs-sm)">Share this code with players so they can join your party.</span>
           </div>`);
           const leaveBtn = el(`<button class="btn ghost block" style="margin-top:8px;color:var(--bad)">Disconnect from Campaign</button>`);
           leaveBtn.onclick = () => Sync.leaveCampaign();
@@ -361,7 +379,7 @@ export const Screens = {
 export function renderRuleDetail(key, container) {
     let html = "";
     if (key === "howtoplay") {
-      const acc = (title, body, open) => `<details class="rule-accordion" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:6px"${open ? " open" : ""}><summary style="font-weight:bold;cursor:pointer">${title}</summary><div style="margin-top:8px" class="stat-line">${body}</div></details>`;
+      const acc = (title, body, open) => `<details class="rule-accordion" style="background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px"${open ? " open" : ""}><summary style="font-weight:bold;cursor:pointer">${title}</summary><div style="margin-top:8px" class="stat-line">${body}</div></details>`;
       html = `<div class="panel" style="border-left:4px solid var(--accent)">
         <h3>📘 How to Play</h3>
         <p class="stat-line">Combined rules primer + how to drive this app. Nav tabs: <b>⚔ Heroes</b>, <b>🛡 Combat</b>, <b>🧭 Solo</b> (when enabled), <b>🎲 GM</b> (when enabled), <b>📖 Rules</b>, <b>⚙ About</b>.</p>
@@ -427,7 +445,7 @@ export function renderRuleDetail(key, container) {
       const renderSchool = (k, pool, isNew) => {
         const tricks = (pool.tricks || []).map((t) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(t.name)}</b> <span class="tag">Trick</span><br><span class="stat-line">${esc(t.text)}</span></p>`).join("");
         const spells = (pool.spells || []).map((s) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(s.name)}</b> <span class="tag">Rank ${s.rank}</span><br><span class="stat-line">${esc(s.range || s.ingredients || s.item || "")}${s.duration ? " · " + esc(s.duration) : ""} — ${esc(s.text)}</span></p>`).join("");
-        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary style="font-size:1.15rem;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span>${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line" style="margin-bottom:10px"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div style="margin-top:8px">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div style="margin-top:8px">${spells}</div></details>` : ""}</div></details>`;
+        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary style="font-size:var(--fs-lg);font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span>${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line" style="margin-bottom:10px"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div style="margin-top:8px">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div style="margin-top:8px">${spells}</div></details>` : ""}</div></details>`;
       };
       const parts = [];
       if (Magic.enabled()) parts.push(`<p class="notice">Book of Magic content is ON (toggle it in Settings). Revised core spells are always applied.</p>`);

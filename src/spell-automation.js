@@ -70,7 +70,7 @@ export const SpellAutomation = {
     renderCard(charId, spell, pl, isTrick, dragon, cost, out) {
       const char = Store.get(charId) || {};
       const cat = this.categorize(spell);
-      const card = el(`<div class="magic-auto-card" style="margin-top:12px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:rgba(255,255,255,0.03)"></div>`);
+      const card = el(`<div class="magic-auto-card" style="margin-top:12px;padding:12px;border:1px solid var(--accent);border-radius:var(--r-md);background:var(--tint-soft)"></div>`);
       const hdr = el(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"></div>`);
       hdr.innerHTML = `<b style="color:var(--accent-ink)">✨ VTT Spell Resolution: ${esc(spell.name)} (PL ${pl})</b>`;
       const skipBtn = el(`<button class="skill-chip quick-chip" title="Skip automatic resolution">Skip Auto</button>`);
@@ -80,7 +80,7 @@ export const SpellAutomation = {
 
       let plMult = 1;
       if (dragon) {
-        const dWrap = el(`<div style="margin-bottom:10px;padding:8px;background:rgba(255,215,0,0.1);border:1px dashed var(--gold-leaf);border-radius:6px"></div>`);
+        const dWrap = el(`<div style="margin-bottom:10px;padding:8px;background:var(--tint-gold);border:1px dashed var(--gold-leaf);border-radius:var(--r-sm)"></div>`);
         dWrap.innerHTML = `<b style="color:var(--gold-ink);display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
         const bRow = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
         const bDbl = el(`<button class="skill-chip quick-chip" style="border-color:var(--gold-leaf)" title="Double Damage or Healing dice">💥 Double</button>`);
@@ -178,7 +178,7 @@ export const SpellAutomation = {
         const distIn = el(`<input type="number" class="input" style="width:56px" value="5" min="0">`);
         rMid.append(distIn, el(`<span class="stat-line">m (max ${this.getRangeLimit(spell)}m)</span>`));
         const isPsychic = /mental|death|stench|psychic|soul|boneshaker/i.test(spell.name || "");
-        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
+        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:var(--fs-xs)"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="damage dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Strike target">💥 Strike</button>`);
         btn.onclick = async () => {
@@ -199,10 +199,10 @@ export const SpellAutomation = {
       } else if (cat === "damage_aoe") {
         const wrap = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
         wrap.append(el(`<span class="stat-line">AoE blast targets:</span>`));
-        const chkWrap = el(`<div style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px"></div>`);
-        enemies.forEach(t => { chkWrap.appendChild(el(`<label style="font-size:12px;display:flex;gap:6px"><input type="checkbox" value="${esc(t.key)}" checked> ${esc(t.label)}</label>`)); });
+        const chkWrap = el(`<div style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--tint-shade);border-radius:var(--r-sm)"></div>`);
+        enemies.forEach(t => { chkWrap.appendChild(el(`<label style="font-size:var(--fs-xs);display:flex;gap:6px"><input type="checkbox" value="${esc(t.key)}" checked> ${esc(t.label)}</label>`)); });
         if (!enemies.length) chkWrap.appendChild(el(`<span class="stat-line">No enemies in combat — roll &amp; apply manually.</span>`));
-        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Armor mitigates</label>`);
+        const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:var(--fs-xs)"><input type="checkbox" checked> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="damage dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Blast all checked targets">💥 Blast AoE</button>`);
         btn.onclick = () => {
@@ -218,7 +218,7 @@ export const SpellAutomation = {
         const sKey = Object.keys(SUMMON_STATS).find(k => (spell.name || "").toLowerCase().includes(k)) || "familiar";
         const st = SUMMON_STATS[sKey];
         const row = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
-        row.innerHTML = `<p class="notice" style="font-size:12px"><b>Summon (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
+        row.innerHTML = `<p class="notice" style="font-size:var(--fs-xs)"><b>Summon (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Add companion to sheet and combat tracker">+ Spawn</button>`);
         btn.onclick = () => {
           const sName = `${spell.name} (${(char.identity && char.identity.name) || char.name || "Caster"})`;

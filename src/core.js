@@ -16,18 +16,41 @@ export const sectionTitle = (t) => `<div class="section-title"><h2>${esc(t)}</h2
 
 export const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-export const mountScreen = (node) => { const s = $("#screen"); s.innerHTML = ""; s.appendChild(node); window.scrollTo(0, 0); };
+export const mountScreen = (node) => { const s = $("#screen"); s.innerHTML = ""; s.dataset.route = "form"; node.classList.add("screen-in"); s.appendChild(node); window.scrollTo(0, 0); };
 
 // Collapsed "how to use" help accordion for a screen. steps = array of HTML
 // bullet strings (already trusted markup). Returns a <details> DOM node.
+// Per-screen "How to use" help: a compact ⓘ button that sits in the screen's
+// section-title row (placed by placeHelp) and opens the steps in a dialog.
+// The steps stay in the DOM (hidden) so text search and tests still see them.
 export const helpBox = (title, steps) => {
-    const d = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">❓ How to use — ${esc(title)}</summary></details>`);
+    const w = el(`<span class="help-wrap"><button type="button" class="help-btn" aria-haspopup="dialog" title="How to use — ${esc(title)}"><span class="help-i" aria-hidden="true">i</span><span class="ic-t">How to use — ${esc(title)}</span></button><div class="help-steps" hidden></div></span>`);
+    w.dataset.title = title;
+    const box = w.querySelector(".help-steps");
     const ul = document.createElement("ul");
-    ul.className = "stat-line";
-    ul.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
-    (steps || []).forEach((s) => { const li = document.createElement("li"); li.style.margin = "3px 0"; li.innerHTML = s; ul.appendChild(li); });
-    d.appendChild(ul);
-    return d;
+    ul.className = "stat-line help-list";
+    (steps || []).forEach((s) => { const li = document.createElement("li"); li.innerHTML = s; ul.appendChild(li); });
+    box.appendChild(ul);
+    w.steps = box;
+    return w;
+  };
+
+// Move each unplaced help button into the screen's title row (or the sheet's
+// back-button row) and wire it to open its steps in a dialog.
+export const placeHelp = (root, openModal) => {
+    (root || document).querySelectorAll(".help-wrap:not([data-placed])").forEach((w) => {
+      const scope = w.closest("#screen") || root;
+      const target = scope && (scope.querySelector(".section-title") || scope.querySelector(".wiz-head"));
+      if (target && !target.contains(w)) target.appendChild(w);
+      w.dataset.placed = "1";
+      const btn = w.querySelector(".help-btn"), box = w.querySelector(".help-steps");
+      btn.onclick = () => {
+        const m = openModal(`How to use — ${w.dataset.title}`);
+        box.hidden = false; m.body.appendChild(box);
+        const prev = m.back._onClose;
+        m.back._onClose = () => { box.hidden = true; w.appendChild(box); if (typeof prev === "function") prev(); };
+      };
+    });
   };
 
   /* =================================================================

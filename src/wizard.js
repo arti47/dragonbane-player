@@ -71,6 +71,8 @@ export const Wizard = {
           <button class="btn ghost wiz-x" id="wiz-cancel">✕</button>
           <div class="wiz-progress">Step ${this.s.step + 1} of ${this.steps().length} — ${this.stepTitle(step)}</div>
         </div>`));
+      const nSteps = this.steps().length;
+      root.appendChild(el(`<div class="wiz-track" role="progressbar" aria-valuemin="1" aria-valuemax="${nSteps}" aria-valuenow="${this.s.step + 1}" aria-label="Wizard progress"><div class="wiz-bar"><i style="width:${((this.s.step + 1) / nSteps) * 100}%"></i></div><div class="wiz-dots">${this.steps().map((st, i) => `<span class="wiz-dot ${i < this.s.step ? "done" : i === this.s.step ? "cur" : ""}" title="${esc(this.stepTitle(st))}"></span>`).join("")}</div></div>`));
       const bodyWrap = el(`<div id="wiz-body"></div>`);
       bodyWrap.appendChild(this["step_" + step]());
       root.appendChild(bodyWrap);
@@ -101,9 +103,24 @@ export const Wizard = {
       const renderGrid = () => {
         grid.innerHTML = "";
         if (!this.s.rolled) { grid.appendChild(el(`<p class="stat-line">Press “Roll attributes” to begin.</p>`)); return; }
-        grid.appendChild(el(`<div class="rolled-row">Rolled: ${this.s.rolled.map((v, i) => `<span class="tag ${Object.values(this.s.assign).includes(i) ? "used" : ""}">${v}</span>`).join("")}</div>`));
+        // Tap a rolled value, then tap an attribute to place it (tap a placed value
+        // to return it). The dropdowns below stay as a fallback.
+        const pickRow = el(`<div class="rolled-row">Rolled: ${this.s.rolled.map((v, i) => `<button type="button" class="tag roll-chip ${Object.values(this.s.assign).includes(i) ? "used" : ""} ${this._pick === i ? "picked" : ""}" data-i="${i}" aria-pressed="${this._pick === i ? "true" : "false"}">${v}</button>`).join("")}</div>`);
+        pickRow.querySelectorAll(".roll-chip").forEach((b) => { b.onclick = () => { const i = +b.dataset.i; this._pick = this._pick === i ? null : i; renderGrid(); }; });
+        grid.appendChild(pickRow);
         (DB.attributes || []).forEach((at) => {
-          const row = el(`<div class="attr-row"><label>${at.key} <span class="stat-line">${at.name}</span></label></div>`);
+          const row = el(`<div class="attr-row ${this._pick != null ? "droppable" : ""}"><label>${at.key} <span class="stat-line">${at.name}</span></label></div>`);
+          const cur = this.s.assign[at.key];
+          const slot = el(`<button type="button" class="attr-slot ${cur != null ? "filled" : ""}" aria-label="${at.key}: ${cur != null ? this.s.rolled[cur] : "empty"}">${cur != null ? this.s.rolled[cur] : "·"}</button>`);
+          slot.onclick = () => {
+            if (this._pick != null) {
+              const from = Object.keys(this.s.assign).find((k) => this.s.assign[k] === this._pick);
+              if (from) this.s.assign[from] = null;
+              this.s.assign[at.key] = this._pick; this._pick = null;
+            } else if (cur != null) { this.s.assign[at.key] = null; }
+            renderGrid();
+          };
+          row.appendChild(slot);
           const sel = el(`<select></select>`);
           sel.appendChild(el(`<option value="">—</option>`));
           this.s.rolled.forEach((v, i) => {
@@ -116,7 +133,7 @@ export const Wizard = {
           grid.appendChild(row);
         });
       };
-      rollBtn.onclick = () => { this.s.rolled = [0,0,0,0,0,0].map(() => Dice.attribute()); this.s.assign = { STR:null,CON:null,AGL:null,INT:null,WIL:null,CHA:null }; renderGrid(); };
+      rollBtn.onclick = () => { this._pick = null; this.s.rolled = [0,0,0,0,0,0].map(() => Dice.attribute()); this.s.assign = { STR:null,CON:null,AGL:null,INT:null,WIL:null,CHA:null }; renderGrid(); };
       renderGrid();
       wrap.appendChild(rollBtn); wrap.appendChild(grid);
       return wrap;
@@ -335,7 +352,7 @@ export const Wizard = {
         inp.oninput = () => { this.s.identity[key] = inp.value; };
         if (key === "name" && DB.names) {
           const btnWrap = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
-          const genBtn = el(`<button type="button" class="btn step" style="flex:1;font-size:0.9rem">🎲 Random Hero Name</button>`);
+          const genBtn = el(`<button type="button" class="btn step" style="flex:1;font-size:var(--fs-sm)">🎲 Random Hero Name</button>`);
           genBtn.onclick = () => {
             const kinKey = this.s.kin || "human";
             const profKey = this.s.profession || "artisan";
@@ -352,7 +369,7 @@ export const Wizard = {
         if (key !== "name" && DB.flavor && DB.flavor[key]) {
           const btnWrap = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
           const labelName = key.charAt(0).toUpperCase() + key.slice(1);
-          const genBtn = el(`<button type="button" class="btn step" style="flex:1;font-size:0.85rem;padding:4px 8px">🎲 Random ${labelName}</button>`);
+          const genBtn = el(`<button type="button" class="btn step" style="flex:1;font-size:var(--fs-sm);padding:4px 8px">🎲 Random ${labelName}</button>`);
           genBtn.onclick = () => {
             const list = DB.flavor[key] || [];
             if (!list.length) return;
@@ -500,11 +517,12 @@ export const Pregens = {
         const prof = (DB.professions || []).find((x) => x.key === p.profession);
         const age = (DB.ages || []).find((x) => x.key === p.age);
         const a = p.attributes;
-        const c = el(`<button class="card">
+        const c = el(`<button class="card pg-card">
           <h3>${esc(p.name)}</h3>
           <div class="meta">${esc(kin.name)} · ${esc(prof.name)}${p.mageSchool ? " (" + esc(p.mageSchool) + ")" : ""} · ${esc(age.name)}</div>
           <p class="stat-line" style="margin:6px 0">${esc(p.blurb)}</p>
-          <div class="rolled-row">${(DB.attributes||[]).map((at)=>`<span class="tag">${at.key} ${a[at.key]}</span>`).join("")}</div>
+          <div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell"><span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}</span></div>`).join("")}</div>
+          <span class="pg-choose" aria-hidden="true">Choose →</span>
         </button>`);
         c.onclick = () => {
           const ch = this.instantiate(p);

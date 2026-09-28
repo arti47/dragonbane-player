@@ -85,8 +85,8 @@ module.exports = {
 
     // F3: combat help text corrected.
     const help = await page.evaluate(() => {
-      const acc = [...document.querySelectorAll("details.help-acc, details")].find((d) => /How to use — Combat/i.test(d.textContent));
-      return acc ? acc.textContent : "";
+      const w = [...document.querySelectorAll(".help-wrap")].find((d) => /How to use — Combat/i.test(d.textContent));
+      return w ? w.textContent : "";
     });
     t.ok("F3: help no longer says 'Tap Draw initiative'", !/Tap\s+Draw initiative/i.test(help));
     t.ok("F3: help explains auto-draw", /draws initiative automatically/i.test(help));

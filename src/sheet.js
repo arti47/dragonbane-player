@@ -18,7 +18,7 @@ export const Sheet = {
       const c = Store.get(id);
       if (!c) { Router.go("home"); return; }
       normalizeInventory(c); Store.update(id, normalizeInventory);
-      this.id = id; window.activeCharacterId = id; this.render();
+      this.id = id; window.activeCharacterId = id; this._fresh = true; this.render();
     },
     mutate(fn) {
       const c = Store.get(this.id);
@@ -87,7 +87,7 @@ export const Sheet = {
           const listDiv = el(`<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>`);
           cur.spells.known.forEach((sp, i) => {
             const isPrep = sp.prepared !== false;
-            const row = el(`<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg-raised);border-radius:6px;border:1px solid var(--line);cursor:pointer">
+            const row = el(`<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg-raised);border-radius:var(--r-sm);border:1px solid var(--line);cursor:pointer">
               <input type="checkbox" ${isPrep ? "checked" : ""}>
               <div><b>${esc(sp.name)}</b> <span class="tag">Rank ${sp.rank || 1}</span><br><small class="stat-line">${esc(sp.text||sp.desc||"")}</small></div>
             </label>`);
@@ -242,7 +242,7 @@ export const Sheet = {
       
       const head = el(`<p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
         <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p>`);
-      const btn = el(`<button class="btn block" style="margin-top:12px">Roll Death Roll</button>`);
+      const btn = el(`<button class="btn block roll-go" style="margin-top:12px">Roll Death Roll</button>`);
       const out = el(`<div class="roll-result" style="margin-top:14px"></div>`);
 
       btn.onclick = () => {
@@ -272,9 +272,9 @@ export const Sheet = {
         let html = `<div class="dice-faces"><span class="die used">${roll}</span></div>`;
         html += `<p class="outcome ${success ? "ok" : "bad"}">${dragon ? "🐉 DRAGON (2 Successes!)" : demon ? "👹 DEMON (2 Failures!)" : success ? "Success" : "Failure"}</p>`;
         if (stabilized) {
-          html += `<p class="stat-line" style="color:var(--ok);font-size:1.1rem"><b>✨ Stabilized! Recovered ${recovered} HP!</b></p>`;
+          html += `<p class="stat-line" style="color:var(--ok);font-size:var(--fs-lg)"><b>✨ Stabilized! Recovered ${recovered} HP!</b></p>`;
         } else if (dead) {
-          html += `<p class="stat-line" style="color:var(--bad);font-size:1.1rem"><b>💀 Your hero has succumbed to their wounds.</b></p>`;
+          html += `<p class="stat-line" style="color:var(--bad);font-size:var(--fs-lg)"><b>💀 Your hero has succumbed to their wounds.</b></p>`;
         } else {
           html += `<p class="stat-line" style="margin-top:8px">Successes <span class="dr-dots">${dots(sCount,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(fCount,"bad")}</span></p>`;
         }
@@ -318,13 +318,13 @@ export const Sheet = {
       const maxMove = calcMaxMove();
       const remMove = Math.max(0, maxMove - c.state.moveSpent);
 
-      const panel = el(`<div class="move-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0">
+      const panel = el(`<div class="move-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin:8px 0">
         <div class="move-meter" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
           <span>🏃 <b>Movement Pool:</b> <small style="color:var(--muted)">(Rating ${baseMove}m)</small></span>
-          <span class="move-val" style="font-size:1.3rem;font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
+          <span class="move-val" style="font-size:var(--fs-xl);font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
         </div>
         
-        <p class="stat-line" style="margin:0 0 10px 0;font-size:0.85rem">
+        <p class="stat-line" style="margin:0 0 10px 0;font-size:var(--fs-sm)">
           💡 <b>Splitting:</b> Move freely before, after, or during action. Unused meters cannot be saved for later rounds.
         </p>
 
@@ -333,32 +333,32 @@ export const Sheet = {
             <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Action: Dash. Doubles pool for round & uses Action.">⚡ Dash ${c.state.isDashing ? "(2x)" : ""}</button>
             <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted speed 20m">🐴 Mount</button>
             <button type="button" class="move-btn ${c.state.prone ? "active" : ""}" title="Free action on own turn">🛌 ${c.state.prone ? "Prone" : "Stand"}</button>
-            <button type="button" class="move-btn" style="background:rgba(200,50,50,0.1);border-color:var(--bad)" title="Reset pool for new round">↺ Reset</button>
+            <button type="button" class="move-btn move-reset" title="Reset pool for new round">↺ Reset</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">WALK:</span>
+            <span class="move-lbl">WALK:</span>
             <button type="button" class="move-btn" style="flex:1" title="Step 1 meter">+1m</button>
             <button type="button" class="move-btn" style="flex:1" title="Step 2 meters (1 grid square)">+2m</button>
             <button type="button" class="move-btn" style="flex:1" title="Step 4 meters">+4m</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">HAZARDS:</span>
-            <button type="button" class="move-btn" style="flex:1;color:var(--gold-ink);border-color:var(--gold-ink)" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
-            <button type="button" class="move-btn" style="flex:1;color:var(--info);border-color:var(--info)" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
-            <button type="button" class="move-btn" style="flex:1;color:var(--arcane);border-color:var(--arcane)" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
+            <span class="move-lbl">HAZARDS:</span>
+            <button type="button" class="move-btn" style="flex:1" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
+            <button type="button" class="move-btn" style="flex:1" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
+            <button type="button" class="move-btn" style="flex:1" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">TACTICS:</span>
-            <button type="button" class="move-btn" style="flex:1;color:var(--bad);border-color:var(--bad)" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
-            <button type="button" class="move-btn" style="flex:1;color:var(--bad);border-color:var(--bad)" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
-            <button type="button" class="move-btn" style="flex:1;color:var(--ok);border-color:var(--ok)" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
+            <span class="move-lbl">TACTICS:</span>
+            <button type="button" class="move-btn" style="flex:1" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
+            <button type="button" class="move-btn" style="flex:1" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
+            <button type="button" class="move-btn" style="flex:1" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
           </div>
 
           <div style="display:flex;justify-content:flex-end">
-            <button type="button" class="move-btn" style="flex:0 0 auto;color:var(--muted);border-color:var(--border);font-size:0.75rem;padding:4px 8px" title="Forced reaction before turn replaces normal turn & movement">💥 Lost Turn (Reaction)</button>
+            <button type="button" class="move-btn move-minor" title="Forced reaction before turn replaces normal turn & movement">💥 Lost Turn (Reaction)</button>
           </div>
         </div>
       </div>`);
@@ -523,15 +523,18 @@ export const Sheet = {
     // Marked-skill chooser shared by the questionnaire / overcome-weakness flows.
     // `cap` = how many unmarked skills may be picked; `picked` mutated in place.
     markSkillPicker(picked, capFn, onChange) {
-      const wrap = el(`<div class="chip-wrap"></div>`);
+      const box = el(`<div class="pick-box-wrap"><div class="pick-count" aria-live="polite"></div><div class="pick-grid"></div></div>`);
+      const wrap = box.querySelector(".pick-grid"), count = box.querySelector(".pick-count");
       const refresh = () => {
         while (picked.length > capFn()) picked.pop();
+        count.textContent = `${picked.length} / ${capFn()}`;
+        count.classList.toggle("full", picked.length >= capFn() && capFn() > 0);
         wrap.innerHTML = "";
         const cur = Store.get(this.id);
         Object.keys(cur.skills).sort().forEach((n) => {
           if (cur.skills[n].mark && !picked.includes(n)) return; // already marked elsewhere
           const on = picked.includes(n);
-          const chip = el(`<button class="skill-chip ${on ? "on" : ""}">${esc(n)} <span class="stat-line">${cur.skills[n].level}</span></button>`);
+          const chip = el(`<button type="button" class="pick-item ${on ? "on" : ""}" aria-pressed="${on ? "true" : "false"}"><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${esc(n)}</span> <span class="stat-line">${cur.skills[n].level}</span></button>`);
           chip.onclick = () => {
             const i = picked.indexOf(n);
             if (i >= 0) picked.splice(i, 1);
@@ -542,7 +545,7 @@ export const Sheet = {
         });
       };
       refresh();
-      return { wrap, refresh };
+      return { wrap: box, refresh };
     },
     endSession() {
       if (Settings.soloMode()) { this.soloMissionMarks(); return; }
@@ -562,7 +565,7 @@ export const Sheet = {
         qWrap.appendChild(row);
       });
       updCounter();
-      const rollBtn = el(`<button class="btn block" style="margin-top:10px">Mark skills &amp; roll advancement</button>`);
+      const rollBtn = el(`<button class="btn block pick-go" style="margin-top:10px">Mark skills &amp; roll advancement</button>`);
       rollBtn.onclick = () => {
         Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); });
         m.close(); this.rollAdvancement();
@@ -619,7 +622,7 @@ export const Sheet = {
       m.body.appendChild(el(`<p class="stat-line"><i>${esc(c.identity.weakness)}</i></p>`));
       const picked = [];
       const { wrap } = this.markSkillPicker(picked, () => 2);
-      const btn = el(`<button class="btn block" style="margin-top:8px">Overcome (mark 2 skills)</button>`);
+      const btn = el(`<button class="btn block pick-go" style="margin-top:8px">Overcome (mark 2 skills)</button>`);
       btn.onclick = () => {
         if (picked.length !== 2) { showToast("Pick exactly two skills to mark.", "error"); return; }
         this.mutate((ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); ch.identity.weakness = ""; ch.state.weaknessCooldown = true; });
@@ -669,13 +672,13 @@ export const Sheet = {
       const picked = [];
       const m = modal("Catch up after death — Replacement PC");
       m.body.appendChild(el(`<p class="stat-line">In Dragonbane, replacement characters catch up by getting <b>one extra advancement roll per session played</b> by the group so far, plus starting with the same number of Heroic Abilities.</p>`));
-      const countInput = el(`<input type="number" min="1" max="100" value="1" style="width:80px;padding:6px;font-size:1rem;margin-left:8px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)">`);
+      const countInput = el(`<input type="number" min="1" max="100" value="1" style="width:80px;padding:6px;font-size:var(--fs-md);margin-left:8px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--bg);color:var(--ink)">`);
       const countRow = el(`<div style="margin:10px 0;display:flex;align-items:center"><label style="font-weight:600">Sessions played so far:</label></div>`);
       countRow.appendChild(countInput);
       const capFn = () => Math.max(1, parseInt(countInput.value || "1", 10));
       const { wrap, refresh } = this.markSkillPicker(picked, capFn);
       countInput.oninput = () => refresh();
-      const rollBtn = el(`<button class="btn block" style="margin-top:10px">Mark skills &amp; roll catch-up advancement</button>`);
+      const rollBtn = el(`<button class="btn block pick-go" style="margin-top:10px">Mark skills &amp; roll catch-up advancement</button>`);
       rollBtn.onclick = () => {
         const n = capFn();
         if (picked.length !== n) { showToast(`Please pick exactly ${n} skill(s) to mark.`, "error"); return; }
@@ -692,7 +695,7 @@ export const Sheet = {
       const m = modal("Mission complete — +5 advancement marks");
       m.body.appendChild(el(`<p class="stat-line">Solo play: on returning from a successful mission, mark 5 skills of your choice, then roll advancement.</p>`));
       const { wrap } = this.markSkillPicker(picked, () => 5);
-      const btn = el(`<button class="btn block" style="margin-top:8px">Mark 5 &amp; roll advancement</button>`);
+      const btn = el(`<button class="btn block pick-go" style="margin-top:8px">Mark 5 &amp; roll advancement</button>`);
       btn.onclick = () => { if (picked.length !== 5) { showToast("Pick exactly 5 skills to mark.", "error"); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
       m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
     },
@@ -721,9 +724,9 @@ export const Sheet = {
         "Use <b>Rest</b> buttons to recover, and <b>End session — advancement</b> to improve marked skills."
       ]));
       if (!canEdit) {
-        root.appendChild(el(`<div class="panel" style="border-color:var(--bad);background:rgba(180,50,50,0.1);padding:10px 14px;margin-bottom:12px">
+        root.appendChild(el(`<div class="panel" style="border-color:var(--bad);background:var(--tint-bad);padding:10px 14px;margin-bottom:12px">
           <b style="color:var(--bad)">🔒 Read-Only View</b><br>
-          <span class="stat-line" style="font-size:0.85rem">You are viewing another player's hero. Rolling dice and editing stats are disabled.</span>
+          <span class="stat-line" style="font-size:var(--fs-sm)">You are viewing another player's hero. Rolling dice and editing stats are disabled.</span>
         </div>`));
       }
 
@@ -733,7 +736,7 @@ export const Sheet = {
         const list = el(`<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>`);
         Sync.broadcast.slice().reverse().forEach((m) => {
           const when = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-          list.appendChild(el(`<div style="padding:6px 8px;background:var(--bg);border-left:3px solid var(--accent);border-radius:4px"><span class="stat-line" style="float:right">${esc(when)}</span>${esc(m.text)}</div>`));
+          list.appendChild(el(`<div style="padding:6px 8px;background:var(--bg);border-left:3px solid var(--accent);border-radius:var(--r-sm)"><span class="stat-line" style="float:right">${esc(when)}</span>${esc(m.text)}</div>`));
         });
         feed.appendChild(list);
         root.appendChild(feed);
@@ -786,20 +789,24 @@ export const Sheet = {
           w.querySelector(".vbar > i").style.setProperty("--pct", pct(c.state[key]) + "%");
           w.classList.toggle("low", max > 0 && c.state[key] / max <= 0.25);
           val.classList.remove("pulse"); void val.offsetWidth; val.classList.add("pulse");
+          w.classList.remove("hit", "heal"); void w.offsetWidth; w.classList.add(d < 0 ? "hit" : "heal");
+          if (this._miniSync) this._miniSync();
           // Concentration interruption: taking HP damage prompts a WIL roll.
           if (key === "hp" && d < 0 && c.state.hp < prevHp) this.concentrationCheck();
           if (key === "hp" && ((prevHp <= 0 && c.state.hp > 0) || (prevHp > 0 && c.state.hp <= 0))) {
             this.render();
           }
         };
+        w._step = doStep;
         minus.onclick = (e) => { e.preventDefault(); doStep(-1); };
         plus.onclick = (e) => { e.preventDefault(); doStep(1); };
         ctrl.append(minus, val, plus); w.appendChild(ctrl);
         return w;
       };
       const vitals = el(`<div class="vitals"></div>`);
-      vitals.appendChild(stepper(gloss("hp", "Hit Points"), c.state.hp, effHpMax(c), "hp", "hp"));
-      vitals.appendChild(stepper(gloss("wp", "Willpower"), c.state.wp, effWpMax(c), "wp", "wp"));
+      const hpV = stepper(gloss("hp", "Hit Points"), c.state.hp, effHpMax(c), "hp", "hp");
+      const wpV = stepper(gloss("wp", "Willpower"), c.state.wp, effWpMax(c), "wp", "wp");
+      vitals.append(hpV, wpV);
       top.appendChild(vitals);
 
       // Movement Tracker
@@ -823,6 +830,30 @@ export const Sheet = {
       });
       top.appendChild(restRow);
       root.appendChild(top);
+
+      // Sticky mini-bar: once the hero header scrolls away, a slim bar pins under
+      // the app header with the monogram, name and HP/WP (−/+ still work).
+      const mini = el(`<div class="mini-bar" aria-hidden="true">
+        <span class="mini-mono">${portUrl ? `<img src="${portUrl}" alt="">` : esc(initials)}</span>
+        <span class="mini-name">${esc(c.identity.name)}</span>
+        <span class="mini-v hp"><button type="button" class="mini-step" tabindex="-1">−</button><span class="mini-bar-track"><i></i><b></b></span><button type="button" class="mini-step" tabindex="-1">+</button></span>
+        <span class="mini-v wp"><button type="button" class="mini-step" tabindex="-1">−</button><span class="mini-bar-track"><i></i><b></b></span><button type="button" class="mini-step" tabindex="-1">+</button></span>
+      </div>`);
+      const miniSet = (sel, cur, max) => { const v = mini.querySelector(sel); v.querySelector("i").style.width = (max > 0 ? Math.max(0, Math.min(100, cur / max * 100)) : 0) + "%"; v.querySelector("b").textContent = `${cur}/${max}`; };
+      this._miniSync = () => { const cc = Store.get(this.id); if (!cc) return; miniSet(".mini-v.hp", cc.state.hp, effHpMax(cc)); miniSet(".mini-v.wp", cc.state.wp, effWpMax(cc)); };
+      this._miniSync();
+      const [hm, hp] = mini.querySelectorAll(".mini-v.hp .mini-step"), [wm, wpp] = mini.querySelectorAll(".mini-v.wp .mini-step");
+      hm.onclick = () => hpV._step(-1); hp.onclick = () => hpV._step(1); wm.onclick = () => wpV._step(-1); wpp.onclick = () => wpV._step(1);
+      mini.querySelector(".mini-name").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+      root.appendChild(mini);
+      if (this._io) this._io.disconnect();
+      const setMini = (on) => { mini.classList.toggle("show", on); document.documentElement.style.setProperty("--mini-h", on ? mini.offsetHeight + "px" : "0px"); };
+      setMini(false);
+      if (window.IntersectionObserver) {
+        const hh = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 60;
+        this._io = new IntersectionObserver(([en]) => setMini(!en.isIntersecting && en.boundingClientRect.top < hh), { rootMargin: `-${hh}px 0px 0px 0px`, threshold: 0 });
+        requestAnimationFrame(() => { if (top.isConnected) this._io.observe(top); });
+      }
       const dyingSlot = el(`<div></div>`); root.appendChild(dyingSlot);
       // Tab bar
       const condCount = Object.values(c.state.conditions || {}).filter(Boolean).length;
@@ -833,6 +864,8 @@ export const Sheet = {
         this.tab = k; try { localStorage.setItem("dragonbane.sheetTab", k); } catch (_) {}
         tabBar.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.tab === k; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
         Object.entries(panes).forEach(([pk, pn]) => { pn.hidden = pk !== k; });
+        if (focus !== undefined || selectTab._ready) { panes[k].classList.remove("pane-in"); void panes[k].offsetWidth; panes[k].classList.add("pane-in"); }
+        selectTab._ready = true;
       };
       TABS.forEach(([k, label]) => {
         const b = el(`<button type="button" class="tab" role="tab" id="sheet-tab-${k}" data-tab="${k}" aria-controls="sheet-pane-${k}">${label}${badges[k] ? ` <span class="tab-badge">${badges[k]}</span>` : ""}</button>`);
@@ -859,7 +892,8 @@ export const Sheet = {
       // Advanced / GM Automation panel (Phase 18) — gated behind one toggle.
       if (Settings.gmAutomation()) {
         const t = c.state.time || { round: 0, stretch: 0, shift: 0 };
-        const gmPanel = el(`<div class="panel" style="border-left:4px solid var(--accent)"><h3>⏱️ GM Automation</h3></div>`);
+        const gmPanel = el(`<details class="panel gm-auto"${this._gmOpen ? " open" : ""}><summary><h3>⏱️ GM Automation</h3></summary></details>`);
+        gmPanel.addEventListener("toggle", () => { this._gmOpen = gmPanel.open; });
         gmPanel.appendChild(el(`<p class="stat-line">Time — Round <b>${t.round}</b> · Stretch <b>${t.stretch}</b> · Shift <b>${t.shift}</b>${c.state.awakeShifts >= 3 ? ` · <b style="color:var(--bad)">sleep-deprived (${c.state.awakeShifts} shifts)</b>` : c.state.awakeShifts ? ` · awake ${c.state.awakeShifts} shift(s)` : ""}${c.state.roundRestUsed ? " · round rest used" : ""}</p>`));
         const clockRow = el(`<div class="rest-row"></div>`);
         [["+ Round", "round"], ["+ Stretch", "stretch"], ["+ Shift", "shift"]].forEach(([label, unit]) => { const b = el(`<button class="btn ghost">${label}</button>`); b.onclick = () => this.advanceClock(unit); clockRow.appendChild(b); });
@@ -985,7 +1019,7 @@ export const Sheet = {
         const learnBtn = el(`<button class="btn ghost" style="margin-bottom:8px">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
         inner.appendChild(learnBtn);
-        if (!hasMagic) inner.appendChild(el(`<p class="stat-line">No spells known. If your hero can learn magic (e.g. the Magic Talent heroic ability), tap ＋ above.</p>`));
+        if (!hasMagic) inner.appendChild(el(`<p class="stat-line empty-note">No spells known. If your hero can learn magic (e.g. the Magic Talent heroic ability), tap ＋ above.</p>`));
         const spellRow = (x, isTrick) => {
           const isPrep = isTrick || x.prepared !== false;
           const tagStr = isTrick ? "Trick · 1 WP" : `Rank ${x.rank}` + (isPrep ? " · Prepared" : " · Grimoire");
@@ -1020,7 +1054,7 @@ export const Sheet = {
       // buff/effect (e.g. an ally-cast spell), not just casters.
       {
         const fxPanel = el(`<div class="panel"><h3>Active Spells &amp; Effects</h3></div>`);
-        if (!(c.effects || []).length) fxPanel.appendChild(el(`<p class="stat-line">Nothing active. Use “+ Track” on a lasting spell, or add one below.</p>`));
+        if (!(c.effects || []).length) fxPanel.appendChild(el(`<p class="stat-line empty-note">Nothing active. Use “+ Track” on a lasting spell, or add one below.</p>`));
         (c.effects || []).forEach((fx, i) => {
           const row = el(`<div class="comp-row"><div class="comp-info"><b>${esc(fx.name)}</b> ${fx.concentration ? '<span class="tag">Concentration</span>' : fx.notes ? `<span class="tag">${esc(fx.notes)}</span>` : ""}</div></div>`);
           const rm = el(`<button class="step rm" title="end effect" aria-label="End effect">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.effects.splice(i, 1));
@@ -1183,7 +1217,7 @@ export const Sheet = {
       invPanel.appendChild(el(`<p class="stat-line" style="margin:8px 0 2px"><b>Carried</b></p>`));
       const itemList = el(`<div></div>`);
       carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
-      if (!carriedIdx.length) itemList.appendChild(el(`<p class="stat-line">No carried items.</p>`));
+      if (!carriedIdx.length) itemList.appendChild(el(`<p class="stat-line empty-note">No carried items.</p>`));
       invPanel.appendChild(itemList);
       const addRow = el(`<div class="inv-add"></div>`);
       const addName = el(`<input type="text" placeholder="Add an item…">`);
@@ -1275,7 +1309,9 @@ export const Sheet = {
 
       // Mount, preserving scroll across re-renders
       const y = window.scrollY;
-      const s = $("#screen"); s.innerHTML = ""; s.appendChild(root); window.scrollTo(0, y);
+      const s = $("#screen"); s.innerHTML = ""; s.dataset.route = "sheet";
+      if (this._fresh) { root.classList.add("screen-in"); this._fresh = false; }
+      s.appendChild(root); window.scrollTo(0, y);
       root.querySelector("#sheet-back").onclick = () => { window.activeCharacterId = null; Router.go("home"); };
       this.applyClamps(root);
     },

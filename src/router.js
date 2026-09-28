@@ -10,6 +10,7 @@ import { init } from './main.js';
 export const Router = {
     go(route) {
       closeAllModals();
+      document.documentElement.style.setProperty("--mini-h", "0px");
       if (route !== "sheet") window.activeCharacterId = null;
       if (route === "solo" && !Settings.soloMode()) {
         this.go("home");
@@ -31,6 +32,8 @@ export const Router = {
       screen.innerHTML = "";
       const screenFn = Screens[route] || Screens.home;
       screen.appendChild(screenFn.call(Screens)); // bind `this` = Screens for screen methods
+      screen.dataset.route = route;
+      if (screen.firstElementChild) screen.firstElementChild.classList.add("screen-in");
       document.querySelectorAll("#app-nav button").forEach((b) => {
         const on = b.dataset.route === route;
         b.classList.toggle("active", on);
