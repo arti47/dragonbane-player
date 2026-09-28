@@ -1,5 +1,6 @@
 /* roller.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { Table } from './table.js';
 import { $, CONDITION_BY_MISHAP, DB, Dice, MISHAPS, el, esc } from './core.js';
 import { modal, showToast } from './ui.js';
 import { d20Svg, emblem, momentArt } from './graphics.js';
@@ -30,6 +31,8 @@ export const Roller = {
       const faces = out.querySelector(".dice-faces");
       if (faces) { if (faces.children.length > 1) { faces.classList.add("roll-dice-row"); st.appendChild(faces); } else faces.remove(); }
       out.insertBefore(st, out.firstChild);
+      const why = Table.explain(used, target, success, dragon, demon);
+      if (why) st.after(el(`<p class="roll-why">${why}</p>`));
       try { if (navigator.vibrate) navigator.vibrate(dragon ? [30, 40, 70] : demon ? [90, 50, 90] : success ? 18 : [12, 40, 12]); } catch (_) {}
     },
     netLabel(net) { return net > 0 ? `Boon ×${net}` : net < 0 ? `Bane ×${-net}` : "Even (1d20)"; },
@@ -75,6 +78,7 @@ export const Roller = {
         if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         result.innerHTML = html;
         this.stage(result, r.used, sk.level, success, dragon, demon);
+        Table.logRoll({ charId, kind: "skill", label: name, target: sk.level, roll: r.used, success, dragon, demon, pushed: pushedCondition });
         // Offer push if failed and not a demon (pushing is always allowed; the
         // cost is a chosen condition, or the overflow penalty when all six held).
         const curChar = Store.get(charId) || c;
@@ -128,7 +132,7 @@ export const Roller = {
       const sel = el(`<select class="input" style="flex:1;min-width:180px"></select>`);
       targets.forEach(t => {
         const arm = t.armor || 0;
-        sel.appendChild(el(`<option value="${t.id}">${esc(t.name)} (HP: ${t.hp == null ? "?" : t.hp}${arm ? ` · Armor ${arm}` : ""})</option>`));
+        sel.appendChild(el(`<option value="${t.id}">${esc(t.name)} (${Table.hideFoeHp(t) ? esc(Table.band(t)) : `HP: ${t.hp == null ? "?" : t.hp}`}${arm ? ` · Armor ${arm}` : ""})</option>`));
       });
       row.appendChild(sel);
 
@@ -319,6 +323,7 @@ export const Roller = {
         outcomeHtml += `</div>`;
         out.innerHTML = outcomeHtml;
         this.stage(out, r.used, target, success, crit, fumble);
+        Table.logRoll({ charId, kind: "attack", label: (weapon && weapon.name ? weapon.name : "Attack"), target, roll: r.used, success, dragon: crit, demon: fumble });
 
         // Demon (nat 20) on a weapon attack → roll the fumble table (melee vs ranged).
         if (fumble) {
@@ -817,6 +822,7 @@ export const Roller = {
         if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
         this.stage(out, r.used, level, success, dragon, demon);
+        Table.logRoll({ charId, kind: "cast", label: "Cast " + spell.name, target: level, roll: r.used, success, dragon, demon, pushed: pushedCondition });
         if (success) {
           if (isUnprepared && document.querySelector(".combat-tracker")) {
             showToast("⏳ Unprepared spell cast in combat: Casting takes 2 rounds! Effect delayed until next turn.");

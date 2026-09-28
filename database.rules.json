@@ -25,11 +25,27 @@
         "broadcast": {
           ".read": true,
           ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm'"
+        },
+        "table": {
+          ".read": true,
+          ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm'"
+        },
+        "rolls": {
+          ".read": true,
+          "$rollId": {
+            ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists() && !data.exists()"
+          },
+          ".indexOn": [
+            "ts"
+          ]
         }
       }
     },
     "characters": {
-      ".indexOn": ["campaignId", "owner"],
+      ".indexOn": [
+        "campaignId",
+        "owner"
+      ],
       ".read": true,
       ".write": true
     }

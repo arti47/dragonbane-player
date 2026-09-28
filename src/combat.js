@@ -1,5 +1,6 @@
 /* combat.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { Table } from './table.js';
 import { creatureType, crest, emblem, illo } from './graphics.js';
 import { icon } from './icons.js';
 import { $, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
@@ -44,6 +45,7 @@ export const Combat = {
     rerender() { const y = window.scrollY; const sc = $("#screen"); sc.innerHTML = ""; sc.appendChild(this.view()); window.scrollTo(0, y); },
     mutate(fn) {
       const s = this.load();
+      const was = s.round || 0;
       fn(s);
       if (s.combatants && s.combatants.length > 0) {
         if (!s.round || s.combatants.some(c => c.init == null)) {
@@ -53,6 +55,7 @@ export const Combat = {
         s.combatants.sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init));
       }
       this.save(s);
+      if (!was && s.round && this.isGm() && Table.phase() && Table.phase().key !== "combat") Table.setPhase("combat");
       this.rerender();
     },
     advanceTurn(combatantId) {
@@ -306,7 +309,7 @@ export const Combat = {
       const resetTurns = el(`<button class="btn ghost">Reset Turns</button>`);
       resetTurns.onclick = () => this.guardGm(() => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const end = el(`<button class="btn danger-ghost">End combat</button>`);
-      end.onclick = () => this.guardGm(async () => { if (await confirmModal("End combat and clear all combatants?", { title: "End combat", okText: "End combat", danger: true })) this.mutate((st) => { st.round = 0; st.combatants = []; }); });
+      end.onclick = () => this.guardGm(async () => { if (await confirmModal("End combat and clear all combatants?", { title: "End combat", okText: "End combat", danger: true })) { this.mutate((st) => { st.round = 0; st.combatants = []; }); if (Table.phase() && Table.phase().key === "combat") Table.setPhase("explore"); } });
       const fleeBtn = el(`<button class="btn ghost" style="border-style:dashed">🏃 Flee Close Combat</button>`);
       fleeBtn.onclick = () => {
         const d = Dice.d(20);
@@ -357,9 +360,9 @@ export const Combat = {
             ${isDefeated ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">💀 DEFEATED</span>' : ""}
             ${isDyingHero ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">🩸 DYING (0 HP)</span>' : ""}
             <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end"></div>
-            <span class="cb-hp" style="font-weight:bold;font-size:var(--fs-lg);color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
+            <span class="cb-hp${Table.hideFoeHp(cb) ? " cb-band" : ""}" style="font-weight:bold;font-size:var(--fs-lg);color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? (Table.hideFoeHp(cb) ? esc(Table.band(cb)) : `HP ${cb.hp}/${cb.maxHp || cb.hp}`) : ""}</span>
           </div>
-          ${cb.hp != null ? (() => { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)); return `<div class="hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}" aria-hidden="true"><i style="--pct:${pct}%"></i></div>`; })() : ""}
+          ${cb.hp != null && !Table.hideFoeHp(cb) ? (() => { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)); return `<div class="hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}" aria-hidden="true"><i style="--pct:${pct}%"></i></div>`; })() : ""}
         </div>`);
 
         const quickWrap = head.querySelector(".quick-attacks");
@@ -431,7 +434,9 @@ export const Combat = {
         topActions.appendChild(rm);
 
         // Vitals
-        if (cb.hp != null) {
+        if (cb.hp != null && Table.hideFoeHp(cb)) {
+          body.appendChild(el(`<div class="u-row u-mb2"><span class="stat-line u-m0"><b>Condition:</b></span><span class="tag cb-band">${esc(Table.band(cb))}</span>${cb.armor ? `<span class="tag">Armor ${cb.armor}</span>` : ""}</div>`));
+        } else if (cb.hp != null) {
           const vitRow = el(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>`);
           const hpMin = el(`<button class="step" style="width:34px;height:34px;font-size:var(--fs-2xl)" type="button">−</button>`);
           const hpPl = el(`<button class="step" style="width:34px;height:34px;font-size:var(--fs-2xl)" type="button">+</button>`);

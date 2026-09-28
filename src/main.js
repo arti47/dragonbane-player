@@ -1,5 +1,6 @@
 /* main.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { Table } from './table.js';
 import { illo } from './graphics.js';
 import { $, el, GLOSSARY, placeHelp } from './core.js';
 import { modal, showToast } from './ui.js';
@@ -40,6 +41,7 @@ export function init() {
     const screenEl = $("#screen");
     new MutationObserver(() => placeHelp(screenEl, modal)).observe(screenEl, { childList: true });
     Router.init();
+    Table.init();
     placeHelp(screenEl, modal);
 
     // Steppers: hold −/+ to repeat (after 400ms, ~11/s) with a light haptic tick.

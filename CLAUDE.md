@@ -98,6 +98,18 @@ The full Dragonbane core game data organized into searchable accordion categorie
 - **Rules library cleanup:** Guides/Reference groups, no repeated titles, max two nesting levels, left-aligned summaries, entry rows instead of prose walls, tables for weapons/armor, sticky open-category header, entry-level search with highlight (see §2.3).
 - **Motion & polish:** 160ms fade-up on screen change / tab switch, press feedback, bar tweens, toasts with a countdown bar and swipe-to-dismiss, fleuron empty-state notes. **Desktop:** single-column screens cap at 760px; dialogs are ~560px centred cards.
 
+### 2.8C Group play at a real table (`src/table.js`)
+Built for a storytelling GM with beginner players, each on their own phone in a synced campaign (everything also works on one device via localStorage).
+- **Game phase** — the GM sets Exploring / Combat / Travelling / Resting / Downtime / Session end on the GM tab; every phone shows it as a banner inside the app header with a one-tap tool (My sheet / Combat / Rest / Advancement). The phase switches to Combat when the GM starts a fight and back to Exploring on End combat.
+- **Roll requests** — the GM asks everyone or chosen heroes to roll a skill; phones show "GM asks: roll X" + **Roll now** (buzz); results come back to the GM screen per hero.
+- **Shared roll log** — every hero skill / attack / cast / death roll lands in the party log (📜 Log on the banner, and on the GM tab). Solo sessions of a party hero post a one-line summary.
+- **Party actions** — the GM calls Round / Stretch / Shift rest or End session; each phone gets a prompt to take it with its own hero.
+- **Your turn** — when a player's hero is up, a docked card (buzz) offers Attack / Cast / Move / Dash / Help-Rally / Something else + **End my turn**; otherwise a slim Parry / Dodge strip. (One shared device: shown only in beginner mode.)
+- **Foe HP** — players see monsters/NPCs as Healthy / Hurt / Badly hurt / Down; the GM sees numbers.
+- **Pre-gens** — the GM hands a pre-generated hero to a named player (join now asks for a name); it pops up on that phone.
+- **Beginner mode** (per device, About) — plain-words explanation under every roll, action explanations on the turn card, a hint line on the phase banner, advanced panels hidden (familiar, teacher/library/catch-up, GM automation, permanent WP loss).
+- **Solo with a party hero** — picking a party hero in the Solo tab asks: play it (progress syncs; GM sees a summary) or **make a solo copy** (separate, never syncs; tagged "Solo copy").
+
 ### 2.9 Planned — Rules-Accuracy Completion (see §7B roadmap)
 > These features are **specified but not yet built**. Full implementation specs (rule,
 > target file/function, behavior, schema, acceptance) live in **§7B**, ordered by
@@ -158,7 +170,7 @@ The full Dragonbane core game data organized into searchable accordion categorie
 | File | Purpose | Status |
 |---|---|---|
 | `index.html` | App shell / markup | ✅ COMPLETE — shell done (header, nav, screen mount, script loads); loads `src/main.js` as an ES module. |
-| `src/*.js` | Application logic, split into **19 ES modules** (was the single `app.js` IIFE). Entry point `src/main.js`. | ✅ ALL PHASES COMPLETE (Phases 1–21): see the module map below. Native ES modules — **no bundler/build step**; the browser loads them directly (clone-and-run preserved). |
+| `src/*.js` | Application logic, split into **20 ES modules** (was the single `app.js` IIFE). Entry point `src/main.js`. | ✅ ALL PHASES COMPLETE (Phases 1–21): see the module map below. Native ES modules — **no bundler/build step**; the browser loads them directly (clone-and-run preserved). |
 | `styles.css` | Theming (illuminated manuscript, light + dark + system) | ✅ Token-based theme (light + dark), `@font-face` for self-hosted fonts, manuscript layer (vellum, gilt, drop caps), tabs, stat block, vitals bars, dice stage, desktop rail — verified in browser |
 | `fonts/` | Self-hosted OFL woff2 (EB Garamond + italic, IM Fell English + italic + SC) + `OFL-*.txt` licences | ✅ cached by the SW |
 | `data.js` | Dragonbane rules library (kin, professions, skills, abilities, spells, equipment) | ✅ COMPLETE — kin, conditions, derived tables, ages, 30 skills + 3 magic schools, 10 professions (+ full gear tables), 44 heroic abilities, all spells (4 schools), weapons/shields/armor/helmets, general gear, instruments, currency |
@@ -167,13 +179,13 @@ The full Dragonbane core game data organized into searchable accordion categorie
 | `data-monsters.js` | Dragonbane Bestiary library (52 true monsters) | ✅ COMPLETE & WIRED — 12 core monsters + Robber Knight + 40 compendium additions; every entry carries a `ferocity` (attacks/turn, §7C F15). Auto-hit attacks roll damage via `Roller.monsterAttack` / `Roller.monsterTableRoll` (Ferocity×). |
 | `data-npcs.js` | Dragonbane Humanoid NPCs, Bosses, Undead & Animals library | ✅ COMPLETE & WIRED — Guard, Cultist, Thief, Villager, Hunter, Bandit, Adventurer, Scholar, Bosses, Goblins, Orcs, Skeletons, animals + 17 playable kin archetypes. Rolls d20 attacks via `Roller.npcAttack`. |
 | `data-pregens.js` | The 5 Dragonbane Core Set pre-generated characters | ✅ COMPLETE & WIRED — Aodhan, Orla, Makander, Krisanna, Bastonn. Instantiated via "Use a pre-gen" on Heroes screen. |
-| `database.rules.json` | Firebase Realtime Database security rules | ✅ COMPLETE — enforces player read/write own sheet + shared combat state; GM read/write all sheets. |
+| `database.rules.json` | Firebase Realtime Database security rules | ✅ COMPLETE — enforces player read/write own sheet + shared combat state; GM read/write all sheets; `table` GM-write; `rolls` member append-only. **Redeploy to Firebase after pulling.** |
 | `manifest.json` | PWA manifest (installable) | ✅ done |
 | `service-worker.js` | Offline caching | ✅ done — network-first for same-origin, caches all data files. |
 | `firebase-config.js` | Firebase config & flags | ✅ done — configured for regional RTDB (`asia-southeast1.firebasedatabase.app`) + `FIREBASE_ENABLED` flag. |
 | `icon.svg`, `icon-maskable.svg`, `icons/` | PWA app icons (drake emblem): SVG any + maskable, PNG 192/512/maskable-512 + apple-touch 180 | ✅ done — cached by the SW |
 | `README.md` | GitHub readme + Firebase setup steps | ✅ done |
-| `tests/` + `package.json` | Dev-only headless regression harness (`npm test`) — Phase 20. `tests/{run,serve,browser}.js` + `tests/specs/*.js`. Not part of the shipped PWA; `node_modules` gitignored. | ✅ COMPLETE — 14 specs / 260 checks (smoke, spillage, derivation, cast, inventory, a11y, gm, rules7c, playtest, playfix, ui2, ui3, gfx, rules-lib). |
+| `tests/` + `package.json` | Dev-only headless regression harness (`npm test`) — Phase 20. `tests/{run,serve,browser}.js` + `tests/specs/*.js`. Not part of the shipped PWA; `node_modules` gitignored. | ✅ COMPLETE — 15 specs / 280 checks (smoke, spillage, derivation, cast, inventory, a11y, gm, rules7c, playtest, playfix, ui2, ui3, gfx, rules-lib, table). |
 | `.claude/agents/solo-rpg-playtester.md` | Installed subagent: plays a full solo session via a self-built Playwright driver and reports where play stalls (not code correctness). Dev-only. `.playtest/` (its driver + artifacts) is gitignored. | ✅ installed |
 | `CLAUDE.md` | This file — canonical spec, kept in sync with code | ✅ active |
 
@@ -206,6 +218,7 @@ where needed** — don't reach for globals.
 | `combat.js` | `Combat` | Combat tracker / initiative / damage applier. |
 | `solo.js` | `SoloMode` | Solo assistant (oracle, inspiration, NPC gen). |
 | `gm.js` | `GM` | GM dashboard (Phase 21): party panel, peek sheet, drop-in monsters/NPCs, hand out damage/conditions/fear, GM reference tables. |
+| `table.js` | `Table`, `PHASES` | Group play at a real table: phase banner, roll requests, shared roll log, GM party actions, turn card + action menu, reaction strip, foe HP bands, pre-gen hand-out, beginner mode. Syncs via `campaigns/{id}/table` + `/rolls`, local fallback in localStorage. |
 | `library.js` | `rulesScreen`, `renderRuleDetail` | Rules library screen: Guides/Reference categories, entry rows, tables, heroic filter/A–Z, entry-level search + highlight, sticky headers, ↑ Top. |
 | `screens.js` | `Screens`, `renderPartyBanner`, `renderRuleDetail` (re-export) | Top-level screen renderers (home/rules/about/gm) + party banner; `Screens.rules` delegates to `library.js`. |
 | `router.js` | `Router` | Bottom-nav routing + Solo/GM-tab gating + nav badges (`updateBadges`). |
@@ -223,6 +236,9 @@ campaigns/{campaignId}
   members/{uid}: { displayName, characterId, role: "player" }   // "player" | "gm" (enforced in security rules)
   combat: { active, round, initiativeOrder[], combatants{...} }  // shared round helper
   broadcast/{pushId}: { text, ts, from }   // GM→players message feed (Phase 21); GM-write/member-read
+  table: { phase:{key,ts}, request:{id,skill,charIds|null,ts}, action:{id,kind,ts} }  // GM-write (table play)
+  rolls/{pushId}: { ts, uid, charId, hero, kind, label, target, roll, success, dragon, demon, pushed, reqId, text }  // member append-only
+  // members/{uid}.displayName is now asked on join
 
 characters/{characterId}
   owner: uid
@@ -240,6 +256,9 @@ characters/{characterId}
   effects:    [ { id, name, concentration, notes } ]
   notes:      string
   advancementLog: [ ... ]
+  assignedBy?: uid            // GM handed this pre-gen to the owner
+  soloCopy?: true, copyOf?: id  // solo branch of a party hero (never synced)
+// device settings: dragonbane.settings.beginner (bool); local fallbacks: dragonbane.table, dragonbane.rollLog, dragonbane.tableSeen
 ```
 
 ### 6.1 Planned schema additions (§7B Rules-Accuracy roadmap)
@@ -376,6 +395,9 @@ data-solo.js: failForward[] (an optional house aid, not an official table — §
 - [x] GM-only controls locking (`Combat.isGm`) for Initiative, Next Turn/Round, and Reset.
 - [x] Automatic ammunition deduction (`combatAmmo`) and out-of-ammo roll blocking.
 - [x] Automatic Prepare Grimoire Spells pop-up modal upon Shift Rest.
+
+### Phase 23 — Table Play (group with a storytelling GM) ✅ COMPLETE
+- [x] Game-phase banner + phase tools; roll requests with results to the GM; shared roll log; GM-triggered rests / end session; your-turn card + action menu + Parry/Dodge strip; foe HP bands for players; GM hands out pre-gens; beginner mode; solo play of a party hero (shared or solo copy). See §2.8C.
 
 ---
 
@@ -785,6 +807,7 @@ audit's prompts (illustrative only) is in [`docs/audit-2026-06-29-queries.md`](d
 
 | Date | Changes |
 |---|---|
+| 2026-09-28 | **Group play at a real table + solo with a party hero.** Choices: every player on a phone + GM device, reliable internet; beginner mode per device; GM phase banner with tools; roll requests with results back; shared roll log; your-turn card + action menu; foe HP as bands; GM-triggered rests/end session; GM hands out pre-gens; solo play asks shared vs solo copy, with a GM-visible summary. New `src/table.js` (see §2.8C, §5.1) wired into `sync.js` (listeners, name on join), `main.js` (init), `roller.js` (roll log + plain-words explanation under the d20), `sheet.js` (death-roll log, adv-only panels, solo-mission summary), `combat.js` (foe bands, auto Combat/Exploring phase), `gm.js` (Game phase / Ask for a roll / Party actions / Roll log / Hand out a pre-gen panels), `solo.js` (shared-or-copy prompt), `screens.js` (Beginner toggle, Solo copy tag). `database.rules.json`: `table` GM-write, `rolls` member append-only. **Fix:** the death-roll dialog's Successes/Failures tally was dropped (two-node `el()` template). New `tests/specs/table.js` (20 checks). Harness **280/280 green**. SW cache v82. |
 | 2026-09-28 | **Rules library cleanup — all 16 recommendations.** Choices: all; guide wording kept exactly (re-laid out only); fix "Battered"; collapsed rows; search expands matches. New `src/library.js` (moved the rules screen + `renderRuleDetail` out of `screens.js`, which re-exports it). **Structure:** Guides / Reference groups with entry counts; removed the repeated title inside How to Play / Core Loop / Journeys; nesting capped at category → section (spells: school → rows); summaries left-aligned. **Guides:** first session as START / KEEP PLAYING / END WELL numbered steps; wizard as 8 numbered steps; every other paragraph split sentence-by-sentence into bullet lists; loops as chip flows; rests + time scales as term lists; glossary as 16 term rows; Journey Mishaps as D6 rows. **Reference:** kin/professions/heroic abilities/spells/gear as tap-to-expand rows (name + tags); professions' skills as chips; spells gain casting time / requirement / prerequisite meta; weapons (melee/ranged/shields) and armor/helmets as tables (damage, STR, range, cost; rating, metal, effect); gear grouped (containers, light, tools, medicine, magic, general); heroic abilities sorted A–Z with a No-requirement / By-skill filter and letter jump. **Search:** entry-level filter with CSS Custom Highlight, per-category open, result count, clear resets to default collapse. **Chrome:** open category header sticks under the app header; ↑ Top button. Content fix: Core Loop pushing text listed a non-existent "Battered" condition — now the six from `DB.conditions`. New `tests/specs/rules-lib.js` (20 checks). Harness **260/260 green**. SW cache v81. |
 | 2026-09-28 | **Graphics pass — all 32 aesthetic recommendations (no content changes).** Choices: everything; crest auto from name + kin (defaults taken for the rest: ink line art + gilt accents, faceted d20, subtle filigree on hero header/dialogs/oracle, candlelit dark glow, pips up to 20). New `src/graphics.js` (emblem sets, crest, d20, pips, slots, footprints, illustrations, moments, laurel) + a GRAPHICS layer in `styles.css` (mask ornaments painted with tokens; `--her-*` tincture + `--d20*` tokens). Wired into: header/splash (`index.html`), hero cards + rules kin/profession/school rows (`screens.js`), wizard kin/profession/school/pregen cards (`wizard.js`), sheet crest/mini-bar crest/attribute + condition glyphs/pips/slots/death tokens/footprints/laurels (`sheet.js`), d20 + moments + dice-shape chips (`roller.js`), creature silhouettes + hourglass + empty swords (`combat.js`), oracle/inspiration fortune cards + quill empty (`solo.js`), welcome art (`main.js`). New PWA icons (`icon.svg` redrawn, `icon-maskable.svg`, `icons/*.png`; manifest adds maskable + PNG; apple-touch → PNG). **Fixes found on the way:** the sheet's dying panel never showed its Successes/Failures tally (an `el()` two-node template dropped it — now wrapped); stat-block and skill-level figures rendered in IM Fell old-style numerals (now EB Garamond lining, per §2.8B). `playfix` P4 now navigates via the nav button (a direct `import()`+`Router.go` evaluate tripped a Playwright context error even on the previous commit). New `tests/specs/gfx.js` (21 checks). Harness **240/240 green**. SW cache v80. |
 | 2026-09-28 | **UX/UI audit #3 — all 26 recommendations (no content changes).** Choices: undo toasts (not confirms), parchment print sheet, swipe between tabs, nav badges for round/dying/unread GM messages. **Bugs:** illegible combat "Death roll" button (now danger-ghost); unthemed native `<select>` in dialogs (global themed select); cramped spell-resolution card (`.sa-form` grid, range hint hidden when unlimited); centred/wrapping magic-school rows (`.school-summary`); textarea resize handles on single-line fields; stale toasts across screens. **Wizard:** sticky Back/Next, ✓-badged selected card, pinned skill counter. **Sheet:** desktop masonry Overview, clustered vitals, dying state tint/pulse, banned-attribute badge, WP-loss row inside Magic panel, two-line tool rows in inventory. **GM/About:** highlighted rolled table row with die faces; one-line data buttons (1-col under 440px); GM title regains its drop cap. **New:** `showUndoToast` (5 removal sites), `Router.updateBadges`/`markMessagesRead` + `db:changed` events, hold-to-repeat steppers + haptics (`main.js`), swipe tab navigation (`main.js`), print stylesheet + Print button, `@media (hover:hover)` affordances, mini-bar buttons 30×34. **Code:** 186 repeated inline styles → `u-*` utilities (296 inline-style lines remain, mostly dynamic). New `tests/specs/ui3.js` (11 checks). Harness **219/219 green**; WCAG text-contrast scan clean light+dark. SW cache v79. |

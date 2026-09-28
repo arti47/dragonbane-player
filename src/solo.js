@@ -2,7 +2,7 @@
    See CLAUDE.md §5 for the module map. */
 import { illo } from './graphics.js';
 import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
-import { confirmModal, showToast, showUndoToast } from './ui.js';
+import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
 import { applyInvoluntaryConditionTo, effHpMax, effWpMax, equippedArmor } from './derived.js';
@@ -23,6 +23,26 @@ export const SoloMode = {
     journalKey() { return this.JOURNAL_KEY + ":" + (this.heroId() || "global"); },
     loadJournal() { let j; try { j = JSON.parse(localStorage.getItem(this.journalKey())) || {}; } catch (_) { j = {}; } j.scene = j.scene || ""; j.entries = Array.isArray(j.entries) ? j.entries : []; j.threads = Array.isArray(j.threads) ? j.threads : []; j.npcs = Array.isArray(j.npcs) ? j.npcs : []; return j; },
     saveJournal(j) { localStorage.setItem(this.journalKey(), JSON.stringify(j)); },
+    // A party hero picked for solo play: keep playing it (progress syncs to the
+    // group) or branch a solo copy that never touches the party sheet.
+    askPartyHero(h, onCancel) {
+      const m = modal(`Solo play with ${h.identity.name}`);
+      m.body.appendChild(el(`<p class="modal-msg">${esc(h.identity.name)} belongs to your party campaign. How should this solo session count?</p>`));
+      const shared = el(`<button class="btn block">Play the party hero<small class="btn-sub">HP, conditions and advancement sync to the group; the GM sees a summary in the roll log.</small></button>`);
+      const copy = el(`<button class="btn secondary block u-mt2">Make a solo copy<small class="btn-sub">A separate hero for solo only — the party sheet never changes.</small></button>`);
+      const cancel = el(`<button class="btn ghost block u-mt2">Cancel</button>`);
+      shared.onclick = () => { m.close(); this.setHero(h.id); Router.go("solo"); };
+      copy.onclick = () => { m.close(); const c = this.soloCopy(h); this.setHero(c.id); showToast(`Solo copy created: ${c.identity.name}.`, "success"); Router.go("solo"); };
+      cancel.onclick = () => { m.close(); if (onCancel) onCancel(); };
+      m.body.append(shared, copy, cancel);
+    },
+    soloCopy(h) {
+      const c = JSON.parse(JSON.stringify(h));
+      c.id = uid(); c.campaignId = null; c.soloCopy = true; c.copyOf = h.id; delete c.assignedBy;
+      c.identity.name = `${h.identity.name} (solo)`;
+      const list = Store.list(); list.push(c); Store.save(list);
+      return c;
+    },
     view() {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
       const root = el(`<div></div>`);
@@ -81,7 +101,11 @@ export const SoloMode = {
       const heroSel = el(`<select class="input solo-ctx-sel"></select>`);
       heroSel.appendChild(el(`<option value="">— No hero (type values) —</option>`));
       heroes.forEach((h) => { const o = el(`<option value="${esc(h.id)}">${esc(h.identity.name)}</option>`); if (linked && h.id === linked.id) o.selected = true; heroSel.appendChild(o); });
-      heroSel.onchange = () => { this.setHero(heroSel.value || null); Router.go("solo"); };
+      heroSel.onchange = () => {
+        const h = heroSel.value ? Store.get(heroSel.value) : null;
+        if (!h || !h.campaignId || h.soloCopy) { this.setHero(heroSel.value || null); Router.go("solo"); return; }
+        this.askPartyHero(h, () => { heroSel.value = linked ? linked.id : ""; });
+      };
       heroPanel.appendChild(heroSel);
       banner.appendChild(heroPanel);
 

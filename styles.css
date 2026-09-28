@@ -1653,6 +1653,73 @@ img.hc-mono { width: 46px; height: 54px; margin: 5px 5px 0; }
 .rl-top { position: fixed; right: 16px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 12; min-height: 40px; padding: 6px 14px; border-radius: var(--r-pill); border: 1px solid color-mix(in srgb, var(--gold) 60%, var(--line)); background: var(--bg-panel); color: var(--accent-ink); font-family: var(--font-heading); box-shadow: 0 4px 14px var(--shadow-lg); cursor: pointer; }
 @media (min-width: 1024px) { .rl-top { bottom: 24px; right: 28px; } }
 
+/* ================= TABLE PLAY (group at a real table) ================= */
+.table-bar { flex: 1 0 100%; display: flex; flex-direction: column; gap: 6px; margin: 6px -14px -10px; padding: 6px 14px 8px; background: color-mix(in srgb, #000 22%, var(--accent)); border-top: 1px solid color-mix(in srgb, var(--gold-leaf) 45%, transparent); font-family: var(--font-body); font-size: var(--fs-sm); color: var(--on-accent); }
+.table-bar[hidden] { display: none; }
+.tb-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tb-chip { font-family: var(--font-display); letter-spacing: .5px; padding: 2px 10px; border-radius: var(--r-pill); background: var(--gold-leaf); color: var(--on-gold); white-space: nowrap; }
+.tb-hint { margin: -2px 0 0; font-size: var(--fs-xs); opacity: .9; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tb-txt { flex: 1 1 auto; min-width: 0; }
+.tb-btn, .tb-log, .tb-x { min-height: 32px; padding: 3px 12px; border-radius: var(--r-pill); border: 1px solid color-mix(in srgb, var(--on-accent) 55%, transparent); background: transparent; color: var(--on-accent); font: inherit; cursor: pointer; white-space: nowrap; }
+.tb-phase .tb-chip { margin-right: auto; }
+.tb-primary { background: var(--gold-leaf); color: var(--on-gold); border-color: var(--gold-leaf); font-weight: 600; }
+.tb-alert { background: color-mix(in srgb, var(--gold-leaf) 18%, transparent); border-radius: var(--r-sm); padding: 4px 6px 4px 10px; animation: tbIn .3s ease; }
+.tb-x { min-width: 32px; padding: 0; }
+.tb-n { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--on-accent); color: var(--accent); font-size: var(--fs-xs); line-height: 18px; text-align: center; }
+@keyframes tbIn { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
+.tl-glow { animation: tlGlow 1.6s ease 2; border-radius: var(--r-md); }
+@keyframes tlGlow { 50% { box-shadow: 0 0 0 3px var(--gold-leaf); } }
+
+/* Roll log */
+.tl-log { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; }
+.tl-log li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); line-height: 1.4; }
+.tl-log li:last-child { border-bottom: 0; }
+.tl-time { flex: none; font-size: var(--fs-xs); color: var(--ink-soft); font-variant-numeric: lining-nums tabular-nums; min-width: 3.4em; padding-top: 2px; }
+.tl-roll { font-variant-numeric: lining-nums; color: var(--ink-soft); }
+.tl-ok { color: var(--good); font-weight: 600; }
+.tl-bad { color: var(--bad); font-weight: 600; }
+
+/* Turn card + reaction strip (docked above the bottom nav) */
+.turn-dock { position: fixed; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 18; padding: 0 10px 8px; pointer-events: none; }
+.turn-dock[hidden] { display: none; }
+.turn-dock > * { pointer-events: auto; max-width: 740px; margin: 0 auto; }
+.turn-card { background: var(--bg-panel); border: 1px solid var(--gold); border-radius: var(--r-lg); box-shadow: 0 -2px 0 var(--gold-leaf), 0 10px 30px var(--shadow-lg); overflow: hidden; animation: sheetUp .25s cubic-bezier(.2,.8,.2,1); }
+.tc-head { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 10px 14px; border: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); color: var(--on-accent); font: inherit; text-align: left; cursor: pointer; }
+.tc-title { font-family: var(--font-display); font-size: var(--fs-lg); letter-spacing: .4px; flex: 1 1 auto; }
+.tc-sub { font-size: var(--fs-xs); opacity: .85; }
+.tc-head .chev { transform: rotate(225deg); }
+.turn-card:not(.open) .tc-head .chev { transform: rotate(45deg); }
+.turn-card:not(.open) .tc-body { display: none; }
+.tc-body { padding: 10px; max-height: 46vh; overflow-y: auto; }
+.tc-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tc-act { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 48px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-raised); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.tc-act small { color: var(--ink-soft); font-size: var(--fs-xs); line-height: 1.3; }
+.tc-act:hover { border-color: var(--accent); }
+.tc-done { margin-top: 8px; }
+.react-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--r-pill); box-shadow: 0 6px 18px var(--shadow); font-size: var(--fs-sm); }
+.react-strip > span:first-child { flex: 1 1 auto; min-width: 0; }
+.react-strip .tb-btn { color: var(--accent-ink); border-color: var(--line); background: var(--bg-raised); }
+.rs-q { color: var(--ink-soft); }
+.rs-tip { flex-basis: 100%; color: var(--ink-soft); }
+body:has(.turn-dock:not([hidden])) .app-main { padding-bottom: calc(260px + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { .turn-dock { left: 96px; bottom: 12px; } }
+
+/* GM table controls */
+.phase-seg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.phase-btn { min-height: 40px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); font: inherit; cursor: pointer; }
+.phase-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.gm-who .skill-chip { min-height: 36px; }
+.gm-who .skill-chip:not(.on) { opacity: .5; text-decoration: line-through; }
+
+/* Beginner mode + roll explanation + foe bands + solo copy */
+.roll-why { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid var(--gold-leaf); background: var(--tint-gold); border-radius: var(--r-sm); font-size: var(--fs-sm); line-height: 1.45; }
+body.beginner .adv-only { display: none !important; }
+.cb-band { font-family: var(--font-heading); }
+.hc-solo { margin: 0 0 2px; }
+.btn-sub { display: block; font-size: var(--fs-xs); opacity: .85; font-weight: 400; margin-top: 2px; white-space: normal; }
+.btn:has(.btn-sub) { flex-direction: column; height: auto; padding-top: 8px; padding-bottom: 8px; }
+@media print { .table-bar, .turn-dock { display: none !important; } }
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }

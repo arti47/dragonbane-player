@@ -1,7 +1,8 @@
 /* sync.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { Table } from './table.js';
 import { $, FANTASY_WORDS, uid } from './core.js';
-import { confirmModal, showToast } from './ui.js';
+import { confirmModal, promptModal, showToast } from './ui.js';
 import { Settings } from './settings.js';
 import { Store, syncCharToCombat } from './store.js';
 import { Sheet } from './sheet.js';
@@ -167,7 +168,8 @@ export const Sync = {
         if (!id) { showToast("Invalid join code. Check spelling and try again.", "error"); return; }
         const metaSnap = await this.timeoutRace(this.db.ref(`campaigns/${id}/meta`).once("value"), "fetch campaign info");
         const meta = metaSnap.val() || { name: "Campaign" };
-        await this.timeoutRace(this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName: "Player", role: "player" }), "join campaign");
+        const displayName = ((await promptModal("Your name (so the GM knows who you are):", { title: "Join campaign", placeholder: "e.g. Sam", okText: "Join" })) || "").trim().slice(0, 30) || "Player";
+        await this.timeoutRace(this.db.ref(`campaigns/${id}/members/${this.uid}`).set({ displayName, role: "player" }), "join campaign");
         this.campaign = { id, joinCode: clean, name: meta.name, role: "player" };
       } catch (err) {
         console.error("Failed to join campaign in RTDB:", err);
@@ -274,6 +276,8 @@ export const Sync = {
         }
       });
 
+      Table.attach();
+
       // GM → players broadcast feed.
       this._broadcastSeen = null;
       this.broadcastRef = this.db.ref(`campaigns/${id}/broadcast`).limitToLast(30);
@@ -300,6 +304,7 @@ export const Sync = {
       if (this.charsRef) { this.charsRef.off(); this.charsRef = null; }
       if (this.broadcastRef) { this.broadcastRef.off(); this.broadcastRef = null; }
       this.broadcast = []; this._broadcastSeen = null;
+      Table.detach();
     },
 
     // GM pushes a message (or a rolled table result) to all players in the campaign.

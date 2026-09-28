@@ -1,5 +1,6 @@
 /* screens.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { Table } from './table.js';
 import { $, CORE_SCHOOLS, DB, MAGICX, el, esc, helpBox, sectionTitle } from './core.js';
 import { confirmModal, promptModal, showToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
@@ -122,7 +123,7 @@ export const Screens = {
                   <h3>${esc(c.identity?.name || "Unnamed")}</h3>
                   ${iconBtn}
                 </div>
-                <div class="meta">${emblem("prof", c.identity?.profession, "emb card-emb")}${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
+                ${c.soloCopy ? '<span class="tag hc-solo">Solo copy</span>' : ""}<div class="meta">${emblem("prof", c.identity?.profession, "emb card-emb")}${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
                 <div class="hc-vitals" aria-hidden="true">
                   <span class="hc-bar hp${hp <= 0 ? " down" : ""}"><i style="width:${pct(hp, hpM)}%"></i><b>HP ${hp}/${hpM}</b></span>
                   <span class="hc-bar wp"><i style="width:${pct(wp, wpM)}%"></i><b>WP ${wp}/${wpM}</b></span>
@@ -205,6 +206,12 @@ export const Screens = {
         "<b>Export / Import / Clear</b> manage your locally-stored heroes."
       ]), root.firstChild);
       const sp = root.querySelector("#settings-panel");
+      const beg = !!Settings.get("beginner");
+      const row0 = el(`<div class="toggle-row"><div><b>Beginner mode (this device)</b><br><span class="stat-line">Explains every roll in plain words, shows what each combat action does, adds a hint to the game-phase banner, and hides advanced panels (familiar, teacher training, GM automation, permanent WP loss).</span></div></div>`);
+      const tog0 = el(`<button class="toggle ${beg ? "on" : ""}" role="switch" aria-checked="${beg}" id="tog-beginner"><span class="knob"></span></button>`);
+      tog0.onclick = () => { Settings.set("beginner", !Settings.get("beginner")); Table.applyBeginner(); Table.render(); Router.go("about"); };
+      row0.appendChild(tog0); sp.appendChild(row0);
+      sp.appendChild(el(`<div style="margin-top:10px;border-top:1px solid var(--border)"></div>`));
       const bom = Settings.bookOfMagic();
       const row = el(`<div class="toggle-row"><div><b>Book of Magic content</b><br><span class="stat-line">Adds the 9 new schools &amp; extra spells to the Rules browser and character creation. Revised core spells apply either way.</span></div></div>`);
       const tog = el(`<button class="toggle ${bom ? "on" : ""}" role="switch" aria-checked="${bom}"><span class="knob"></span></button>`);

@@ -1,5 +1,6 @@
 /* sheet.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { Table } from './table.js';
 import { crest, emblem, footTrack, laurel, pips, setPips, slotSquares } from './graphics.js';
 import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
 import { confirmModal, modal, promptModal, showToast, showUndoToast } from './ui.js';
@@ -243,8 +244,8 @@ export const Sheet = {
       const dr = c.state.deathRolls || { successes: 0, failures: 0 };
       const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${cls === "ok" ? "s" : "f"} ${i<n?cls:""}"></span>`).join("");
       
-      const head = el(`<p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
-        <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p>`);
+      const head = el(`<div><p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
+        <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p></div>`);
       const btn = el(`<button class="btn block roll-go u-mt3">Roll Death Roll</button>`);
       const out = el(`<div class="roll-result u-mt35"></div>`);
 
@@ -283,6 +284,7 @@ export const Sheet = {
         }
         out.innerHTML = html;
         Roller.stage(out, roll, `CON ${con}`, success, dragon, demon);
+        Table.logRoll({ charId: cid, kind: "death", label: "Death roll", target: con, roll, success, dragon, demon });
         if (head.querySelector(".cur-dr")) head.querySelector(".cur-dr").style.display = "none";
       };
 
@@ -591,6 +593,10 @@ export const Sheet = {
         });
         ch.state.weaknessCooldown = false; // new session — a new weakness may be chosen
       });
+      if (this._soloMission && c.campaignId) {
+        const ups = results.filter((r) => r.improved).map((r) => `${r.name} → ${r.level}`);
+        Table.logRoll({ kind: "solo", charId: c.id, hero: c.identity.name, text: `solo mission — ${ups.length ? ups.join(", ") : "no skills improved"}` });
+      }
       const m = modal("Advancement");
       m.body.appendChild(el(`<p class="stat-line">For each marked skill, roll D20; if it exceeds the skill's level, it improves by 1 (max 18).</p>`));
       results.forEach((r) => m.body.appendChild(el(`<p${r.improved ? ` class="adv-win${r.level === 18 ? " max" : ""}"` : ""}>${r.improved ? laurel() : ""}<span>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--ok)">improved to ${r.level}</span>` : `no change (${r.level})`}</span></p>`)));
@@ -699,7 +705,7 @@ export const Sheet = {
       m.body.appendChild(el(`<p class="stat-line">Solo play: on returning from a successful mission, mark 5 skills of your choice, then roll advancement.</p>`));
       const { wrap } = this.markSkillPicker(picked, () => 5);
       const btn = el(`<button class="btn block pick-go u-mt2">Mark 5 &amp; roll advancement</button>`);
-      btn.onclick = () => { if (picked.length !== 5) { showToast("Pick exactly 5 skills to mark.", "error"); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
+      btn.onclick = () => { if (picked.length !== 5) { showToast("Pick exactly 5 skills to mark.", "error"); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this._soloMission = true; this.rollAdvancement(); this._soloMission = false; };
       m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
     },
     render() {
@@ -821,7 +827,7 @@ export const Sheet = {
 
       // Permanent WP loss (rituals / corruption)
       if (c.state.wpPenalty || (c.spells.tricks || []).length || (c.spells.known || []).length) {
-        const pen = el(`<div class="wp-pen"><span class="stat-line">Permanent WP loss (rituals/corruption): <b>${c.state.wpPenalty || 0}</b> · max WP ${effWpMax(c)}/${c.derived.wpMax}</span></div>`);
+        const pen = el(`<div class="wp-pen adv-only"><span class="stat-line">Permanent WP loss (rituals/corruption): <b>${c.state.wpPenalty || 0}</b> · max WP ${effWpMax(c)}/${c.derived.wpMax}</span></div>`);
         const minus = el(`<button class="step" title="restore (e.g. Focused)">−</button>`);
         const plus = el(`<button class="step" title="lose 1 permanent max WP">+</button>`);
         minus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = Math.max(0, (ch.state.wpPenalty || 0) - 1); ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
@@ -899,7 +905,7 @@ export const Sheet = {
       // Advanced / GM Automation panel (Phase 18) — gated behind one toggle.
       if (Settings.gmAutomation()) {
         const t = c.state.time || { round: 0, stretch: 0, shift: 0 };
-        const gmPanel = el(`<details class="panel gm-auto"${this._gmOpen ? " open" : ""}><summary><h3>⏱️ GM Automation</h3></summary></details>`);
+        const gmPanel = el(`<details class="panel gm-auto adv-only"${this._gmOpen ? " open" : ""}><summary><h3>⏱️ GM Automation</h3></summary></details>`);
         gmPanel.addEventListener("toggle", () => { this._gmOpen = gmPanel.open; });
         gmPanel.appendChild(el(`<p class="stat-line">Time — Round <b>${t.round}</b> · Stretch <b>${t.stretch}</b> · Shift <b>${t.shift}</b>${c.state.awakeShifts >= 3 ? ` · <b class="u-bad">sleep-deprived (${c.state.awakeShifts} shifts)</b>` : c.state.awakeShifts ? ` · awake ${c.state.awakeShifts} shift(s)` : ""}${c.state.roundRestUsed ? " · round rest used" : ""}</p>`));
         const clockRow = el(`<div class="rest-row"></div>`);
@@ -990,7 +996,7 @@ export const Sheet = {
         missionBtn.onclick = () => this.soloMissionMarks();
         advRow.appendChild(missionBtn);
       }
-      const advMore = el(`<details class="adv-menu"><summary>Train teacher · Study library · Gain ability · Catch up</summary></details>`);
+      const advMore = el(`<details class="adv-menu adv-only"><summary>Train teacher · Study library · Gain ability · Catch up</summary></details>`);
       const advMoreRow = el(`<div class="rest-row" style="margin:6px 0 4px"></div>`);
       advMoreRow.append(teachBtn, studyBtn, gainBtn, catchupBtn); advMore.appendChild(advMoreRow);
       skPanel.appendChild(advRow);
@@ -1082,7 +1088,7 @@ export const Sheet = {
       const isCaster = Object.values(c.skills).some((v) => v.kind === "magic") || (c.spells && c.spells.castSkill);
       if (isCaster) {
         const cap = Math.floor(effWpMax(c) / 2);
-        const famPanel = el(`<div class="panel"><h3>Familiar</h3><p class="stat-line">Assign up to half your max WP (${cap}) to a familiar; the pools are tracked separately.</p></div>`);
+        const famPanel = el(`<div class="panel adv-only"><h3>Familiar</h3><p class="stat-line">Assign up to half your max WP (${cap}) to a familiar; the pools are tracked separately.</p></div>`);
         if (!c.state.familiar) {
           const addRow = el(`<div class="inv-add"></div>`);
           const fIn = el(`<input type="text" placeholder="Name your familiar…">`);

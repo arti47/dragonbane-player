@@ -13,6 +13,8 @@ import { modal, showToast, promptModal, confirmModal } from './ui.js';
 import { applyInvoluntaryConditionTo, effHpMax, effWpMax } from './derived.js';
 import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
+import { Table, PHASES } from './table.js';
+import { Pregens } from './wizard.js';
 
 export const GM = {
     // Show the GM surface based on the user's explicit toggle when they've set one;
@@ -34,6 +36,76 @@ export const GM = {
     heldConditions(c) {
       const conds = (c.state && c.state.conditions) || {};
       return (DB.conditions || []).filter((cn) => conds[cn.key]).map((cn) => cn.name);
+    },
+
+    // ---- Running the table: phase, roll requests, party actions, roll log, pre-gens ----
+    tablePanel() {
+      const wrap = el(`<div class="gm-table"></div>`);
+      const party = this.party();
+      // Phase
+      const ph = el(`<div class="panel"><h3>🎬 Game phase</h3><p class="stat-line">Shown on every player's phone with the right tools (and a plain-words hint in beginner mode).</p></div>`);
+      const seg = el(`<div class="phase-seg" role="group" aria-label="Game phase"></div>`);
+      const cur = Table.phase();
+      PHASES.forEach((p) => { const b = el(`<button type="button" class="phase-btn" aria-pressed="${cur && cur.key === p.key ? "true" : "false"}">${p.icon} ${esc(p.label)}</button>`); b.onclick = () => Table.setPhase(p.key); seg.appendChild(b); });
+      const off = el(`<button type="button" class="phase-btn" aria-pressed="${cur ? "false" : "true"}">— None</button>`); off.onclick = () => Table.setPhase(null); seg.appendChild(off);
+      ph.appendChild(seg); wrap.appendChild(ph);
+
+      // Ask for a roll
+      const rq = el(`<div class="panel"><h3>🎲 Ask for a roll</h3></div>`);
+      const skills = (DB.skills || []).map((x) => x.name).sort();
+      const row = el(`<div class="inv-add"></div>`);
+      const sel = el(`<select aria-label="Skill to roll">${skills.map((n) => `<option${n === (this._lastSkill || "Awareness") ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`);
+      const ask = el(`<button class="btn">Ask</button>`);
+      row.append(sel, ask); rq.appendChild(row);
+      const who = el(`<div class="rl-chips gm-who"></div>`);
+      const picked = new Set(party.map((c) => c.id));
+      party.forEach((c) => { const b = el(`<button type="button" class="skill-chip on" aria-pressed="true">${esc(c.identity.name)}</button>`); b.onclick = () => { const on = !picked.has(c.id); on ? picked.add(c.id) : picked.delete(c.id); b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); }; who.appendChild(b); });
+      if (party.length) rq.appendChild(el(`<p class="stat-line u-mb1only">Who rolls (tap to toggle):</p>`));
+      rq.appendChild(who);
+      ask.onclick = () => { this._lastSkill = sel.value; Table.requestRoll(sel.value, picked.size === party.length ? null : [...picked]); };
+      const req = Table.state.request;
+      if (req) {
+        const res = el(`<div class="gm-req"><p class="stat-line u-mt2"><b>Latest request: ${esc(req.skill)}</b></p></div>`);
+        const ids = Table.targets(req);
+        const list = el(`<ul class="tl-log"></ul>`);
+        ids.forEach((id) => {
+          const c = Store.get(id); if (!c) return;
+          const e = [...Table.log].reverse().find((x) => x.reqId === req.id && x.charId === id);
+          list.appendChild(el(`<li><span>${e ? Table.logLine(e) : `<b>${esc(c.identity.name)}</b> — <i>waiting…</i>`}</span></li>`));
+        });
+        const clr = el(`<button class="btn ghost u-mt15">Clear request</button>`); clr.onclick = () => Table.clearRequest();
+        res.append(list, clr); rq.appendChild(res);
+      }
+      wrap.appendChild(rq);
+
+      // Party actions
+      const pa = el(`<div class="panel"><h3>⛺ Party actions</h3><p class="stat-line">Each player's phone gets a prompt to take it with their own hero.</p></div>`);
+      const grid = el(`<div class="grid-2"></div>`);
+      [["round", "Round rest"], ["stretch", "Stretch rest"], ["shift", "Shift rest"], ["endSession", "🏅 End session"]].forEach(([k, l]) => { const b = el(`<button class="btn ghost">${l}</button>`); b.onclick = () => Table.partyAction(k); grid.appendChild(b); });
+      pa.appendChild(grid); wrap.appendChild(pa);
+
+      // Roll log
+      const lg = el(`<div class="panel"><h3>📜 Party roll log</h3></div>`);
+      lg.appendChild(Table.logList(10));
+      const all = el(`<button class="btn ghost u-mt15">Open full log</button>`); all.onclick = () => Table.openLog();
+      lg.appendChild(all); wrap.appendChild(lg);
+
+      // Hand out pre-gens
+      const pg = el(`<div class="panel"><h3>🎁 Hand out a pre-generated hero</h3></div>`);
+      const pregens = window.DRAGONBANE_PREGENS || [];
+      const players = Table.players();
+      if (!Table.synced()) pg.appendChild(el(`<p class="stat-line">Needs a synced campaign (About → Create campaign). On one device, use <b>Heroes → Use a pre-generated hero</b>.</p>`));
+      else if (!players.length) pg.appendChild(el(`<p class="stat-line">No players have joined yet — share the join code <b>${esc(Sync.campaign.joinCode)}</b>.</p>`));
+      else {
+        const r = el(`<div class="inv-add"></div>`);
+        const ps = el(`<select aria-label="Player">${players.map((p) => `<option value="${esc(p.uid)}">${esc(p.name)}</option>`).join("")}</select>`);
+        const hs = el(`<select aria-label="Pre-generated hero">${pregens.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}</select>`);
+        const give = el(`<button class="btn secondary">Give</button>`);
+        give.onclick = () => Table.assignPregen(pregens[+hs.value], ps.value, (p) => Pregens.instantiate(p));
+        r.append(ps, hs, give); pg.appendChild(r);
+      }
+      wrap.appendChild(pg);
+      return wrap;
     },
 
     view() {
@@ -81,6 +153,11 @@ export const GM = {
         pPanel.appendChild(row);
       });
       root.appendChild(pPanel);
+      root.appendChild(this.tablePanel());
+      if (!this._tableHook) {
+        this._tableHook = true;
+        window.addEventListener("table:changed", () => { const old = document.querySelector("#screen .gm-table"); if (old) old.replaceWith(this.tablePanel()); });
+      }
 
       // ---- Drop into combat -------------------------------------------
       const dPanel = el(`<div class="panel"><h3>Drop into combat</h3><p class="stat-line">Adds a combatant to the shared Combat tracker.</p></div>`);
