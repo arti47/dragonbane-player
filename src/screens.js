@@ -12,6 +12,7 @@ import { Combat } from './combat.js';
 import { SoloMode } from './solo.js';
 import { GM } from './gm.js';
 import { icon } from './icons.js';
+import { crest, emblem, illo } from './graphics.js';
 import { Router } from './router.js';
 
 export function renderPartyBanner() {
@@ -82,6 +83,7 @@ export const Screens = {
           ${sectionTitle("Your heroes")}
           <div class="panel">
             <div class="empty">
+              ${illo("campfire")}
               <div class="big">⚔</div>
               <h2>No heroes yet</h2>
               <p class="stat-line">Create a character to begin your adventures in the Misty Vale.<br><b>New to Dragonbane or solo play? Tap 📘 How to Play first.</b></p>
@@ -109,7 +111,7 @@ export const Screens = {
           let hpM = 0, wpM = 0; try { hpM = effHpMax(c); wpM = effWpMax(c); } catch (_) {}
           const pct = (v, m) => (m > 0 ? Math.max(0, Math.min(100, (v / m) * 100)) : 0);
           const conds = (DB.conditions || []).filter((cn) => c.state?.conditions?.[cn.key]);
-          const portrait = c.identity?.portraitUrl ? `<img class="hc-mono" src="${esc(c.identity.portraitUrl)}" alt="">` : `<span class="hc-mono" aria-hidden="true">${esc(ini)}</span>`;
+          const portrait = `<span class="hc-side">${c.identity?.portraitUrl ? `<img class="hc-mono" src="${esc(c.identity.portraitUrl)}" alt="">` : `<span class="hc-mono has-crest" aria-hidden="true">${crest(c.identity?.name, c.identity?.kin, ini)}</span>`}<svg class="hc-ribbon" viewBox="0 0 58 14" aria-hidden="true"><path class="rb" d="M0 3h8l-3 4 3 4H0zM58 3h-8l3 4-3 4h8z" opacity=".7"/><path class="rb" d="M6 1h46v10H6z"/><path class="rb-edge" d="M6 2.5h46M6 9.5h46"/></svg></span>`;
           return `
             <div class="card hero-card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="Open ${esc(c.identity?.name || "hero")}">
               ${portrait}
@@ -118,7 +120,7 @@ export const Screens = {
                   <h3>${esc(c.identity?.name || "Unnamed")}</h3>
                   ${iconBtn}
                 </div>
-                <div class="meta">${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
+                <div class="meta">${emblem("prof", c.identity?.profession, "emb card-emb")}${esc(c.identity?.kin || "—")} · ${esc(c.identity?.profession || "—")}${c.identity?.age ? " · " + esc(c.identity.age) : ""}</div>
                 <div class="hc-vitals" aria-hidden="true">
                   <span class="hc-bar hp${hp <= 0 ? " down" : ""}"><i style="width:${pct(hp, hpM)}%"></i><b>HP ${hp}/${hpM}</b></span>
                   <span class="hc-bar wp"><i style="width:${pct(wp, wpM)}%"></i><b>WP ${wp}/${wpM}</b></span>
@@ -133,6 +135,7 @@ export const Screens = {
         body = `
           ${sectionTitle("Your heroes")}
           <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
+          <div class="fleuron-div" aria-hidden="true"></div>
           <div class="home-actions">
             <button class="btn block" id="new-hero">Forge a new hero</button>
             <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
@@ -180,6 +183,7 @@ export const Screens = {
               <button type="button" class="search-clear" aria-label="Clear search" hidden>✕</button>
             </div>
             <div class="search-count" role="status" aria-live="polite"></div>
+            <div class="empty-illo search-empty" hidden>${illo("book")}</div>
           </div>
           <div class="u-col2" id="rules-acc-wrap"></div>
         </div>`);
@@ -234,6 +238,7 @@ export const Screens = {
         });
         sClr.hidden = !q;
         sCnt.textContent = q ? (hits ? `${hits} of ${cats.length} categories match` : "No matches") : "";
+        const sEmpty = root.querySelector(".search-empty"); if (sEmpty) sEmpty.hidden = !(q && !hits);
       };
       sClr.onclick = () => { sInp.value = ""; sInp.oninput({ target: sInp }); sInp.focus(); };
 
@@ -419,13 +424,13 @@ export function renderRuleDetail(key, container) {
     } else if (key === "kin") {
       html = (DB.kin || []).map((k) => `
         <div class="panel">
-          <h3>${esc(k.name)} <span class="tag">Move ${k.movement}</span></h3>
+          <h3>${emblem("kin", k.key)} ${esc(k.name)} <span class="tag">Move ${k.movement}</span></h3>
           ${(k.abilities || []).map((a) => `<p><b>${esc(a.name)}</b> ${a.wp ? `<span class="tag">WP ${a.wp}</span>` : `<span class="tag">No WP</span>`}<br><span class="stat-line">${esc(a.text)}</span></p>`).join("")}
         </div>`).join("");
     } else if (key === "professions") {
       html = (DB.professions || []).map((p) => `
         <div class="panel">
-          <h3>${esc(p.name)} <span class="tag">${esc(p.keyAttribute)}</span></h3>
+          <h3>${emblem("prof", p.key)} ${esc(p.name)} <span class="tag">${esc(p.keyAttribute)}</span></h3>
           <p class="stat-line">${p.skills ? "Skills: " + p.skills.map(esc).join(", ") : "Mage — choose a school of magic."}</p>
           <p>${(p.heroicAbilities || []).length ? "Heroic ability: " + p.heroicAbilities.map((h) => `<span class="tag">${esc(h)}</span>`).join("") : '<span class="tag">Gets magic instead</span>'}</p>
         </div>`).join("");
@@ -445,7 +450,7 @@ export function renderRuleDetail(key, container) {
       const renderSchool = (k, pool, isNew) => {
         const tricks = (pool.tricks || []).map((t) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(t.name)}</b> <span class="tag">Trick</span><br><span class="stat-line">${esc(t.text)}</span></p>`).join("");
         const spells = (pool.spells || []).map((s) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(s.name)}</b> <span class="tag">Rank ${s.rank}</span><br><span class="stat-line">${esc(s.range || s.ingredients || s.item || "")}${s.duration ? " · " + esc(s.duration) : ""} — ${esc(s.text)}</span></p>`).join("");
-        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary class="school-summary"><span class="ss-name">🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span class="ss-tags">${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line u-mb25"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div class="u-mt2">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div class="u-mt2">${spells}</div></details>` : ""}</div></details>`;
+        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary class="school-summary"><span class="ss-name">${emblem("school", k)}🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span class="ss-tags">${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line u-mb25"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div class="u-mt2">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div class="u-mt2">${spells}</div></details>` : ""}</div></details>`;
       };
       const parts = [];
       if (Magic.enabled()) parts.push(`<p class="notice">Book of Magic content is ON (toggle it in Settings). Revised core spells are always applied.</p>`);

@@ -1312,6 +1312,259 @@ textarea[rows="1"] { resize: none !important; min-height: 44px; }
 .undo-btn { background: none; border: 1px solid currentColor; color: inherit; font: inherit; font-weight: 700; padding: 4px 12px; border-radius: var(--r-pill); cursor: pointer; min-height: 32px; }
 .undo-btn:hover { background: color-mix(in srgb, currentColor 15%, transparent); }
 
+/* ================= GRAPHICS LAYER (ornament, emblems, illustrations) ================= */
+/* Ornaments are masks painted with theme tokens, so they follow light/dark. */
+:root {
+  --her-gules: #9b2a1c; --her-azure: #24557a; --her-vert: #2f6636; --her-sable: #2b221b; --her-purpure: #5f3d80;
+  --her-or: #d4ad55; --her-argent: #ece4d0;
+  --d20: var(--accent); --d20-hi: #fff; --d20-lo: #000; --d20-edge: #fff; --d20-ink: var(--on-accent);
+  --orn-fleuron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 18'><path d='M21 2c3 3 3 5 0 7-3-2-3-4 0-7zM21 16c-3-3-3-5 0-7 3 2 3 4 0 7zM14 9c3-3 5-3 7 0-2 3-4 3-7 0zM28 9c-3 3-5 3-7 0 2-3 4-3 7 0z'/></svg>");
+  --orn-vine: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10'><path d='M0 5c5-4 15-4 20 0s15 4 20 0' fill='none' stroke='black' stroke-width='1'/><path d='M9 3.4c1.6-2.2 3.8-2.4 5-1.2-1.2 1.4-3.2 2-5 1.2zM29 6.6c1.6 2.2 3.8 2.4 5 1.2-1.2-1.4-3.2-2-5-1.2z'/></svg>");
+  --orn-end: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 14'><path d='M0 7h6' stroke='black' stroke-width='1'/><path d='M14 1c3 3 3 4.5 0 6-3-1.5-3-3 0-6zM14 13c-3-3-3-4.5 0-6 3 1.5 3 3 0 6zM7 7c3-2.6 5-2.6 7 0-2 2.6-4 2.6-7 0zM21 7c-3 2.6-5 2.6-7 0 2-2.6 4-2.6 7 0z'/><circle cx='23' cy='7' r='1'/></svg>");
+  --orn-h3: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 8' preserveAspectRatio='none'><path d='M1 4l3-3 3 3-3 3z'/><circle cx='11' cy='4' r='1.1'/><path d='M15 3.6h185v.8H15z'/></svg>");
+  --orn-hedera: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'><path d='M11 13.5C6 10 4 7.4 5.4 4.8 6.7 2.4 9.6 2.8 11 5c1.1-2.4 4.1-3 5.6-.6 1.6 2.6-.4 5.6-5.6 9.1z'/><path d='M11 13.5c-2.4 1.4-6 1.6-9-.6' fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round'/></svg>");
+  --orn-lattice: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 0L10 5 5 10 0 5z' fill='none' stroke='black' stroke-width='.7'/><circle cx='5' cy='5' r='1'/></svg>");
+  --orn-knot: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><path d='M0 14L14 0 28 14 14 28z' fill='none' stroke='black' stroke-width='.8'/><path d='M7 7l14 14M21 7L7 21' fill='none' stroke='black' stroke-width='.5'/><circle cx='14' cy='14' r='3' fill='none' stroke='black' stroke-width='.8'/><circle cx='0' cy='0' r='1.6'/><circle cx='28' cy='0' r='1.6'/><circle cx='0' cy='28' r='1.6'/><circle cx='28' cy='28' r='1.6'/></svg>");
+  --orn-chain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'><path d='M1 4l6-3.4L13 4 7 7.4z' fill='none' stroke='black' stroke-width='1.1'/><circle cx='7' cy='4' r='1'/></svg>");
+  --orn-swash: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 10' preserveAspectRatio='none'><path d='M2 6c20-5 40 2 58-1s38-6 58 1' fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round'/><path d='M57 5l3-3 3 3-3 3z'/></svg>");
+  --fil-tl: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><g fill='none' stroke='black' stroke-linecap='round'><path d='M1.5 28V11C1.5 5.5 5.5 1.5 11 1.5h17' stroke-width='1.2'/><path d='M5.5 22V12c0-3.6 2.9-6.5 6.5-6.5h10' stroke-width='.7'/><path d='M9.5 16c0-4 2.5-6.5 6.5-6.5 1.8 0 3 1.2 3 2.6s-1 2.3-2.3 2.3c-1.2 0-1.9-.8-1.9-1.8' stroke-width='.9'/></g><path d='M1.5 1.5l3 1.5-1.5 1.5z'/><circle cx='5.5' cy='5.5' r='1.3'/></svg>");
+  --fil-tr: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><g transform='matrix(-1 0 0 1 30 0)'><g fill='none' stroke='black' stroke-linecap='round'><path d='M1.5 28V11C1.5 5.5 5.5 1.5 11 1.5h17' stroke-width='1.2'/><path d='M5.5 22V12c0-3.6 2.9-6.5 6.5-6.5h10' stroke-width='.7'/><path d='M9.5 16c0-4 2.5-6.5 6.5-6.5 1.8 0 3 1.2 3 2.6s-1 2.3-2.3 2.3c-1.2 0-1.9-.8-1.9-1.8' stroke-width='.9'/></g><circle cx='5.5' cy='5.5' r='1.3'/></g></svg>");
+  --fil-bl: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><g transform='matrix(1 0 0 -1 0 30)'><g fill='none' stroke='black' stroke-linecap='round'><path d='M1.5 28V11C1.5 5.5 5.5 1.5 11 1.5h17' stroke-width='1.2'/><path d='M5.5 22V12c0-3.6 2.9-6.5 6.5-6.5h10' stroke-width='.7'/><path d='M9.5 16c0-4 2.5-6.5 6.5-6.5 1.8 0 3 1.2 3 2.6s-1 2.3-2.3 2.3c-1.2 0-1.9-.8-1.9-1.8' stroke-width='.9'/></g><circle cx='5.5' cy='5.5' r='1.3'/></g></svg>");
+  --fil-br: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><g transform='matrix(-1 0 0 -1 30 30)'><g fill='none' stroke='black' stroke-linecap='round'><path d='M1.5 28V11C1.5 5.5 5.5 1.5 11 1.5h17' stroke-width='1.2'/><path d='M5.5 22V12c0-3.6 2.9-6.5 6.5-6.5h10' stroke-width='.7'/><path d='M9.5 16c0-4 2.5-6.5 6.5-6.5 1.8 0 3 1.2 3 2.6s-1 2.3-2.3 2.3c-1.2 0-1.9-.8-1.9-1.8' stroke-width='.9'/></g><circle cx='5.5' cy='5.5' r='1.3'/></g></svg>");
+  --tok-heart: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 21s-9-5.6-9-12a5 5 0 019-2.8A5 5 0 0121 9c0 6.4-9 12-9 12z'/></svg>");
+  --tok-skull: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 2a9 9 0 00-5.5 16.1V21h11v-2.9A9 9 0 0012 2zM8.5 9.5a2 2 0 100 4 2 2 0 000-4zm7 0a2 2 0 100 4 2 2 0 000-4zM12 14l-1.3 2.6h2.6z'/></svg>");
+  --tok-foot: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 20'><ellipse cx='6' cy='12' rx='3.6' ry='6'/><circle cx='3' cy='3.6' r='1.2'/><circle cx='5.5' cy='2.4' r='1.2'/><circle cx='8.2' cy='3' r='1.1'/><circle cx='9.8' cy='5' r='1'/></svg>");
+}
+[data-theme="dark"] { --her-gules: #a8301f; --her-azure: #2e6390; --her-vert: #3a7a44; --her-sable: #1a1410; --her-purpure: #6d4891; }
+
+/* 1 — Brand: drake emblem + gilt swash under the name */
+.brand-emb { display: inline-flex; width: 36px; height: 36px; flex: none; }
+.drake { width: 100%; height: 100%; }
+.drake .dk-ring { fill: color-mix(in srgb, var(--accent) 70%, #000); stroke: var(--gold-leaf); stroke-width: 2.4; }
+.drake .dk-head { fill: var(--gold-leaf); stroke: color-mix(in srgb, var(--gold-leaf) 60%, #000); stroke-width: .8; stroke-linejoin: round; }
+.drake .dk-eye { fill: var(--accent); }
+.drake .dk-line { fill: none; stroke: color-mix(in srgb, var(--accent) 80%, #000); stroke-width: 1.4; stroke-linecap: round; }
+.brand-name { position: relative; padding-bottom: 3px; }
+.brand-name::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 7px; background: var(--gold-leaf); opacity: .85; -webkit-mask: var(--orn-swash) center / 100% 100% no-repeat; mask: var(--orn-swash) center / 100% 100% no-repeat; }
+
+/* 2 — Header: faint knotwork damask + gilt diamond-chain edge */
+.app-header::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--gold-leaf); opacity: .11; -webkit-mask: var(--orn-knot) 0 0 / 28px 28px repeat; mask: var(--orn-knot) 0 0 / 28px 28px repeat; }
+.app-header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 8px; pointer-events: none; background: var(--gold-leaf); -webkit-mask: var(--orn-chain) 0 0 / 14px 8px repeat-x; mask: var(--orn-chain) 0 0 / 14px 8px repeat-x; }
+.app-header > * { position: relative; z-index: 1; }
+
+/* 3 — Boot splash (emblem until the first screen renders) */
+.boot-splash { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 55vh; color: var(--gold-ink); }
+.boot-splash .drake { width: 96px; height: 96px; animation: bootGlow 1.6s ease-in-out infinite; }
+.boot-splash .boot-rule { width: 140px; height: 10px; background: var(--gold); -webkit-mask: var(--orn-swash) center / 100% 100% no-repeat; mask: var(--orn-swash) center / 100% 100% no-repeat; }
+@keyframes bootGlow { 0%, 100% { filter: drop-shadow(0 0 0 transparent); } 50% { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--gold-leaf) 70%, transparent)); } }
+
+/* 4 — Filigree corners on major panels + dialogs */
+.hero-top, .modal-card, .filigree { position: relative; }
+.hero-top::after, .modal-card::after, .filigree::after {
+  content: ""; position: absolute; inset: 5px; pointer-events: none; z-index: 0; background: var(--gold); opacity: .55;
+  -webkit-mask: var(--fil-tl) top left / 26px 26px no-repeat, var(--fil-tr) top right / 26px 26px no-repeat, var(--fil-bl) bottom left / 26px 26px no-repeat, var(--fil-br) bottom right / 26px 26px no-repeat;
+          mask: var(--fil-tl) top left / 26px 26px no-repeat, var(--fil-tr) top right / 26px 26px no-repeat, var(--fil-bl) bottom left / 26px 26px no-repeat, var(--fil-br) bottom right / 26px 26px no-repeat;
+}
+.modal-card::after { inset: 4px; z-index: 3; opacity: .45; }
+
+/* 5 — Section-title rule: vine ending in a fleuron */
+.section-title .rule {
+  height: 12px; align-self: center; opacity: .8; padding-right: 26px; background: var(--gold);
+  -webkit-mask: var(--orn-end) right center / 24px 14px no-repeat, var(--orn-vine) left center / 40px 10px repeat-x;
+          mask: var(--orn-end) right center / 24px 14px no-repeat, var(--orn-vine) left center / 40px 10px repeat-x;
+  -webkit-mask-clip: border-box, content-box; mask-clip: border-box, content-box;
+}
+
+/* 6 — Illuminated drop caps: gilt-framed oxblood box with a gold vine */
+.section-title h2::first-letter, .sheet-name::first-letter {
+  font-size: 1.12em; line-height: 1; color: var(--on-accent); text-shadow: none;
+  padding: .04em .14em 0; margin-right: .08em; border: 1px solid var(--gold-leaf); border-radius: 3px;
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><g fill='none' stroke='%23c9a24a' stroke-width='1.1' stroke-linecap='round' opacity='.75'><path d='M3 37C3 20 10 10 22 6M3 30c4-2 7-5 8-9M8 37c2-4 6-6 10-6'/><path d='M37 3c-2 6-6 9-12 10M33 3c0 3-2 5-4 6'/></g><g fill='%23c9a24a' opacity='.75'><circle cx='22' cy='6' r='1.4'/><circle cx='11' cy='21' r='1.1'/><circle cx='18' cy='31' r='1.1'/><circle cx='25' cy='13' r='1.1'/></g></svg>"),
+                    linear-gradient(160deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent) 55%);
+  background-size: 100% 100%, 100% 100%;
+}
+
+/* 7 — Vellum: edge vignette + a little foxing (light) */
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(120, 80, 30, .07) 0 3px, transparent 26px),
+    radial-gradient(circle at 88% 34%, rgba(120, 80, 30, .06) 0 2px, transparent 20px),
+    radial-gradient(circle at 76% 82%, rgba(120, 80, 30, .07) 0 4px, transparent 30px),
+    radial-gradient(circle at 22% 72%, rgba(120, 80, 30, .05) 0 2px, transparent 18px),
+    radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(96, 62, 22, .16) 100%);
+}
+/* 8 — Dark: candlelit glow from above + ember vignette */
+[data-theme="dark"] body::after {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% -6%, rgba(255, 176, 88, .11), transparent 70%),
+    radial-gradient(ellipse 60% 30% at 50% 108%, rgba(190, 70, 24, .09), transparent 70%),
+    radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0, 0, 0, .42) 100%);
+}
+
+/* 9 — Fleuron dividers (between list groups; also any <hr>) */
+.fleuron-div, hr { border: 0; height: 18px; margin: 14px auto; max-width: 320px; background: var(--gold); opacity: .6;
+  -webkit-mask: var(--orn-fleuron) center / 42px 18px no-repeat, linear-gradient(90deg, transparent, #000 20%, #000 42%, transparent 44%, transparent 56%, #000 58%, #000 80%, transparent) center / 100% 1px no-repeat;
+          mask: var(--orn-fleuron) center / 42px 18px no-repeat, linear-gradient(90deg, transparent, #000 20%, #000 42%, transparent 44%, transparent 56%, #000 58%, #000 80%, transparent) center / 100% 1px no-repeat; }
+
+/* 10–16 — Emblems */
+.emb { width: 1.2em; height: 1.2em; flex: none; display: inline-block; vertical-align: -0.22em; }
+.card .card-emb { float: right; width: 34px; height: 34px; margin: -2px -2px 4px 8px; color: var(--gold-ink); opacity: .9; }
+.card.sel .card-emb { margin-right: 26px; color: var(--accent-ink); }
+.pg-card .card-emb, .hero-card .card-emb { width: 22px; height: 22px; margin: 0 0 0 4px; float: none; vertical-align: -5px; }
+.ss-name .emb-school { width: 22px; height: 22px; color: var(--gold-ink); }
+.ss-name .emb-school ~ .icw, .ss-name .emb-school ~ .emo { display: none; }
+.cond-grid .skill-chip .emb-cond { width: 22px; height: 22px; margin-bottom: 2px; opacity: .8; }
+.cond-grid .skill-chip.cond-on .emb-cond { opacity: 1; }
+.hc-dot .emb-cond { width: 14px; height: 14px; margin-right: 3px; vertical-align: -2px; }
+.stat-cell .emb-attr { display: block; width: 16px; height: 16px; margin: 0 auto 1px; color: var(--gold-ink); opacity: .85; }
+.stat-cell.baned .emb-attr { color: var(--bad); }
+.cb-type { display: inline-flex; width: 22px; height: 22px; flex: none; color: var(--ink-soft); }
+.cb-type .emb, .cb-type .crest { width: 22px; height: 22px; vertical-align: 0; }
+.cb-card.monster .cb-type, .cb-type.t-dragon, .cb-type.t-demon { color: var(--accent-ink); }
+.die-shape { width: 18px; height: 18px; margin-right: 4px; vertical-align: -4px; }
+
+/* 17 — Ornate card back for spent initiative cards */
+.play-card { isolation: isolate; }
+.play-card.spent { background: var(--bg-raised) !important; color: var(--ink) !important; }
+.play-card.spent::before { content: ""; position: absolute; inset: 3px; z-index: -1; border-radius: 3px; background: color-mix(in srgb, var(--accent) 55%, var(--bg-raised));
+  -webkit-mask: var(--orn-lattice) center / 8px 8px repeat; mask: var(--orn-lattice) center / 8px 8px repeat; }
+.play-card.spent::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); border-radius: 50%; z-index: -1; background: var(--bg-raised); box-shadow: 0 0 0 1px var(--gold); }
+
+/* 18–19 — Crest (monogram), oval portrait frame, ribbon */
+.crest { display: block; width: 100%; height: 100%; }
+.crest-ini { font-family: var(--font-display); font-size: 7.4px; letter-spacing: .4px; }
+.monogram.has-crest, .hc-mono.has-crest, .mini-mono.has-crest { background: none !important; box-shadow: none !important; border-radius: 0 !important; filter: drop-shadow(0 2px 3px var(--shadow)); }
+.monogram.has-crest { width: 56px; height: 64px; }
+.hc-mono.has-crest { width: 48px; height: 56px; }
+.mini-mono.has-crest { width: 28px; height: 32px; }
+.portrait, img.hc-mono { border-radius: 50% / 46% !important; box-shadow: 0 0 0 2px var(--gold-leaf), 0 0 0 4px var(--bg-panel), 0 0 0 5px var(--gold), 0 3px 8px var(--shadow) !important; }
+.portrait { width: 58px; height: 68px; margin: 5px; }
+img.hc-mono { width: 46px; height: 54px; margin: 5px 5px 0; }
+.hc-side { display: flex; flex-direction: column; align-items: center; flex: none; }
+.hc-ribbon { width: 58px; height: 14px; margin-top: -3px; color: var(--accent); position: relative; z-index: 1; }
+.hc-ribbon path.rb { fill: currentColor; } .hc-ribbon path.rb-edge { fill: none; stroke: var(--gold-leaf); stroke-width: .8; }
+
+/* 20 — HP/WP gem pips */
+.pips { display: grid; grid-template-columns: repeat(var(--cols, 10), 9px); justify-content: center; gap: 5px 5px; margin: 8px 2px 0; }
+.pips i { width: 9px; height: 9px; transform: rotate(45deg); border-radius: 1.5px; border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent); background: transparent; transition: background .2s ease, box-shadow .2s ease; }
+.pips.hp i.on { background: linear-gradient(135deg, color-mix(in srgb, var(--hp) 55%, #fff), var(--hp) 60%); border-color: var(--hp); box-shadow: 0 0 3px color-mix(in srgb, var(--hp) 45%, transparent); }
+.pips.wp i.on { background: linear-gradient(135deg, color-mix(in srgb, var(--wp) 55%, #fff), var(--wp) 60%); border-color: var(--wp); box-shadow: 0 0 3px color-mix(in srgb, var(--wp) 45%, transparent); }
+.vital:has(.pips) .vbar { display: none; }
+.vital:has(.pips) { padding-bottom: 10px; }
+
+/* 21 — Encumbrance as backpack slots */
+.enc-slots { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
+.enc-slots i { width: 20px; height: 22px; border-radius: 4px 4px 6px 6px; border: 1.5px solid color-mix(in srgb, var(--ink) 28%, transparent); position: relative; }
+.enc-slots i::before { content: ""; position: absolute; left: 4px; right: 4px; top: -4px; height: 4px; border: 1.5px solid color-mix(in srgb, var(--ink) 28%, transparent); border-bottom: 0; border-radius: 4px 4px 0 0; }
+.enc-slots i.on { background: color-mix(in srgb, var(--good) 70%, var(--bg-raised)); border-color: var(--good); }
+.enc-slots i.over { background: var(--bad-fill); border-color: var(--bad-fill); }
+.enc-slots:has(~ .stat-line) { margin-bottom: 2px; }
+.enc-bar:has(+ .enc-slots) { display: none; }
+
+/* 22 — Death rolls: heart / skull tokens */
+.dr-dot { width: 20px; height: 20px; border: 0 !important; border-radius: 0; background: color-mix(in srgb, var(--ink) 16%, transparent) !important; -webkit-mask: var(--tok-heart) center / contain no-repeat; mask: var(--tok-heart) center / contain no-repeat; }
+.dr-dot.f { -webkit-mask-image: var(--tok-skull); mask-image: var(--tok-skull); }
+.dr-dot.ok { background: var(--good) !important; }
+.dr-dot.bad { background: var(--bad) !important; }
+.dr-dot.ok, .dr-dot.bad { animation: vpulse .3s ease; }
+
+/* 23 — Movement footprints + hourglass round */
+.foot-track { display: flex; gap: 3px; align-items: flex-end; margin: 6px 0 2px; }
+.foot-track i { width: 11px; height: 18px; background: color-mix(in srgb, var(--ink) 14%, transparent); -webkit-mask: var(--tok-foot) center / contain no-repeat; mask: var(--tok-foot) center / contain no-repeat; }
+.foot-track i.r { transform: translateY(-4px) scaleX(-1); }
+.foot-track i.on { background: var(--accent-ink); }
+.round-badge .hg { width: 16px; height: 16px; color: var(--gold-ink); margin-bottom: 2px; }
+.round-badge .hg.flip { animation: hgFlip .6s ease; }
+@keyframes hgFlip { from { transform: rotate(-180deg); } to { transform: none; } }
+
+/* 24 — Wizard: parchment trail with waypoints */
+.wiz-track { padding: 10px 12px 8px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-md); position: relative; }
+.wiz-bar { height: 3px; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink) 22%, transparent) 0 6px, transparent 6px 11px); overflow: visible; border-radius: 0; }
+.wiz-bar i { border-radius: 2px; }
+.wiz-dots { margin-top: -9px; position: relative; }
+.wiz-dot { width: 11px; height: 11px; border-radius: 2px; transform: rotate(45deg); background: var(--bg-raised); border: 1.5px solid color-mix(in srgb, var(--ink) 30%, transparent); }
+.wiz-dot.done { background: var(--gold-leaf); border-color: var(--gold); }
+.wiz-dot.cur { width: 15px; height: 15px; margin-top: -2px; background: var(--accent); border-color: var(--gold-leaf); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* 25 — Empty-state illustrations */
+.illo { display: block; width: 100%; max-width: 200px; height: auto; margin: 0 auto 6px; color: var(--ink-soft); opacity: .9; }
+.illo .g { stroke: var(--gold); }
+.illo .f { fill: currentColor; stroke: none; opacity: .12; }
+.empty .illo + .big { display: none; }
+.empty-illo { text-align: center; padding: 10px 8px 0; }
+.empty-illo .illo { max-width: 150px; opacity: .75; }
+.empty-illo + .empty-note::before { display: none; }
+
+/* 26 — Welcome art */
+.welcome-art { margin: -4px auto 8px; max-width: 260px; color: var(--accent-ink); }
+.welcome-art .illo { max-width: 260px; }
+
+/* 27 — Oracle / inspiration: fortune-card frames */
+.fortune { position: relative; padding: 16px 16px 14px !important; border-top: 1px solid color-mix(in srgb, var(--gold) 70%, var(--line)) !important; border-right: 1px solid color-mix(in srgb, var(--gold) 70%, var(--line)) !important; border-bottom: 1px solid color-mix(in srgb, var(--gold) 70%, var(--line)) !important; border-radius: var(--r-md) !important;
+  background: linear-gradient(180deg, var(--bg-raised), color-mix(in srgb, var(--bg-raised) 88%, var(--gold-leaf))) !important;
+  box-shadow: inset 0 0 0 3px var(--bg-raised), inset 0 0 0 4px color-mix(in srgb, var(--gold-leaf) 55%, transparent), 0 3px 10px var(--shadow) !important; }
+.fortune::after { content: ""; position: absolute; inset: 6px; pointer-events: none; background: var(--gold); opacity: .5;
+  -webkit-mask: var(--fil-tl) top left / 18px 18px no-repeat, var(--fil-tr) top right / 18px 18px no-repeat, var(--fil-bl) bottom left / 18px 18px no-repeat, var(--fil-br) bottom right / 18px 18px no-repeat;
+          mask: var(--fil-tl) top left / 18px 18px no-repeat, var(--fil-tr) top right / 18px 18px no-repeat, var(--fil-bl) bottom left / 18px 18px no-repeat, var(--fil-br) bottom right / 18px 18px no-repeat; }
+.fortune:empty { display: none; }
+.fortune.deal { animation: dealIn .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes dealIn { from { transform: translateY(8px) rotate(-1.5deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Stat-block figures in EB Garamond lining (IM Fell's 1/0 read as ı/o) */
+.stat-cell .stat-num, .skill-row .sk-lvl, .tab-badge, .round-num { font-family: var(--font-body); font-variant-numeric: lining-nums tabular-nums; }
+
+/* 28 — Faceted d20 */
+.d20 { clip-path: none; background: none !important; color: var(--d20-ink); width: 84px; height: 84px; }
+.d20-svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 3px 4px var(--shadow)); }
+.d20-n { position: relative; margin-top: 16px; font-size: 1.9rem; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+.roll-stage.ok .d20 { --d20: var(--ok-fill); --d20-ink: var(--on-fill); }
+.roll-stage.bad .d20 { --d20: var(--ink-soft); --d20-ink: var(--bg-panel); }
+.roll-stage.demon .d20 { --d20: var(--bad-fill); --d20-ink: var(--on-fill); }
+.roll-stage.dragon .d20 { --d20: var(--gold-leaf); --d20-ink: var(--on-gold); }
+.roll-stage.dragon .d20-n { text-shadow: 0 1px 0 rgba(255, 255, 255, .5); }
+
+/* 29 — Dragon / Demon moments */
+.roll-stage { position: relative; overflow: hidden; }
+.roll-stage > :not(.moment) { position: relative; z-index: 1; }
+.moment { position: absolute; left: 50%; top: 4px; width: 240px; height: 120px; transform: translateX(-50%); pointer-events: none; z-index: 0; }
+.dragon-art path { fill: color-mix(in srgb, var(--gold-leaf) 45%, transparent); }
+.dragon-art { animation: wingsIn .6s cubic-bezier(.2,.8,.2,1); }
+.dragon-art .sparks path { fill: var(--gold-leaf); animation: sparkle 1.4s ease-in-out infinite; transform-origin: center; }
+.dragon-art .sparks path:nth-child(2n) { animation-delay: .5s; }
+.demon-art path { fill: none; stroke: color-mix(in srgb, var(--bad) 60%, transparent); stroke-width: 7; stroke-linecap: round; }
+.demon-art .smoke path { stroke: color-mix(in srgb, var(--ink) 22%, transparent); stroke-width: 3; animation: smoke 2.2s ease-out infinite; }
+.demon-art .smoke path:nth-child(2n) { animation-delay: .7s; }
+@keyframes wingsIn { from { transform: translateX(-50%) scale(.6); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
+@keyframes sparkle { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+@keyframes smoke { from { transform: translateY(0); opacity: .9; } to { transform: translateY(-18px); opacity: 0; } }
+
+/* 30 — Advancement: laurel frame + "reached 18" banner */
+.adv-win { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin: 4px 0; border-radius: var(--r-sm); background: var(--tint-gold); border: 1px solid color-mix(in srgb, var(--gold-leaf) 50%, var(--line)); }
+.adv-win .laurel { width: 30px; height: 30px; flex: none; }
+.laurel path { fill: var(--good); opacity: .85; }
+.laurel path.stem { fill: none; stroke: var(--good); stroke-width: 2.4; }
+.adv-win.max { background: linear-gradient(90deg, color-mix(in srgb, var(--gold-leaf) 30%, var(--bg-raised)), var(--bg-raised)); border-color: var(--gold-leaf); box-shadow: 0 0 0 1px var(--gold-leaf), 0 2px 10px color-mix(in srgb, var(--gold-leaf) 30%, transparent); }
+.adv-win.max .laurel path { fill: var(--gold-leaf); opacity: 1; }
+.adv-win.max .laurel path.stem { fill: none; stroke: var(--gold-leaf); }
+
+/* 31 — Hedera bullets in help & tutorial lists */
+.help-list, .welcome-list, .rule-content ul { list-style: none; padding-left: 22px; }
+.help-list > li, .welcome-list > li, .rule-content ul > li { position: relative; }
+.help-list > li::before, .welcome-list > li::before, .rule-content ul > li::before {
+  content: ""; position: absolute; left: -21px; top: .42em; width: 15px; height: 12px; background: var(--accent-ink); opacity: .75;
+  -webkit-mask: var(--orn-hedera) center / contain no-repeat; mask: var(--orn-hedera) center / contain no-repeat; }
+
+/* 32 — Panel labels: small caps + a gilt ornament after the heading */
+.panel > h3 { font-family: var(--font-display); letter-spacing: .5px; }
+.panel > h3::after { content: ""; flex: 1 1 24px; min-width: 24px; height: 8px; margin-left: 4px; background: var(--gold); opacity: .6;
+  -webkit-mask: var(--orn-h3) left center / 100% 8px no-repeat; mask: var(--orn-h3) left center / 100% 8px no-repeat; }
+
+@media print {
+  .app-header::before, .app-header::after, body::after, .hero-top::after, .modal-card::after, .moment, .pips, .foot-track { display: none !important; }
+}
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }

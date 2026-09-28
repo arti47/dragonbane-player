@@ -1,5 +1,6 @@
 /* sheet.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { crest, emblem, footTrack, laurel, pips, setPips, slotSquares } from './graphics.js';
 import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
 import { confirmModal, modal, promptModal, showToast, showUndoToast } from './ui.js';
 import { Calc, classifyItem, heroicReqMet, resolveEquippedWeapons } from './rules.js';
@@ -240,7 +241,7 @@ export const Sheet = {
       const con = c.attributes.CON;
       const m = modal(`💀 Death Roll — ${c.identity.name}`);
       const dr = c.state.deathRolls || { successes: 0, failures: 0 };
-      const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${i<n?cls:""}"></span>`).join("");
+      const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${cls === "ok" ? "s" : "f"} ${i<n?cls:""}"></span>`).join("");
       
       const head = el(`<p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
         <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p>`);
@@ -324,7 +325,7 @@ export const Sheet = {
         <div class="move-meter" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
           <span>🏃 <b>Movement Pool:</b> <small class="u-muted">(Rating ${baseMove}m)</small></span>
           <span class="move-val" style="font-size:var(--fs-xl);font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
-        </div>
+        </div>${footTrack(remMove, maxMove)}
         
         <p class="stat-line" style="margin:0 0 10px 0;font-size:var(--fs-sm)">
           💡 <b>Splitting:</b> Move freely before, after, or during action. Unused meters cannot be saved for later rounds.
@@ -592,9 +593,9 @@ export const Sheet = {
       });
       const m = modal("Advancement");
       m.body.appendChild(el(`<p class="stat-line">For each marked skill, roll D20; if it exceeds the skill's level, it improves by 1 (max 18).</p>`));
-      results.forEach((r) => m.body.appendChild(el(`<p>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--ok)">improved to ${r.level}</span>` : `no change (${r.level})`}</p>`)));
+      results.forEach((r) => m.body.appendChild(el(`<p${r.improved ? ` class="adv-win${r.level === 18 ? " max" : ""}"` : ""}>${r.improved ? laurel() : ""}<span>${esc(r.name)}: rolled <b>${r.roll}</b> → ${r.improved ? `<span style="color:var(--ok)">improved to ${r.level}</span>` : `no change (${r.level})`}</span></p>`)));
       if (reached18.length) {
-        m.body.appendChild(el(`<p class="notice" style="border-color:var(--ok)">★ ${reached18.map(esc).join(", ")} reached 18 — choose a free heroic ability.</p>`));
+        m.body.appendChild(el(`<p class="notice adv-win max" style="border-color:var(--ok)">${laurel()}<span>★ ${reached18.map(esc).join(", ")} reached 18 — choose a free heroic ability.</span></p>`));
         const cont = el(`<button class="btn block">Choose free heroic ability${reached18.length > 1 ? ` (×${reached18.length})` : ""}</button>`);
         cont.onclick = () => { m.close(); this.gainHeroicAbility(reached18.length); };
         m.body.appendChild(cont);
@@ -752,7 +753,7 @@ export const Sheet = {
       const initials = (nameWords.length > 1 ? nameWords[0][0] + nameWords[nameWords.length - 1][0] : nameWords[0].slice(0, 2)).toUpperCase();
       const portImg = portUrl
         ? `<img src="${portUrl}" alt="Portrait" class="portrait" title="Tap to change portrait">`
-        : `<div class="monogram" role="img" aria-label="Portrait placeholder" title="Tap to upload portrait">${esc(initials)}</div>`;
+        : `<div class="monogram has-crest" role="img" aria-label="Portrait placeholder" title="Tap to upload portrait">${crest(c.identity.name, c.identity.kin, initials)}</div>`;
 
       const idWrap = el(`<div style="display:flex;align-items:center;gap:12px">
         <div id="portrait-wrap">${portImg}</div>
@@ -763,7 +764,7 @@ export const Sheet = {
       </div>`);
       idWrap.querySelector("#portrait-wrap").onclick = () => { if (canEdit) this.uploadPortrait(); };
       top.appendChild(idWrap);
-      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.key}"><span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
+      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.key}">${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
       top.appendChild(attrRow);
       top.appendChild(el(`<div class="derived-row stat-line"><span class="tag">${gloss("movement","Move")} ${c.derived.movement}</span><span class="tag">${gloss("damage bonus","STR dmg")} ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"}</span><span class="tag">${gloss("damage bonus","AGL dmg")} ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"}</span><span class="tag">${gloss("encumbrance","Enc. limit")} ${encLimit(c)}</span></div>`));
       // HP / WP steppers
@@ -771,6 +772,7 @@ export const Sheet = {
         const plainLabel = String(label).replace(/<[^>]+>/g, ""); // aria text without gloss markup
         const pct = (v) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
         const w = el(`<div class="vital ${cls}${max > 0 && cur / max <= 0.25 ? " low" : ""}"><div class="vital-label">${label}</div><div class="vbar" aria-hidden="true"><i style="--pct:${pct(cur)}%"></i></div></div>`);
+        const gems = pips(cur, max, cls);
         const ctrl = el(`<div class="stepper"></div>`);
         const minus = el(`<button class="step" type="button" aria-label="Decrease ${plainLabel}">−</button>`);
         const val = el(`<span class="vital-val" role="status" aria-live="polite">${cur} / ${max}</span>`);
@@ -790,6 +792,7 @@ export const Sheet = {
           });
           val.textContent = `${c.state[key]} / ${max}`;
           w.querySelector(".vbar > i").style.setProperty("--pct", pct(c.state[key]) + "%");
+          setPips(w, c.state[key]);
           w.classList.toggle("low", max > 0 && c.state[key] / max <= 0.25);
           val.classList.remove("pulse"); void val.offsetWidth; val.classList.add("pulse");
           w.classList.remove("hit", "heal"); void w.offsetWidth; w.classList.add(d < 0 ? "hit" : "heal");
@@ -804,6 +807,7 @@ export const Sheet = {
         minus.onclick = (e) => { e.preventDefault(); doStep(-1); };
         plus.onclick = (e) => { e.preventDefault(); doStep(1); };
         ctrl.append(minus, val, plus); w.appendChild(ctrl);
+        if (gems) w.appendChild(el(gems));
         return w;
       };
       const vitals = el(`<div class="vitals"></div>`);
@@ -837,7 +841,7 @@ export const Sheet = {
       // Sticky mini-bar: once the hero header scrolls away, a slim bar pins under
       // the app header with the monogram, name and HP/WP (−/+ still work).
       const mini = el(`<div class="mini-bar" aria-hidden="true">
-        <span class="mini-mono">${portUrl ? `<img src="${portUrl}" alt="">` : esc(initials)}</span>
+        <span class="mini-mono${portUrl ? "" : " has-crest"}">${portUrl ? `<img src="${portUrl}" alt="">` : crest(c.identity.name, c.identity.kin, initials)}</span>
         <span class="mini-name">${esc(c.identity.name)}</span>
         <span class="mini-v hp"><button type="button" class="mini-step" tabindex="-1">−</button><span class="mini-bar-track"><i></i><b></b></span><button type="button" class="mini-step" tabindex="-1">+</button></span>
         <span class="mini-v wp"><button type="button" class="mini-step" tabindex="-1">−</button><span class="mini-bar-track"><i></i><b></b></span><button type="button" class="mini-step" tabindex="-1">+</button></span>
@@ -935,9 +939,9 @@ export const Sheet = {
         const dr = c.state.deathRolls || { successes: 0, failures: 0 };
         const dead = dr.failures >= 3;
         const dyingPanel = el(`<div class="panel dying"><h3>${dead ? "💀 Dead" : c.state.rallied ? "Dying — rallied (acting, still rolling)" : "Dying — at 0 HP"}</h3></div>`);
-        const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${i<n?cls:""}"></span>`).join("");
-        dyingPanel.appendChild(el(`<p class="stat-line">Each round, roll a death roll: <b>D20 vs CON ${c.attributes.CON}</b> (roll ≤ CON = success). <b>3 successes</b> → stabilize &amp; recover D6 HP. <b>3 failures</b> → death. Dragon (1) = two successes; Demon (20) = two failures. Taking damage while down counts as a failed death roll (the HP − button adds one at 0 HP).</p>
-          <p>Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p>`));
+        const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${cls === "ok" ? "s" : "f"} ${i<n?cls:""}"></span>`).join("");
+        dyingPanel.appendChild(el(`<div><p class="stat-line">Each round, roll a death roll: <b>D20 vs CON ${c.attributes.CON}</b> (roll ≤ CON = success). <b>3 successes</b> → stabilize &amp; recover D6 HP. <b>3 failures</b> → death. Dragon (1) = two successes; Demon (20) = two failures. Taking damage while down counts as a failed death roll (the HP − button adds one at 0 HP).</p>
+          <p>Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p></div>`));
         if (!dead) {
           const btns = el(`<div class="rest-row"></div>`);
           const roll = el(`<button class="btn">Death roll</button>`); roll.onclick = () => this.deathRoll(); btns.appendChild(roll);
@@ -960,7 +964,7 @@ export const Sheet = {
       const cw = el(`<div class="cond-grid"></div>`);
       (DB.conditions || []).forEach((cn) => {
         const on = !!c.state.conditions[cn.key];
-        const chip = el(`<button class="skill-chip ${on?"cond-on":""}" aria-pressed="${on?"true":"false"}">${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
+        const chip = el(`<button class="skill-chip ${on?"cond-on":""}" aria-pressed="${on?"true":"false"}">${emblem("cond", cn.key)}${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
         chip.onclick = () => this.mutate((ch) => { ch.state.conditions[cn.key] = !ch.state.conditions[cn.key]; });
         cw.appendChild(chip);
       });
@@ -1141,6 +1145,7 @@ export const Sheet = {
       const coinTot = (c.inventory.money.gold||0)+(c.inventory.money.silver||0)+(c.inventory.money.copper||0);
       const coinSlots = Math.floor(coinTot / ((DB.currency && DB.currency.coinsPerItem) || 100));
       invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":(limit && used/limit>=0.75?"warn":"")}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>`));
+      const slotsHtml = slotSquares(used, limit); if (slotsHtml) invPanel.appendChild(el(slotsHtml));
       invPanel.appendChild(el(`<p class="stat-line">${used} / ${limit} item slots used${coinSlots?` · ${coinTot} coins → ${coinSlots} slot${coinSlots>1?"s":""}`:""}${over?` · <b class="u-bad">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
       if (over) {
         const strBtn = el(`<button class="btn ghost block" style="border-color:var(--bad);color:var(--bad);margin-bottom:10px">⚖ Roll STR to move (over-encumbered)</button>`);

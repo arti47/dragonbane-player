@@ -1,5 +1,7 @@
 /* combat.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { creatureType, crest, emblem, illo } from './graphics.js';
+import { icon } from './icons.js';
 import { $, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { resolveEquippedWeapons } from './rules.js';
@@ -289,11 +291,11 @@ export const Combat = {
       side.appendChild(addPanel);
       root.appendChild(layout);
 
-      if (!s.combatants.length) { main.appendChild(el(`<div class="empty"><div class="big">⚔</div><p class="stat-line">Add combatants to begin.</p></div>`)); return root; }
+      if (!s.combatants.length) { main.appendChild(el(`<div class="empty">${illo("swords")}<div class="big">⚔</div><p class="stat-line">Add combatants to begin.</p></div>`)); return root; }
 
       // Round controls
       const ctrl = el(`<div class="panel round-bar"></div>`);
-      ctrl.appendChild(el(`<div class="round-badge"><span class="round-lbl">${s.round ? "Round" : "Not started"}</span>${s.round ? `<span class="round-num">${s.round}</span>` : ""}</div>`));
+      ctrl.appendChild(el(`<div class="round-badge">${icon("hourglass", "ic hg")}<span class="round-lbl">${s.round ? "Round" : "Not started"}</span>${s.round ? `<span class="round-num">${s.round}</span>` : ""}</div>`));
       const btns = el(`<div class="round-actions"></div>`);
       const drawBtn = el(`<button class="btn ${s.round ? "ghost" : ""}">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
       drawBtn.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; }));
@@ -345,6 +347,7 @@ export const Combat = {
         const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:var(--tint-shade)" : ""}">
           <div style="display:flex;align-items:center;gap:10px;width:100%">
             <span class="init-card play-card ${cb.done || cb.acted ? "spent" : ""}" style="margin:0;flex-shrink:0" aria-label="Initiative ${cb.init == null ? "none" : cb.init}"><span class="pc-pip" aria-hidden="true" data-n="${cb.init == null ? "" : cb.init}"></span>${cb.init == null ? "–" : cb.init}</span>
+            <span class="cb-type t-${cb.kind === "hero" ? "hero" : creatureType(cb.name, cb.kind)}" aria-hidden="true">${cb.kind === "hero" ? crest(cb.name, (Store.get(cb.charId) || {}).identity?.kin, "") : emblem("creature", creatureType(cb.name, cb.kind))}</span>
             <span class="cb-name" style="font-weight:bold;font-size:var(--fs-xl);color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
             <div class="row-top-actions" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
           </div>

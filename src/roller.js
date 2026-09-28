@@ -2,6 +2,7 @@
    See CLAUDE.md §5 for the module map. */
 import { $, CONDITION_BY_MISHAP, DB, Dice, MISHAPS, el, esc } from './core.js';
 import { modal, showToast } from './ui.js';
+import { d20Svg, emblem, momentArt } from './graphics.js';
 import { resolveCanonicalSpell, resolveEquippedWeapons } from './rules.js';
 import { applyInvoluntaryConditionTo, armorBanedSkills, effWpMax, equippedArmor, equippedHelmet, normalizeInventory } from './derived.js';
 import { Magic, Settings } from './settings.js';
@@ -25,7 +26,7 @@ export const Roller = {
     stage(out, used, target, success, dragon, demon) {
       if (!out) return;
       const kind = dragon ? "dragon" : demon ? "demon" : success ? "ok" : "bad";
-      const st = el(`<div class="roll-stage ${success ? "ok" : "bad"} ${kind}" aria-hidden="true"><div class="d20 tumble">${used}</div>${target != null ? `<div class="roll-vs">vs ${target}</div>` : ""}</div>`);
+      const st = el(`<div class="roll-stage ${success ? "ok" : "bad"} ${kind}" aria-hidden="true">${momentArt(kind)}<div class="d20 tumble">${d20Svg()}<span class="d20-n">${used}</span></div>${target != null ? `<div class="roll-vs">vs ${target}</div>` : ""}</div>`);
       const faces = out.querySelector(".dice-faces");
       if (faces) { if (faces.children.length > 1) { faces.classList.add("roll-dice-row"); st.appendChild(faces); } else faces.remove(); }
       out.insertBefore(st, out.firstChild);
@@ -721,7 +722,7 @@ export const Roller = {
           </div>`);
           const btnsWrap = pWrap.querySelector("div:nth-child(2)");
           [4, 6, 8, 10, 12, 20].forEach(d => {
-            const db = el(`<button class="skill-chip quick-chip" style="flex:1;border-color:var(--bad);color:var(--bad)">D${d}</button>`);
+            const db = el(`<button class="skill-chip quick-chip" style="flex:1;border-color:var(--bad);color:var(--bad)">${emblem("dice", "d" + d, "emb die-shape")}D${d}</button>`);
             db.onclick = () => {
               const roll = Dice.d(d);
               // You gain the FULL die (even above your max WP) but must spend it on

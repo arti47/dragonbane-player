@@ -9,7 +9,7 @@
  * own offline persistence handles party sync when reconnecting.
  */
 
-const CACHE_VERSION = "dragonbane-v79";
+const CACHE_VERSION = "dragonbane-v80";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -23,6 +23,11 @@ const APP_SHELL = [
   "./firebase-config.js",
   "./manifest.json",
   "./icon.svg",
+  "./icon-maskable.svg",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png",
+  "./icons/apple-touch-icon.png",
   // App logic — ES modules (split of the former app.js). Order doesn't matter for caching.
   // Self-hosted fonts (OFL) for the illuminated-manuscript theme.
   "./fonts/eb-garamond.woff2",
@@ -31,6 +36,7 @@ const APP_SHELL = [
   "./fonts/im-fell-english-italic.woff2",
   "./fonts/im-fell-english-sc.woff2",
   "./src/icons.js",
+  "./src/graphics.js",
   "./src/main.js",
   "./src/router.js",
   "./src/screens.js",

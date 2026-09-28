@@ -1,5 +1,6 @@
 /* main.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { illo } from './graphics.js';
 import { $, el, GLOSSARY, placeHelp } from './core.js';
 import { modal, showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
@@ -129,8 +130,9 @@ export function init() {
     try {
       if (window.DRAGONBANE && !localStorage.getItem("dragonbane.welcomed")) {
         const m = modal("👋 Welcome to Dragonbane");
+        m.body.appendChild(el(`<div class="welcome-art">${illo("dragon")}</div>`));
         m.body.appendChild(el(`<p class="modal-msg">New here? The whole game in three beats:</p>`));
-        m.body.appendChild(el(`<ul class="stat-line" style="padding-left:20px;line-height:1.6">
+        m.body.appendChild(el(`<ul class="stat-line welcome-list" style="padding-left:20px;line-height:1.6">
           <li><b>Start</b> — make or pick a hero, then choose <b>solo</b> (🧭 Solo tab) or <b>with friends</b> (⚙ About → campaign).</li>
           <li><b>Keep playing</b> — set a scene, ask the GM/oracle what happens, tap a skill to roll <b>D20 ≤ its level</b>, fight on the 🛡 Combat tab, rest to recover.</li>
           <li><b>End well</b> — tap <b>End session — advancement</b> (solo: <b>🏅 Mission +5</b>) to improve your skills.</li>

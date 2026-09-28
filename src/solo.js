@@ -1,5 +1,6 @@
 /* solo.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { illo } from './graphics.js';
 import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, showToast, showUndoToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
@@ -141,7 +142,7 @@ export const SoloMode = {
       const logList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>`);
       const renderLog = () => {
         const j = this.loadJournal(); logList.innerHTML = "";
-        if (!j.entries.length) { logList.appendChild(el(`<p class="stat-line empty-note">No log yet — tap <b>＋ Log</b> on any roll result, or add a note below.</p>`)); return; }
+        if (!j.entries.length) { logList.appendChild(el(`<div class="empty-illo">${illo("quill")}</div>`)); logList.appendChild(el(`<p class="stat-line empty-note">No log yet — tap <b>＋ Log</b> on any roll result, or add a note below.</p>`)); return; }
         j.entries.slice().reverse().forEach((e, ri) => {
           const idx = j.entries.length - 1 - ri;
           const when = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
@@ -278,7 +279,7 @@ export const SoloMode = {
         const twist = used === 1 || used === 6;
 
         fPanel.querySelector("#solo-f-out").innerHTML = `
-          <div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
+          <div class="fortune deal" style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
             <p class="stat-line u-mb1only">Rolled ${rollText}</p>
             <p style="font-size:var(--fs-xl);font-weight:bold;margin:0;color:${twist ? "var(--accent-ink)" : "var(--ok)"}">${esc(ans)}</p>
             ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent-ink)">★ Extreme result / twist!</p>` : ""}
@@ -315,7 +316,7 @@ export const SoloMode = {
         else if (mode === "thg") res = `Thing (${r3}): <b>${row3.thing}</b>`;
 
         iPanel.querySelector("#solo-i-out").innerHTML = `
-          <div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);font-size:var(--fs-xl);text-align:center;margin-top:8px">
+          <div class="fortune deal" style="padding:10px;background:var(--bg);border-radius:var(--r-sm);font-size:var(--fs-xl);text-align:center;margin-top:8px">
             ${res}
           </div>`;
         const plain = mode === "all" ? `${row1.action} · ${row2.attribute} · ${row3.thing}` : mode === "act" ? row1.action : mode === "att" ? row2.attribute : row3.thing;

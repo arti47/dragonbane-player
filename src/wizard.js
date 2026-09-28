@@ -1,5 +1,6 @@
 /* wizard.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { emblem } from './graphics.js';
 import { $, CORE_SCHOOLS, DB, Dice, el, esc, mountScreen, sectionTitle, uid } from './core.js';
 import { confirmModal, showToast } from './ui.js';
 import { Calc, buildSkills, findHeroicAbility, parseGear } from './rules.js';
@@ -145,7 +146,7 @@ export const Wizard = {
       wrap.appendChild(el(sectionTitle("Choose your kin")));
       const grid = el(`<div class="card-grid"></div>`);
       (DB.kin || []).forEach((k) => {
-        const c = el(`<button class="card ${this.s.kin === k.key ? "sel" : ""}">
+        const c = el(`<button class="card ${this.s.kin === k.key ? "sel" : ""}">${emblem("kin", k.key, "emb card-emb")}
           <h3>${esc(k.name)} <span class="tag">Move ${k.movement}</span></h3>
           <div class="meta">${k.abilities.map((a) => esc(a.name)).join(", ")}</div></button>`);
         c.onclick = () => { this.s.kin = k.key; this.render(); };
@@ -161,7 +162,7 @@ export const Wizard = {
       wrap.appendChild(el(sectionTitle("Choose your profession")));
       const grid = el(`<div class="card-grid"></div>`);
       (DB.professions || []).forEach((p) => {
-        const c = el(`<button class="card ${this.s.profession === p.key ? "sel" : ""}">
+        const c = el(`<button class="card ${this.s.profession === p.key ? "sel" : ""}">${emblem("prof", p.key, "emb card-emb")}
           <h3>${esc(p.name)} <span class="tag">${esc(p.keyAttribute)}</span></h3>
           <div class="meta">${p.key === "mage" ? "Spellcaster — choose a school" : "Heroic ability: " + p.heroicAbilities.join(" / ")}</div></button>`);
         c.onclick = () => { this.s.profession = p.key; if (p.key !== "mage") this.s.mageSchool = null; this.s.bardHarmonism = false; this.s.trained = new Set(); this.s.spells = { tricks: [], known: [] }; this.s.heroicPicks = (p.heroicAbilities.length === 1 ? [p.heroicAbilities[0]] : []); this.render(); };
@@ -172,7 +173,7 @@ export const Wizard = {
         wrap.appendChild(el(`<p class="section-title" style="margin-top:18px"><b>Choose your school of magic</b></p>`));
         const sg = el(`<div class="card-grid"></div>`);
         Magic.mageSchools().forEach(([key, label]) => {
-          const c = el(`<button class="card ${this.s.mageSchool === key ? "sel" : ""}"><h3>${esc(label)}</h3>${CORE_SCHOOLS.includes(key) ? "" : `<div class="meta">Book of Magic</div>`}</button>`);
+          const c = el(`<button class="card ${this.s.mageSchool === key ? "sel" : ""}">${emblem("school", key, "emb card-emb")}<h3>${esc(label)}</h3>${CORE_SCHOOLS.includes(key) ? "" : `<div class="meta">Book of Magic</div>`}</button>`);
           c.onclick = () => { this.s.mageSchool = key; this.s.trained = new Set(); this.render(); };
           sg.appendChild(c);
         });
@@ -519,9 +520,9 @@ export const Pregens = {
         const a = p.attributes;
         const c = el(`<button class="card pg-card">
           <h3>${esc(p.name)}</h3>
-          <div class="meta">${esc(kin.name)} · ${esc(prof.name)}${p.mageSchool ? " (" + esc(p.mageSchool) + ")" : ""} · ${esc(age.name)}</div>
+          <div class="meta">${emblem("prof", prof.key, "emb card-emb")}${esc(kin.name)} · ${esc(prof.name)}${p.mageSchool ? " (" + esc(p.mageSchool) + ")" : ""} · ${esc(age.name)}</div>
           <p class="stat-line" style="margin:6px 0">${esc(p.blurb)}</p>
-          <div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell"><span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}</span></div>`).join("")}</div>
+          <div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell">${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}</span></div>`).join("")}</div>
           <span class="pg-choose" aria-hidden="true">Choose →</span>
         </button>`);
         c.onclick = () => {
