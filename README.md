@@ -48,7 +48,8 @@ Any static host works (Firebase Hosting, Netlify, GitHub Pages, Cloudflare Pages
 |------|---------|
 | `index.html` | App shell and markup |
 | `src/*.js` | Application logic as native ES modules — wizard, character sheet, dice roller, combat tracker, solo mode, sync (entry point `src/main.js`; no bundler). |
-| `styles.css` | Dragonbane theme (light/dark) |
+| `styles.css` | Illuminated-manuscript theme (light / dark / system) |
+| `fonts/` | Self-hosted OFL fonts (EB Garamond, IM Fell English) + licences |
 | `data.js` | Dragonbane core rules library |
 | `data-magic.js` | Book of Magic expansion library (revised spells, new spells, 9 new schools) |
 | `data-solo.js` | Solo mode oracle, tables, and AI attack routines |

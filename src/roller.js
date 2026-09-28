@@ -19,6 +19,18 @@ export const Roller = {
       const used = net > 0 ? Math.min(...dice) : net < 0 ? Math.max(...dice) : dice[0];
       return { dice, used };
     },
+    // Dice flourish: a d20 "stage" at the top of a result — the kept die tumbles in,
+    // the stage washes green/red, Dragon glows gold, Demon shakes; plus a haptic
+    // buzz where supported. Purely visual: the result text below is unchanged.
+    stage(out, used, target, success, dragon, demon) {
+      if (!out) return;
+      const kind = dragon ? "dragon" : demon ? "demon" : success ? "ok" : "bad";
+      const st = el(`<div class="roll-stage ${success ? "ok" : "bad"} ${kind}" aria-hidden="true"><div class="d20 tumble">${used}</div>${target != null ? `<div class="roll-vs">vs ${target}</div>` : ""}</div>`);
+      const faces = out.querySelector(".dice-faces");
+      if (faces) { if (faces.children.length > 1) { faces.classList.add("roll-dice-row"); st.appendChild(faces); } else faces.remove(); }
+      out.insertBefore(st, out.firstChild);
+      try { if (navigator.vibrate) navigator.vibrate(dragon ? [30, 40, 70] : demon ? [90, 50, 90] : success ? 18 : [12, 40, 12]); } catch (_) {}
+    },
     netLabel(net) { return net > 0 ? `Boon ×${net}` : net < 0 ? `Bane ×${-net}` : "Even (1d20)"; },
     refresh(charId) {
       // Only re-render the character sheet when it is actually the mounted
@@ -61,6 +73,7 @@ export const Roller = {
         if (dragon || demon) html += `<p class="stat-line">Advancement mark added to ${esc(name)}.</p>`;
         if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         result.innerHTML = html;
+        this.stage(result, r.used, sk.level, success, dragon, demon);
         // Offer push if failed and not a demon (pushing is always allowed; the
         // cost is a chosen condition, or the overflow penalty when all six held).
         const curChar = Store.get(charId) || c;
@@ -122,7 +135,7 @@ export const Roller = {
       row.appendChild(chkLbl);
       wrap.appendChild(row);
 
-      const applyBtn = el(`<button class="btn block" style="background:var(--ok);color:#fff;font-size:1.15rem;padding:10px">💥 Apply ${rawDamage} Damage Now</button>`);
+      const applyBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:1.15rem;padding:10px">💥 Apply ${rawDamage} Damage Now</button>`);
       applyBtn.onclick = () => {
         const targetId = sel.value;
         const ignoreArm = chkLbl.querySelector("input").checked;
@@ -198,7 +211,7 @@ export const Roller = {
 
       const isLong = (weapon.features || []).some(f => /long/i.test(f));
       if (isLong) {
-        atkDiv.appendChild(el(`<p class="stat-line" style="color:var(--accent);margin:4px 0">🗡️ <b>Long Weapon (2m Reach):</b> Strike enemies 2m away without provoking close combat retaliation.</p>`));
+        atkDiv.appendChild(el(`<p class="stat-line" style="color:var(--accent-ink);margin:4px 0">🗡️ <b>Long Weapon (2m Reach):</b> Strike enemies 2m away without provoking close combat retaliation.</p>`));
       }
 
       if (c.state.conditions && c.state.conditions[attr]) {
@@ -303,6 +316,7 @@ export const Roller = {
         if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
         outcomeHtml += `</div>`;
         out.innerHTML = outcomeHtml;
+        this.stage(out, r.used, target, success, crit, fumble);
 
         // Demon (nat 20) on a weapon attack → roll the fumble table (melee vs ranged).
         if (fumble) {
@@ -358,7 +372,7 @@ export const Roller = {
             chips.querySelectorAll("button").forEach((b) => b.classList.remove("on"));
             selected.classList.add("on");
             rollDmgBtn.disabled = false; rollDmgBtn.style.opacity = "1"; rollDmgBtn.style.cursor = "pointer";
-            rollDmgBtn.className = "btn block"; rollDmgBtn.style.background = "var(--ok)"; rollDmgBtn.style.color = "#fff";
+            rollDmgBtn.className = "btn block"; rollDmgBtn.style.background = "var(--ok-fill)"; rollDmgBtn.style.color = "var(--on-fill)";
             if (mode === "double") {
               rollDmgBtn.textContent = `Roll Damage (Double dice: ${esc(weapon.damage)}×2${bonusDie ? " +" + bonusDie : ""})`;
               rollDmgBtn.onclick = () => {
@@ -515,6 +529,7 @@ export const Roller = {
         const ok = d <= w.skill;
         const crit = d === 1; const fumble = d === 20;
         out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="font-size:1.6rem;margin-top:12px">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : ok ? "Hit!" : "Miss!"} (rolled ${d} vs ${w.skill})</p>`;
+        this.stage(out, d, w.skill, ok, crit, fumble);
         if (dmgBtn) {
           dmgBtn.disabled = !ok;
           dmgBtn.style.opacity = ok ? "1" : "0.4";
@@ -632,13 +647,14 @@ export const Roller = {
           <p class="outcome ${success ? "ok" : "bad"}" style="margin:0;font-size:1.3rem">Rolled ${r} vs Skill ${skillLvl} — ${success ? "SUCCESS!" : "FAILED!"}</p>
           ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
+        this.stage(out, r, skillLvl, success, r === 1, r === 20);
         if (success) {
           const pl = spell.rank || 1;
           SpellAutomation.renderCard(combatantId, spell, pl, false, false, 2, out);
         }
       };
 
-      const autoBtn = el(`<button class="btn block" style="background:var(--ok);color:#fff;border:none">✓ Auto-Succeed (Self / Ally Buff)</button>`);
+      const autoBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);border:none">✓ Auto-Succeed (Self / Ally Buff)</button>`);
       autoBtn.onclick = () => {
         if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
         out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid var(--ok)">
@@ -798,6 +814,7 @@ export const Roller = {
         }
         if (pushedCondition) html += `<p class="stat-line">Pushed — <b>${esc(pushedCondition)}</b>.</p>`;
         out.innerHTML = html;
+        this.stage(out, r.used, level, success, dragon, demon);
         if (success) {
           if (isUnprepared && document.querySelector(".combat-tracker")) {
             showToast("⏳ Unprepared spell cast in combat: Casting takes 2 rounds! Effect delayed until next turn.");

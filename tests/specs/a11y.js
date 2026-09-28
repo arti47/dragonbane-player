@@ -61,7 +61,16 @@ module.exports = {
     }, GLYPHS);
     t.eq("icon-only sheet buttons all have aria-label", iconBtns, []);
 
-    // --- Dialog semantics: open a skill roll ---
+    // --- Dialog semantics: open a skill roll (skills live on the Skills tab) ---
+    await page.evaluate(() => document.querySelector(".tab[data-tab='skills']")?.click());
+    await page.waitForTimeout(100);
+    const tabsOk = await page.evaluate(() => {
+      const bar = document.querySelector(".tabs[role='tablist']");
+      const sel = bar && bar.querySelector(".tab[aria-selected='true']");
+      const pane = sel && document.getElementById(sel.getAttribute("aria-controls"));
+      return !!(sel && pane && !pane.hidden && pane.getAttribute("role") === "tabpanel");
+    });
+    t.ok("sheet tabs expose tablist/tab/tabpanel semantics", tabsOk);
     const opener = await page.evaluateHandle(() => document.querySelector(".sk-name"));
     await opener.asElement().click();
     await page.waitForTimeout(200);

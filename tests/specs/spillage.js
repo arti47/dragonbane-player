@@ -41,7 +41,12 @@ module.exports = {
       // Two heroes (mage + knight)
       await page.click("#use-pregen"); await page.waitForTimeout(120);
       await page.evaluate(() => document.querySelectorAll(".card-grid .card")[0]?.click()); await page.waitForTimeout(200);
-      await check("sheet(mage)");
+      // The sheet is tabbed — audit every pane, not just the visible one.
+      for (const tab of ["overview", "skills", "magic", "gear", "story"]) {
+        await page.evaluate((k) => document.querySelector(`.tab[data-tab='${k}']`)?.click(), tab); await page.waitForTimeout(120);
+        await check(`sheet(mage:${tab})`);
+      }
+      await page.evaluate(() => document.querySelector(".tab[data-tab='overview']")?.click());
       await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click()); await page.waitForTimeout(100);
       await page.click("#use-pregen"); await page.waitForTimeout(100);
       await page.evaluate(() => document.querySelectorAll(".card-grid .card")[2]?.click()); await page.waitForTimeout(150);
@@ -49,7 +54,7 @@ module.exports = {
       await check("home");
 
       // Combat: add a hero, a monster, a boss NPC, then expand every card
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='party']")?.click()); await page.waitForTimeout(150);
+      await page.evaluate(() => { window._combatAddOpen = true; document.querySelector("#app-nav button[data-route='party']")?.click(); }); await page.waitForTimeout(150);
       const sel = await page.$(".inv-add select"); if (sel) await sel.selectOption({ index: 1 });
       let sb = await page.$$(".inv-add .btn.secondary"); if (sb[0]) { await sb[0].click(); await page.waitForTimeout(120); }
       let sels = await page.$$(".inv-add select"); if (sels[1]) await sels[1].selectOption({ index: 1 });
@@ -70,7 +75,10 @@ module.exports = {
 
       // Solo + About
       await page.evaluate(() => document.querySelector("#app-nav button[data-route='solo']")?.click()); await page.waitForTimeout(150);
-      await check("solo");
+      for (const tab of ["play", "prompts", "journey", "foes"]) {
+        await page.evaluate((k) => document.querySelector(`.tab[data-tab='${k}']`)?.click(), tab); await page.waitForTimeout(100);
+        await check(`solo(${tab})`);
+      }
       await page.evaluate(() => document.querySelector("#app-nav button[data-route='about']")?.click()); await page.waitForTimeout(150);
       await check("about");
 

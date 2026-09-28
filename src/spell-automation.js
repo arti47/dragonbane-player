@@ -56,7 +56,7 @@ export const SpellAutomation = {
       const cat = this.categorize(spell);
       const card = el(`<div class="magic-auto-card" style="margin-top:12px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:rgba(255,255,255,0.03)"></div>`);
       const hdr = el(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"></div>`);
-      hdr.innerHTML = `<b style="color:var(--accent)">✨ VTT Spell Resolution: ${esc(spell.name)} (PL ${pl})</b>`;
+      hdr.innerHTML = `<b style="color:var(--accent-ink)">✨ VTT Spell Resolution: ${esc(spell.name)} (PL ${pl})</b>`;
       const skipBtn = el(`<button class="skill-chip quick-chip" title="Skip automatic resolution">Skip Auto</button>`);
       skipBtn.onclick = () => { card.innerHTML = `<p class="stat-line">Automation skipped. Resolve effects manually.</p>`; };
       hdr.appendChild(skipBtn);
@@ -64,14 +64,14 @@ export const SpellAutomation = {
 
       let plMult = 1;
       if (dragon) {
-        const dWrap = el(`<div style="margin-bottom:10px;padding:8px;background:rgba(255,215,0,0.1);border:1px dashed #ffd700;border-radius:6px"></div>`);
-        dWrap.innerHTML = `<b style="color:#ffd700;display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
+        const dWrap = el(`<div style="margin-bottom:10px;padding:8px;background:rgba(255,215,0,0.1);border:1px dashed var(--gold-leaf);border-radius:6px"></div>`);
+        dWrap.innerHTML = `<b style="color:var(--gold-ink);display:block;margin-bottom:6px">🐉 Critical Dragon Boon! Choose one:</b>`;
         const bRow = el(`<div style="display:flex;gap:6px;flex-wrap:wrap"></div>`);
-        const bDbl = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Double Damage or Healing dice">💥 Double</button>`);
-        bDbl.onclick = () => { plMult = 2; bDbl.style.background = "#ffd700"; bDbl.style.color = "#000"; showToast("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
-        const bRef = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Refund ${cost} WP">✨ Refund</button>`);
+        const bDbl = el(`<button class="skill-chip quick-chip" style="border-color:var(--gold-leaf)" title="Double Damage or Healing dice">💥 Double</button>`);
+        bDbl.onclick = () => { plMult = 2; bDbl.style.background = "var(--gold-leaf)"; bDbl.style.color = "var(--on-gold)"; showToast("Double Effect active! Damage/Healing dice will be multiplied by 2."); };
+        const bRef = el(`<button class="skill-chip quick-chip" style="border-color:var(--gold-leaf)" title="Refund ${cost} WP">✨ Refund</button>`);
         bRef.onclick = () => { Store.update(charId, ch => { ch.state.wp = Math.min(effWpMax(ch), (ch.state.wp || 0) + cost); }); Roller.refresh(charId); bRef.disabled = true; showToast(`Refunded ${cost} WP!`, "success"); };
-        const bFree = el(`<button class="skill-chip quick-chip" style="border-color:#ffd700" title="Cast another spell without spending an action">⚡ Free Cast</button>`);
+        const bFree = el(`<button class="skill-chip quick-chip" style="border-color:var(--gold-leaf)" title="Cast another spell without spending an action">⚡ Free Cast</button>`);
         bFree.onclick = () => { showToast("Free Follow-Up Spell unlocked! You may immediately cast another spell without spending an action."); };
         bRow.append(bDbl, bRef, bFree);
         dWrap.appendChild(bRow);
@@ -135,7 +135,7 @@ export const SpellAutomation = {
         row.append(el(`<span class="stat-line">Heal:</span>`));
         const tSel = buildSelect(allies, "— no targets —");
         const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice">`);
-        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#000;border:none" title="Apply Healing">💚 Heal</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok-fill);color:var(--on-fill);border:none" title="Apply Healing">💚 Heal</button>`);
         btn.onclick = () => {
           let amt = Dice.roll(dIn.value.trim() || `${pl}D6`); if (plMult === 2) amt *= 2;
           const t = findT(allies, tSel.value);
@@ -157,7 +157,7 @@ export const SpellAutomation = {
         const isPsychic = /mental|death|stench|psychic|soul|boneshaker/i.test(spell.name || "");
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
-        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Strike target">💥 Strike</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Strike target">💥 Strike</button>`);
         btn.onclick = async () => {
           const dist = Number(distIn.value) || 0, maxR = this.getRangeLimit(spell);
           if (dist > maxR && !(await confirmModal(`Distance (${dist}m) exceeds range (${maxR}m). Strike anyway?`, { title: "Out of range", okText: "Strike anyway" }))) return;
@@ -180,7 +180,7 @@ export const SpellAutomation = {
         if (!enemies.length) chkWrap.appendChild(el(`<span class="stat-line">No enemies in combat — roll &amp; apply manually.</span>`));
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Armor mitigates</label>`);
         const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
-        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad);color:#fff;border:none" title="Blast all checked targets">💥 Blast AoE</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Blast all checked targets">💥 Blast AoE</button>`);
         btn.onclick = () => {
           let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`); if (plMult === 2) dmg *= 2;
           const ids = Array.from(chkWrap.querySelectorAll("input:checked")).map(x => x.value);
@@ -218,11 +218,11 @@ export const SpellAutomation = {
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.append(el(`<span class="stat-line">Curse target:</span>`));
         const tSel = buildSelect(enemies, "— none in combat —");
-        const btn = el(`<button class="skill-chip quick-chip" style="background:#9370db;color:#fff;border:none" title="Hex target">🧿 Hex</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="background:var(--arcane-fill);color:var(--on-fill);border:none" title="Hex target">🧿 Hex</button>`);
         btn.onclick = () => {
           const t = findT(enemies, tSel.value);
           if (t && !t.isChar) { t.cb.name = `🧿 ${t.cb.name.replace(/🧿\s*/, "")}`; t.cb.notes = `${t.cb.notes ? t.cb.notes + " · " : ""}CURSED (${spell.name} PL${pl})`; Combat.save(cd); Combat.rerender(); }
-          card.innerHTML = `<p class="outcome" style="color:#9370db;border-color:#9370db">🧿 Cursed ${t ? esc(t.name) : "target (apply manually)"}.</p>`;
+          card.innerHTML = `<p class="outcome" style="color:var(--arcane);border-color:var(--arcane)">🧿 Cursed ${t ? esc(t.name) : "target (apply manually)"}.</p>`;
         };
         row.append(tSel, btn); card.appendChild(row);
       } else if (cat === "illusion") {
@@ -239,10 +239,10 @@ export const SpellAutomation = {
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
         row.append(el(`<span class="stat-line">Haste (2nd turn):</span>`));
         const tSel = buildSelect(hasteList, "— add ally to tracker —");
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:#00bcd4;color:#00bcd4" title="Grant second initiative turn">⚡ Grant Turn</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--info);color:var(--info)" title="Grant second initiative turn">⚡ Grant Turn</button>`);
         btn.onclick = () => {
           const t = findT(hasteList, tSel.value);
-          if (t && !t.isChar) { cd.combatants.push({ ...t.cb, id: uid(), name: `${t.cb.name} (Hasted 2nd Turn)`, init: null, done: false, acted: false }); Combat.save(cd); Combat.rerender(); card.innerHTML = `<p class="outcome" style="color:#00bcd4;border-color:#00bcd4">⚡ Granted a second combat turn.</p>`; }
+          if (t && !t.isChar) { cd.combatants.push({ ...t.cb, id: uid(), name: `${t.cb.name} (Hasted 2nd Turn)`, init: null, done: false, acted: false }); Combat.save(cd); Combat.rerender(); card.innerHTML = `<p class="outcome" style="color:var(--info);border-color:var(--info)">⚡ Granted a second combat turn.</p>`; }
           else card.innerHTML = `<p class="stat-line">Haste grants an extra turn in combat — add the ally to the tracker first.</p>`;
         };
         row.append(tSel, btn); card.appendChild(row);
@@ -265,7 +265,7 @@ export const SpellAutomation = {
         const wrap = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
         const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
         row.append(el(`<span class="stat-line">Utility / Buff (${esc(spell.duration || "Instant")}):</span>`));
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Track this effect on the character sheet">+ Track effect</button>`);
+        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent-ink)" title="Track this effect on the character sheet">+ Track effect</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => {
             ch.effects = ch.effects || [];

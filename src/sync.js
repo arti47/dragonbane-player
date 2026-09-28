@@ -339,18 +339,47 @@ export const Sync = {
 
 export const Theme = {
     KEY: "dragonbane.theme",
+    MODES: ["light", "dark", "system"],
+    mode: "system",
+    mq: null,
     init() {
-      const saved = localStorage.getItem(this.KEY) || "light";
-      this.apply(saved);
+      const saved = localStorage.getItem(this.KEY);
+      this.mode = this.MODES.includes(saved) ? saved : "system";
+      this.mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+      if (this.mq) {
+        const onChange = () => { if (this.mode === "system") this.apply(); };
+        this.mq.addEventListener ? this.mq.addEventListener("change", onChange) : this.mq.addListener(onChange);
+      }
+      this.apply();
       $("#theme-toggle").addEventListener("click", () => {
-        const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-        this.apply(next);
-        localStorage.setItem(this.KEY, next);
+        this.mode = this.MODES[(this.MODES.indexOf(this.mode) + 1) % this.MODES.length];
+        localStorage.setItem(this.KEY, this.mode);
+        this.apply();
       });
     },
+    resolved() {
+      if (this.mode !== "system") return this.mode;
+      return this.mq && this.mq.matches ? "dark" : "light";
+    },
     apply(theme) {
-      document.documentElement.setAttribute("data-theme", theme);
-      $("#theme-toggle").textContent = theme === "dark" ? "☀" : "☾";
+      if (theme && this.MODES.includes(theme)) this.mode = theme;
+      const eff = this.resolved();
+      document.documentElement.setAttribute("data-theme", eff);
+      document.documentElement.setAttribute("data-theme-mode", this.mode);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", eff === "dark" ? "#16100b" : "#6e1f14");
+      const btn = $("#theme-toggle");
+      if (btn) {
+        const label = { light: "Light", dark: "Dark", system: "System" }[this.mode];
+        const svg = {
+          light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+          dark: '<path d="M20 14A8 8 0 1110 4a6.5 6.5 0 0010 10z"/>',
+          system: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 000-17z" fill="currentColor"/>',
+        }[this.mode];
+        btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg}</svg>`;
+        btn.title = `Theme: ${label} (tap to change)`;
+        btn.setAttribute("aria-label", `Theme: ${label}. Tap to change`);
+      }
     }
   };
 

@@ -10,6 +10,7 @@ import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
 import { SoloMode } from './solo.js';
 import { GM } from './gm.js';
+import { icon } from './icons.js';
 import { Router } from './router.js';
 
 export function renderPartyBanner() {
@@ -17,7 +18,7 @@ export function renderPartyBanner() {
     if (!Sync.campaign) {
       const banner = el(`<div class="panel" style="border-left:4px solid var(--accent);background:var(--bg-raised);cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
         <div>
-          <h3 style="margin:0;color:var(--accent);font-size:1.2rem">🛡️ Multiplayer Cloud Sync Ready</h3>
+          <h3 style="margin:0;color:var(--accent-ink);font-size:1.2rem">🛡️ Multiplayer Cloud Sync Ready</h3>
           <p class="stat-line" style="margin:4px 0 0 0;font-size:0.95rem">You are offline/local. Join or create a party campaign to sync characters and combat live across devices.</p>
         </div>
         <button class="btn secondary" style="flex-shrink:0;margin-left:12px">⚡ Join Party</button>
@@ -37,7 +38,7 @@ export function renderPartyBanner() {
       const isMe = c.owner === Sync.uid;
       const conds = Object.entries(c.state?.conditions || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
       return `<div class="roster-row" data-id="${esc(c.id)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px;transition:background 0.15s">
-        <div><b>${esc(c.identity?.name || "Hero")}</b> ${isMe ? '<span class="tag" style="background:var(--accent);color:#fff">YOU</span>' : ''}<br>
+        <div><b>${esc(c.identity?.name || "Hero")}</b> ${isMe ? '<span class="tag" style="background:var(--accent);color:var(--on-accent)">YOU</span>' : ''}<br>
         <span class="stat-line" style="font-size:0.8rem">${esc(c.identity?.kin||"")} ${esc(c.identity?.profession||"")}</span></div>
         <div style="text-align:right"><b>❤️ ${c.state?.hp}/${c.derived?.hpMax} · ⚡ ${c.state?.wp}/${c.derived?.wpMax}</b>
         ${conds ? `<br><span style="color:var(--bad);font-size:0.8rem">⚠ ${esc(conds)}</span>` : ''}</div>
@@ -154,8 +155,13 @@ export const Screens = {
       const root = el(`
         <div>
           ${sectionTitle("Rules library & Compendiums")}
-          <div class="panel" style="margin-bottom:12px;padding:10px">
-            <input type="text" id="rules-search" class="input" placeholder="🔍 Search rules, spells, gear, journeys..." style="width:100%;font-size:1.1rem;padding:10px">
+          <div class="panel search-panel" style="margin-bottom:12px;padding:10px">
+            <div class="search-wrap">
+              <span class="search-ic">${icon("search")}</span>
+              <input type="search" id="rules-search" class="input" placeholder="Search rules, spells, gear, journeys…" aria-label="Search rules, spells, gear, journeys" autocomplete="off" style="width:100%">
+              <button type="button" class="search-clear" aria-label="Clear search" hidden>✕</button>
+            </div>
+            <div class="search-count" role="status" aria-live="polite"></div>
           </div>
           <div id="rules-acc-wrap" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>`);
@@ -183,8 +189,8 @@ export const Screens = {
       cats.forEach(([label, key]) => {
         const contentHtml = renderRuleDetail(key, null);
         const acc = el(`<details class="rule-accordion" data-cat="${key}" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;overflow:hidden">
-          <summary style="font-size:1.25rem;font-weight:bold;cursor:pointer;padding:6px 0;list-style:none;display:flex;justify-content:space-between;align-items:center">
-            <span>${label}</span><span style="font-size:0.9rem;color:var(--muted)">▼</span>
+          <summary class="cat-summary">
+            <span>${label}</span><span class="chev" aria-hidden="true"></span>
           </summary>
           <div class="rule-content" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">${contentHtml}</div>
         </details>`);
@@ -192,8 +198,11 @@ export const Screens = {
       });
 
       const sInp = root.querySelector("#rules-search");
+      const sClr = root.querySelector(".search-clear");
+      const sCnt = root.querySelector(".search-count");
       sInp.oninput = (e) => {
         const q = e.target.value.toLowerCase().trim();
+        let hits = 0;
         root.querySelectorAll("details.rule-accordion").forEach(acc => {
           if (!q) {
             acc.style.display = "";
@@ -202,10 +211,13 @@ export const Screens = {
             const text = acc.textContent.toLowerCase();
             const match = text.includes(q);
             acc.style.display = match ? "" : "none";
-            if (match) acc.open = true;
+            if (match) { acc.open = true; if (acc.parentElement && acc.parentElement.id === "rules-acc-wrap") hits++; }
           }
         });
+        sClr.hidden = !q;
+        sCnt.textContent = q ? (hits ? `${hits} of ${cats.length} categories match` : "No matches") : "";
       };
+      sClr.onclick = () => { sInp.value = ""; sInp.oninput({ target: sInp }); sInp.focus(); };
 
       return root;
     },
@@ -292,7 +304,7 @@ export const Screens = {
         } else {
           const campInfo = el(`<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:6px;border-left:4px solid var(--accent)">
             <b>Active Campaign:</b> ${esc(Sync.campaign.name)}<br>
-            <b>Join Code:</b> <code style="font-size:1.1rem;color:var(--accent)">${esc(Sync.campaign.joinCode)}</code><br>
+            <b>Join Code:</b> <code style="font-size:1.1rem;color:var(--accent-ink)">${esc(Sync.campaign.joinCode)}</code><br>
             <span class="stat-line" style="font-size:0.85rem">Share this code with players so they can join your party.</span>
           </div>`);
           const leaveBtn = el(`<button class="btn ghost block" style="margin-top:8px;color:var(--bad)">Disconnect from Campaign</button>`);

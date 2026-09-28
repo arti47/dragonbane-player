@@ -9,7 +9,7 @@
  * own offline persistence handles party sync when reconnecting.
  */
 
-const CACHE_VERSION = "dragonbane-v75";
+const CACHE_VERSION = "dragonbane-v76";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -24,6 +24,13 @@ const APP_SHELL = [
   "./manifest.json",
   "./icon.svg",
   // App logic — ES modules (split of the former app.js). Order doesn't matter for caching.
+  // Self-hosted fonts (OFL) for the illuminated-manuscript theme.
+  "./fonts/eb-garamond.woff2",
+  "./fonts/eb-garamond-italic.woff2",
+  "./fonts/im-fell-english.woff2",
+  "./fonts/im-fell-english-italic.woff2",
+  "./fonts/im-fell-english-sc.woff2",
+  "./src/icons.js",
   "./src/main.js",
   "./src/router.js",
   "./src/screens.js",

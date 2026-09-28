@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#7a2e1d" />
+  <meta name="theme-color" content="#6e1f14" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="preload" href="fonts/eb-garamond.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/im-fell-english-sc.woff2" as="font" type="font/woff2" crossorigin />
+  <script>try{var m=localStorage.getItem("dragonbane.theme")||"system";document.documentElement.setAttribute("data-theme",m==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):m);}catch(e){document.documentElement.setAttribute("data-theme","light");}</script>
   <title>Dragonbane Player</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -16,7 +20,7 @@
       <span class="brand"><img src="icon.svg" alt="" /> Dragonbane</span>
       <span class="spacer"></span>
       <span id="sync-status" class="status-pill local" title="Data storage mode">Local</span>
-      <button id="theme-toggle" class="icon-btn" title="Toggle light/dark" aria-label="Toggle theme">☾</button>
+      <button id="theme-toggle" class="icon-btn" title="Theme" aria-label="Theme">☾</button>
     </header>
 
     <main id="screen" class="app-main">

@@ -200,8 +200,10 @@ export const Combat = {
         "<b>Next turn / Next round</b> advance play (GM-locked in a synced campaign)."
       ]));
 
-      // Add controls panel
-      const addPanel = el(`<div class="panel"></div>`);
+      // Add controls panel — collapsible once a fight is under way (choice remembered).
+      const addOpen = window._combatAddOpen != null ? window._combatAddOpen : s.combatants.length < 2;
+      const addPanel = el(`<details class="panel add-panel"${addOpen ? " open" : ""}><summary>＋ Add combatants</summary></details>`);
+      addPanel.addEventListener("toggle", () => { window._combatAddOpen = addPanel.open; });
       window._combatAddSelections = window._combatAddSelections || {};
       const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
       const isGm = inPartyCamp && Sync.campaign.role === "gm";
@@ -281,32 +283,35 @@ export const Combat = {
       };
       npcAdd.onclick = doNpc; npcName.onkeydown = (e) => { if (e.key === "Enter") doNpc(); };
       npcRow.append(npcName, npcAdd); addPanel.appendChild(npcRow);
-      root.appendChild(addPanel);
+      const layout = el(`<div class="combat-layout"><div class="combat-side"></div><div class="combat-main"></div></div>`);
+      const side = layout.querySelector(".combat-side"), main = layout.querySelector(".combat-main");
+      side.appendChild(addPanel);
+      root.appendChild(layout);
 
-      if (!s.combatants.length) { root.appendChild(el(`<div class="empty"><div class="big">⚔</div><p class="stat-line">Add combatants to begin.</p></div>`)); return root; }
+      if (!s.combatants.length) { main.appendChild(el(`<div class="empty"><div class="big">⚔</div><p class="stat-line">Add combatants to begin.</p></div>`)); return root; }
 
       // Round controls
       const ctrl = el(`<div class="panel"></div>`);
       ctrl.appendChild(el(`<p><b>${s.round ? "Round " + s.round : "Not started"}</b></p>`));
       const btns = el(`<div class="rest-row"></div>`);
-      const drawBtn = el(`<button class="btn">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
+      const drawBtn = el(`<button class="btn ${s.round ? "ghost" : ""}">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
       drawBtn.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; }));
-      const nextTurn = el(`<button class="btn ghost">Next turn</button>`);
+      const nextTurn = el(`<button class="btn ${s.round ? "" : "ghost"}">Next turn</button>`);
       nextTurn.onclick = () => this.guardGm(() => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } }));
-      const nextRound = el(`<button class="btn ghost">Next round</button>`);
+      const nextRound = el(`<button class="btn secondary">Next round</button>`);
       nextRound.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); st.round = (st.round || 0) + 1; st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const resetTurns = el(`<button class="btn ghost">Reset Turns</button>`);
       resetTurns.onclick = () => this.guardGm(() => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
-      const end = el(`<button class="btn ghost">End combat</button>`);
+      const end = el(`<button class="btn danger-ghost">End combat</button>`);
       end.onclick = () => this.guardGm(async () => { if (await confirmModal("End combat and clear all combatants?", { title: "End combat", okText: "End combat", danger: true })) this.mutate((st) => { st.round = 0; st.combatants = []; }); });
-      const fleeBtn = el(`<button class="btn ghost" style="border:1px dashed var(--bad);color:var(--bad)">🏃 Flee Close Combat</button>`);
+      const fleeBtn = el(`<button class="btn ghost" style="border-style:dashed">🏃 Flee Close Combat</button>`);
       fleeBtn.onclick = () => {
         const d = Dice.d(20);
         if (d <= 5) {
           showToast(`🏃 Evade Roll: ${d} ≤ 5 → Success!\nYou successfully flee close combat without provoking a Free Attack.`);
         } else {
           const fm = modal("Evade Failed! Free Attack Triggered");
-          const freeBtn = el(`<button class="btn block" style="background:var(--bad);color:#fff">🎲 Roll Enemy Free Attack</button>`);
+          const freeBtn = el(`<button class="btn block" style="background:var(--bad-fill);color:var(--on-fill)">🎲 Roll Enemy Free Attack</button>`);
           freeBtn.onclick = () => { freeBtn.disabled = true; showToast("🎲 GM rolls Enemy Free Attack! Apply damage as usual.", "warn"); };
           fm.body.append(
             el(`<p class="outcome bad" style="font-size:1.4rem">Rolled ${d} (Failed Evade)</p>`),
@@ -315,11 +320,13 @@ export const Combat = {
           );
         }
       };
-      btns.append(drawBtn, nextTurn, nextRound, resetTurns, fleeBtn, end); ctrl.appendChild(btns);
-      root.appendChild(ctrl);
+      if (s.round) btns.append(nextTurn, nextRound, drawBtn, resetTurns, fleeBtn, end);
+      else btns.append(drawBtn, nextTurn, nextRound, resetTurns, fleeBtn, end);
+      ctrl.appendChild(btns);
+      side.insertBefore(ctrl, addPanel);
 
       // Combatant list (ordered accordions)
-      const list = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+      const list = el(`<div class="combat-list" style="display:flex;flex-direction:column;gap:8px"></div>`);
       const ord = this.ordered(s);
       const currentId = (ord.find((c) => c.init != null && !c.done) || {}).id;
       ord.forEach((cb) => {
@@ -336,18 +343,19 @@ export const Combat = {
           </div>
           <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap">
             <span class="tag">${cb.kind === "hero" ? "Hero" : cb.kind === "monster" ? "Monster" : "NPC"}</span>
-            ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:#f7eed6;border-color:var(--accent)">now</span>' : ""}
-            ${isDefeated ? '<span class="tag" style="background:var(--bad);color:#fff">💀 DEFEATED</span>' : ""}
-            ${isDyingHero ? '<span class="tag" style="background:var(--bad);color:#fff">🩸 DYING (0 HP)</span>' : ""}
+            ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:var(--on-accent);border-color:var(--accent)">now</span>' : ""}
+            ${isDefeated ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">💀 DEFEATED</span>' : ""}
+            ${isDyingHero ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">🩸 DYING (0 HP)</span>' : ""}
             <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end"></div>
-            <span style="font-weight:bold;font-size:1.15rem;color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
+            <span class="cb-hp" style="font-weight:bold;font-size:1.15rem;color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? `HP ${cb.hp}/${cb.maxHp || cb.hp}` : ""}</span>
           </div>
+          ${cb.hp != null ? (() => { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)); return `<div class="hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}" aria-hidden="true"><i style="--pct:${pct}%"></i></div>`; })() : ""}
         </div>`);
 
         const quickWrap = head.querySelector(".quick-attacks");
         if (!isDefeated) {
           if (cb.kind === "monster" && cb.attacks && cb.attacks.length) {
-            const d6Quick = el(`<button class="skill-chip quick-chip" style="background:var(--ok);color:#fff;border:none" title="Roll monster attack${(cb.ferocity || 1) > 1 ? ` (Ferocity ${cb.ferocity})` : ""}">🎲 Atk${(cb.ferocity || 1) > 1 ? ` ×${cb.ferocity}` : ""}</button>`);
+            const d6Quick = el(`<button class="skill-chip quick-chip" style="background:var(--ok-fill);color:var(--on-fill);border:none" title="Roll monster attack${(cb.ferocity || 1) > 1 ? ` (Ferocity ${cb.ferocity})` : ""}">🎲 Atk${(cb.ferocity || 1) > 1 ? ` ×${cb.ferocity}` : ""}</button>`);
             d6Quick.onclick = (e) => { e.stopPropagation(); Roller.monsterTableRoll(cb); };
             quickWrap.appendChild(d6Quick);
           } else if (isDyingHero) {
@@ -360,7 +368,7 @@ export const Combat = {
               const baseMv = h.derived?.movement || 10;
               const maxMv = (h.state?.isMounted ? 20 : baseMv) * (h.state?.isDashing ? 2 : 1) * (h.abilities?.some(x=>x.name==="Longstrider")?2:1);
               const remMv = Math.max(0, maxMv - (h.state?.moveSpent || 0));
-              const mvBtn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent)" title="Movement: ${remMv}m / ${maxMv}m (click to manage)">🏃 ${remMv}m</button>`);
+              const mvBtn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent-ink)" title="Movement: ${remMv}m / ${maxMv}m (click to manage)">🏃 ${remMv}m</button>`);
               mvBtn.onclick = (e) => { e.stopPropagation(); Sheet.movementModal(cb.charId); };
               quickWrap.appendChild(mvBtn);
             }
@@ -428,6 +436,8 @@ export const Combat = {
               this.save(st);
               if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { ch.state.hp = ref.hp; });
               hpSpan.textContent = `${cb.hp} / ${cb.maxHp || cb.hp}`;
+              const hs = head.querySelector(".cb-hp"); if (hs) hs.textContent = `HP ${cb.hp}/${cb.maxHp || cb.hp}`;
+              const bar = head.querySelector(".hpbar"); if (bar) { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || 1)) * 100)); bar.className = `hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}`; bar.firstChild.style.setProperty("--pct", pct + "%"); }
               if ((prev === 0 && cb.hp > 0) || (prev > 0 && cb.hp === 0)) this.rerender();
             }
           };
@@ -443,7 +453,7 @@ export const Combat = {
           const atkDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
           atkDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Monster Attacks (Auto-hit):</b>${(cb.ferocity || 1) > 1 ? ` <span class="tag">Ferocity ${cb.ferocity} — ${cb.ferocity} attacks/turn</span>` : ""}</p>`));
 
-          const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok);color:#fff;font-size:1.15rem;padding:10px;margin-bottom:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
+          const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:1.15rem;padding:10px;margin-bottom:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
           d6BannerBtn.onclick = () => Roller.monsterTableRoll(cb);
           atkDiv.appendChild(d6BannerBtn);
 
@@ -483,10 +493,10 @@ export const Combat = {
             const allSpells = [...((h.spells && h.spells.tricks) || []), ...((h.spells && h.spells.known) || [])];
             if (allSpells.length) {
               hDiv.appendChild(el(`<p class="stat-line" style="margin:4px 0 0 0"><b>Known Spells & Tricks:</b></p>`));
-              const sGrid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
+              const sGrid = el(`<div class="spell-chips"></div>`);
               allSpells.forEach(sp => {
                 const isT = (h.spells.tricks || []).includes(sp);
-                const b = el(`<button class="btn ghost block combat-action" style="font-size:1.1rem;border-color:var(--accent)">★ ${esc(sp.name)} <br><small style="color:var(--muted)">${isT ? "Trick (1 WP)" : `Rank ${sp.rank||1} Spell`}</small></button>`);
+                const b = el(`<button class="btn ghost block combat-action" style="border-color:var(--accent)">★ ${esc(sp.name)} <br><small style="color:var(--muted)">${isT ? "Trick (1 WP)" : `Rank ${sp.rank||1} Spell`}</small></button>`);
                 b.onclick = () => Roller.cast(cb.charId, sp, isT);
                 sGrid.appendChild(b);
               });
@@ -539,9 +549,9 @@ export const Combat = {
           }
           if (cb.spells && cb.spells.length) {
             npcDiv.appendChild(el(`<p class="stat-line" style="margin:4px 0 0 0"><b>Known Spells:</b></p>`));
-            const sGrid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
+            const sGrid = el(`<div class="spell-chips"></div>`);
             cb.spells.forEach(sp => {
-              const b = el(`<button class="btn ghost block combat-action" style="font-size:1.1rem;border-color:var(--accent)">🪄 ${esc(sp.name)} <br><small style="color:var(--muted)">Rank ${sp.rank||1} Spell</small></button>`);
+              const b = el(`<button class="btn ghost block combat-action" style="border-color:var(--accent)">🪄 ${esc(sp.name)} <br><small style="color:var(--muted)">Rank ${sp.rank||1} Spell</small></button>`);
               b.onclick = () => Roller.npcCast(cb.name, sp, cb.id);
               sGrid.appendChild(b);
             });
@@ -558,7 +568,7 @@ export const Combat = {
         card.append(head, body);
         list.appendChild(card);
       });
-      root.appendChild(list);
+      main.appendChild(list);
       return root;
     }
   };

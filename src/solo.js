@@ -26,7 +26,7 @@ export const SoloMode = {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
       const root = el(`<div></div>`);
       root.appendChild(el(sectionTitle("Solo Assistant")));
-      root.appendChild(helpBox("Solo Assistant", [
+      const help = root.appendChild(helpBox("Solo Assistant", [
         "Turn on <b>Solo Mode</b> (below or in About) to unlock solo heroic abilities at creation.",
         "<b>🎲 Rolling as</b>: pick a hero → a vitals strip (HP/WP, Open sheet, quick rests, 🏅 Mission +5) appears and journey/skill rolls use their sheet + full dice engine.",
         "<b>📓 Journal</b>: set your current scene, and tap <b>＋ Log</b> on any roll result to save story beats (persisted per hero).",
@@ -37,8 +37,8 @@ export const SoloMode = {
       // Newcomer aids: one-tap tutorial link + the solo loop step-by-step.
       const tut = el(`<button class="btn ghost block" style="margin-bottom:10px">📘 New to solo RPGs? Read How to Play</button>`);
       tut.onclick = () => { Router.go("rules"); setTimeout(() => { const a = document.querySelector("details.rule-accordion[data-cat='howtoplay']"); if (a) { a.open = true; a.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 60); };
-      root.appendChild(tut);
-      const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent)">🧭 The solo loop — what to do each scene</summary></details>`);
+      help.appendChild(tut); // one "getting started" collapsible: help + tutorial + loop
+      const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">🧭 The solo loop — what to do each scene</summary></details>`);
       const loopUl = document.createElement("ul"); loopUl.className = "stat-line"; loopUl.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
       [
         "① <b>Set the scene</b> in the Journal below — where you are and your goal.",
@@ -47,7 +47,7 @@ export const SoloMode = {
         "④ On a failure, <b>Push</b> the roll or use <b>🎲 Fail forward</b> to keep the story moving.",
         "⑤ Track open questions as <b>🧵 Threads</b>; when the mission is done, tap <b>🏅 Mission +5</b> to advance."
       ].forEach((s) => { const li = document.createElement("li"); li.style.margin = "3px 0"; li.innerHTML = s; loopUl.appendChild(li); });
-      loop.appendChild(loopUl); root.appendChild(loop);
+      loop.appendChild(loopUl); help.appendChild(loop);
       if (!solo) {
         root.appendChild(el(`<div class="panel"><p class="stat-line">Solo rules library not loaded.</p></div>`));
         return root;
@@ -62,7 +62,7 @@ export const SoloMode = {
             <span class="stat-line">When active, unlocks solo heroic abilities (Army of One, Sole Survivor) in character creation.</span>
           </div>
         </div>`);
-      const bBtn = el(`<button class="btn ${sm ? "secondary" : ""}">${sm ? "Disable Solo Mode" : "Enable Solo Mode"}</button>`);
+      const bBtn = el(`<button class="btn ${sm ? "ghost" : ""}">${sm ? "Disable Solo Mode" : "Enable Solo Mode"}</button>`);
       bBtn.onclick = () => { Settings.set("soloMode", !sm); Router.go("solo"); };
       banner.appendChild(bBtn);
       root.appendChild(banner);
@@ -99,6 +99,32 @@ export const SoloMode = {
         strip.append(vit, openB, rr, sr, shr, mission);
         root.appendChild(strip);
       }
+
+      // Tabs: Play · Prompts · Journey · Foes (last tab remembered) — mirrors the sheet.
+      const TABS = [["play", "Play"], ["prompts", "Prompts"], ["journey", "Journey"], ["foes", "Foes"]];
+      let cur = "play"; try { cur = localStorage.getItem("dragonbane.soloTab") || "play"; } catch (_) {}
+      if (!TABS.some(([k]) => k === cur)) cur = "play";
+      const panes = {};
+      const tabBar = el(`<div class="tabs" role="tablist" aria-label="Solo tools"></div>`);
+      const selectTab = (k, focus) => {
+        cur = k; try { localStorage.setItem("dragonbane.soloTab", k); } catch (_) {}
+        tabBar.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.tab === k; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+        Object.entries(panes).forEach(([pk, pn]) => { pn.hidden = pk !== k; });
+      };
+      TABS.forEach(([k, label]) => {
+        panes[k] = el(`<div class="tab-panel" role="tabpanel" id="solo-pane-${k}" aria-labelledby="solo-tab-${k}" data-tab="${k}"></div>`);
+        const b = el(`<button type="button" class="tab" role="tab" id="solo-tab-${k}" data-tab="${k}" aria-controls="solo-pane-${k}">${label}</button>`);
+        b.onclick = () => selectTab(k);
+        tabBar.appendChild(b);
+      });
+      tabBar.onkeydown = (e) => {
+        const i = TABS.findIndex(([k]) => k === cur);
+        if (e.key === "ArrowRight") { e.preventDefault(); selectTab(TABS[(i + 1) % TABS.length][0], true); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); selectTab(TABS[(i + TABS.length - 1) % TABS.length][0], true); }
+      };
+      root.appendChild(tabBar);
+      TABS.forEach(([k]) => root.appendChild(panes[k]));
+      selectTab(cur);
 
       // Solo journal — persisted scene + running log with ＋ Log on every result.
       const journalPanel = el(`<div class="panel"><h3>📓 Solo Journal &amp; Scene</h3></div>`);
@@ -183,7 +209,7 @@ export const SoloMode = {
       const npcDet = el(`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">👥 NPCs met</summary></details>`);
       npcDet.append(npcsList, npcRow);
       journalPanel.appendChild(npcDet);
-      root.appendChild(journalPanel);
+      panes.play.appendChild(journalPanel);
 
       // ＋ Log / ＋ Thread buttons appended to every roll result.
       const resultBtns = (getText) => {
@@ -249,12 +275,12 @@ export const SoloMode = {
         fPanel.querySelector("#solo-f-out").innerHTML = `
           <div style="padding:10px;background:var(--bg);border-radius:6px;border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
             <p class="stat-line" style="margin:0 0 4px 0">Rolled ${rollText}</p>
-            <p style="font-size:1.4rem;font-weight:bold;margin:0;color:${twist ? "var(--accent)" : "var(--ok)"}">${esc(ans)}</p>
-            ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent)">★ Extreme result / twist!</p>` : ""}
+            <p style="font-size:1.4rem;font-weight:bold;margin:0;color:${twist ? "var(--accent-ink)" : "var(--ok)"}">${esc(ans)}</p>
+            ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent-ink)">★ Extreme result / twist!</p>` : ""}
           </div>`;
         fPanel.querySelector("#solo-f-out").appendChild(resultBtns(`Oracle (${colKey}, ${likeKey}): ${ans}${twist ? " [twist]" : ""}`));
       };
-      root.appendChild(fPanel);
+      panes.play.insertBefore(fPanel, panes.play.firstChild);
 
       // 2. Inspiration Table
       const insp = solo.inspiration || [];
@@ -294,7 +320,7 @@ export const SoloMode = {
       iPanel.querySelector("#solo-i-act").onclick = () => doInsp("act");
       iPanel.querySelector("#solo-i-att").onclick = () => doInsp("att");
       iPanel.querySelector("#solo-i-thg").onclick = () => doInsp("thg");
-      root.appendChild(iPanel);
+      panes.prompts.appendChild(iPanel);
 
       // 3. Narrative Twists
       const tw = solo.dragonDemonEffects || [];
@@ -303,8 +329,8 @@ export const SoloMode = {
           <h3>🐉 Narrative Twists (Out of Combat)</h3>
           <p class="stat-line">Roll 1D6 for non-combat twists when rolling a Dragon or Demon.</p>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn" style="flex:1;background:var(--ok);color:#fff" id="solo-t-drag">🐉 Dragon Twist</button>
-            <button class="btn" style="flex:1;background:var(--bad);color:#fff" id="solo-t-dem">👹 Demon Twist</button>
+            <button class="btn" style="flex:1;background:var(--ok-fill);color:var(--on-fill)" id="solo-t-drag">🐉 Dragon Twist</button>
+            <button class="btn" style="flex:1;background:var(--bad-fill);color:var(--on-fill)" id="solo-t-dem">👹 Demon Twist</button>
           </div>
           <div id="solo-t-out" style="margin-top:12px"></div>
         </div>`);
@@ -321,7 +347,7 @@ export const SoloMode = {
       };
       tPanel.querySelector("#solo-t-drag").onclick = () => doTwist(true);
       tPanel.querySelector("#solo-t-dem").onclick = () => doTwist(false);
-      root.appendChild(tPanel);
+      panes.prompts.appendChild(tPanel);
 
       // 4. Solo NPC Generator & Attack Roller
       const npcs = solo.npcTemplates || [];
@@ -427,7 +453,7 @@ export const SoloMode = {
           </div>`;
         nPanel.querySelector("#solo-n-out").appendChild(resultBtns(`NPC ${role}: ${actionText}`));
       };
-      root.appendChild(nPanel);
+      panes.foes.appendChild(nPanel);
 
       const jm = (DB.journeyMishaps || []);
       const hero = linked; // the linked hero (or null) — journey rolls use their sheet
@@ -503,7 +529,7 @@ export const SoloMode = {
         campOut.appendChild(box);
       };
       if (hero) {
-        const campBtn = el(`<button class="btn" style="margin-top:6px">🎲 Roll Bushcraft <span class="stat-line" style="color:#fff">(${esc(hero.identity.name)} · ${(Store.get(hero.id) || hero).skills.Bushcraft ? (Store.get(hero.id) || hero).skills.Bushcraft.level : "—"})</span></button>`);
+        const campBtn = el(`<button class="btn" style="margin-top:6px">🎲 Roll Bushcraft <span class="stat-line" style="color:inherit;opacity:.85">(${esc(hero.identity.name)} · ${(Store.get(hero.id) || hero).skills.Bushcraft ? (Store.get(hero.id) || hero).skills.Bushcraft.level : "—"})</span></button>`);
         campBtn.onclick = () => Roller.skill(hero.id, "Bushcraft", { onRoll: (success) => renderCampResult(success) });
         campSec.append(campBtn, campOut);
       } else {
@@ -558,13 +584,13 @@ export const SoloMode = {
 
       // 🌩️ Journey Mishap (D6) — roll & show the result
       const mishapSec = el(`<div style="border-top:1px solid var(--border);padding-top:10px"><p class="stat-line" style="margin:0 0 8px 0"><b>🌩️ Journey Mishap:</b> Bad luck befalls the party while travelling or resting.</p></div>`);
-      const mishapBtn = el(`<button class="btn" style="background:var(--bad);color:#fff">🎲 Roll Journey Mishap (D6)</button>`);
+      const mishapBtn = el(`<button class="btn" style="background:var(--bad-fill);color:var(--on-fill)">🎲 Roll Journey Mishap (D6)</button>`);
       const mishapOut = el(`<div></div>`);
       mishapBtn.onclick = () => { mishapOut.innerHTML = ""; mishapOut.appendChild(mishapNode(rollMishap())); };
       mishapSec.append(mishapBtn, mishapOut);
       jPanel.appendChild(mishapSec);
 
-      root.appendChild(jPanel);
+      panes.journey.appendChild(jPanel);
 
       return root;
     }

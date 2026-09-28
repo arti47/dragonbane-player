@@ -10,6 +10,7 @@ const TYPES = {
   ".css": "text/css",
   ".json": "application/json",
   ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
 };
 
 function createServer(root) {

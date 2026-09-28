@@ -21,7 +21,7 @@ export const mountScreen = (node) => { const s = $("#screen"); s.innerHTML = "";
 // Collapsed "how to use" help accordion for a screen. steps = array of HTML
 // bullet strings (already trusted markup). Returns a <details> DOM node.
 export const helpBox = (title, steps) => {
-    const d = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent)">❓ How to use — ${esc(title)}</summary></details>`);
+    const d = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">❓ How to use — ${esc(title)}</summary></details>`);
     const ul = document.createElement("ul");
     ul.className = "stat-line";
     ul.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";

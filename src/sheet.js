@@ -279,6 +279,7 @@ export const Sheet = {
           html += `<p class="stat-line" style="margin-top:8px">Successes <span class="dr-dots">${dots(sCount,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(fCount,"bad")}</span></p>`;
         }
         out.innerHTML = html;
+        Roller.stage(out, roll, `CON ${con}`, success, dragon, demon);
         if (head.querySelector(".cur-dr")) head.querySelector(".cur-dr").style.display = "none";
       };
 
@@ -320,7 +321,7 @@ export const Sheet = {
       const panel = el(`<div class="move-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0">
         <div class="move-meter" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
           <span>🏃 <b>Movement Pool:</b> <small style="color:var(--muted)">(Rating ${baseMove}m)</small></span>
-          <span class="move-val" style="font-size:1.3rem;font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent)"}">${remMove}m / ${maxMove}m</span>
+          <span class="move-val" style="font-size:1.3rem;font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
         </div>
         
         <p class="stat-line" style="margin:0 0 10px 0;font-size:0.85rem">
@@ -344,14 +345,14 @@ export const Sheet = {
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">HAZARDS:</span>
-            <button type="button" class="move-btn" style="flex:1;color:#b46428;border-color:#b46428" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
-            <button type="button" class="move-btn" style="flex:1;color:#2878b4;border-color:#2878b4" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
-            <button type="button" class="move-btn" style="flex:1;color:#784696;border-color:#784696" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
+            <button type="button" class="move-btn" style="flex:1;color:var(--gold-ink);border-color:var(--gold-ink)" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
+            <button type="button" class="move-btn" style="flex:1;color:var(--info);border-color:var(--info)" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
+            <button type="button" class="move-btn" style="flex:1;color:var(--arcane);border-color:var(--arcane)" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span style="font-size:0.8rem;font-weight:bold;color:var(--muted);min-width:60px;white-space:nowrap;flex:0 0 auto">TACTICS:</span>
-            <button type="button" class="move-btn" style="flex:1;color:#964646;border-color:#964646" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
+            <button type="button" class="move-btn" style="flex:1;color:var(--bad);border-color:var(--bad)" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
             <button type="button" class="move-btn" style="flex:1;color:var(--bad);border-color:var(--bad)" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
             <button type="button" class="move-btn" style="flex:1;color:var(--ok);border-color:var(--ok)" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
           </div>
@@ -705,7 +706,13 @@ export const Sheet = {
       const root = el(`<div></div>`);
 
       // Header
-      root.appendChild(el(`<div class="wiz-head"><button class="btn ghost" id="sheet-back">← Heroes</button><div class="wiz-progress">${esc(c.identity.name)}</div></div>`));
+      root.appendChild(el(`<div class="wiz-head"><button class="btn ghost" id="sheet-back">← Heroes</button></div>`));
+      // Tabs: Overview · Skills · Magic · Gear · Story (last tab remembered).
+      const TABS = [["overview", "Overview"], ["skills", "Skills"], ["magic", "Magic"], ["gear", "Gear"], ["story", "Story"]];
+      if (!this.tab) { try { this.tab = localStorage.getItem("dragonbane.sheetTab") || "overview"; } catch (_) { this.tab = "overview"; } }
+      if (!TABS.some(([k]) => k === this.tab)) this.tab = "overview";
+      const panes = {};
+      TABS.forEach(([k]) => { panes[k] = el(`<div class="tab-panel" role="tabpanel" id="sheet-pane-${k}" aria-labelledby="sheet-tab-${k}" data-tab="${k}"></div>`); });
       root.appendChild(helpBox("Character sheet", [
         "Step <b>HP / WP</b> with the −/+ buttons; at 0 HP a death-roll panel appears.",
         "Tap a <b>skill</b> to roll it (D20 ≤ level); toggle its <b>◦/●</b> to set an advancement mark.",
@@ -735,26 +742,29 @@ export const Sheet = {
       // Identity + derived + HP/WP
       const top = el(`<div class="panel"></div>`);
       const portUrl = c.identity.portraitUrl;
+      const nameWords = (c.identity.name || "?").trim().split(/\s+/);
+      const initials = (nameWords.length > 1 ? nameWords[0][0] + nameWords[nameWords.length - 1][0] : nameWords[0].slice(0, 2)).toUpperCase();
       const portImg = portUrl
-        ? `<img src="${portUrl}" alt="Portrait" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);cursor:pointer;flex-shrink:0" title="Tap to change portrait">`
-        : `<div style="width:56px;height:56px;border-radius:50%;background:var(--bg);border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:1.4rem;cursor:pointer;flex-shrink:0" title="Tap to upload portrait">🖼️</div>`;
+        ? `<img src="${portUrl}" alt="Portrait" class="portrait" title="Tap to change portrait">`
+        : `<div class="monogram" role="img" aria-label="Portrait placeholder" title="Tap to upload portrait">${esc(initials)}</div>`;
 
       const idWrap = el(`<div style="display:flex;align-items:center;gap:12px">
         <div id="portrait-wrap">${portImg}</div>
-        <div>
-          <h2 style="margin-bottom:2px">${esc(c.identity.name)}</h2>
+        <div style="min-width:0">
+          <h2 class="sheet-name">${esc(c.identity.name)}</h2>
           <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
         </div>
       </div>`);
       idWrap.querySelector("#portrait-wrap").onclick = () => { if (canEdit) this.uploadPortrait(); };
       top.appendChild(idWrap);
-      const attrRow = el(`<div class="rolled-row" style="margin-top:8px">${(DB.attributes||[]).map((at)=>`<span class="tag ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":""}">${at.key} ${a[at.key]}${condByAttr[at.key]?" ⚠":""}</span>`).join("")}</div>`);
+      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.key}"><span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
       top.appendChild(attrRow);
-      top.appendChild(el(`<p class="stat-line">${gloss("movement","Move")} ${c.derived.movement} · ${gloss("damage bonus","STR dmg")} ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"} · ${gloss("damage bonus","AGL dmg")} ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"} · ${gloss("encumbrance","Enc. limit")} ${encLimit(c)}</p>`));
+      top.appendChild(el(`<div class="derived-row stat-line"><span class="tag">${gloss("movement","Move")} ${c.derived.movement}</span><span class="tag">${gloss("damage bonus","STR dmg")} ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"}</span><span class="tag">${gloss("damage bonus","AGL dmg")} ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"}</span><span class="tag">${gloss("encumbrance","Enc. limit")} ${encLimit(c)}</span></div>`));
       // HP / WP steppers
       const stepper = (label, cur, max, key, cls) => {
         const plainLabel = String(label).replace(/<[^>]+>/g, ""); // aria text without gloss markup
-        const w = el(`<div class="vital ${cls}"><div class="vital-label">${label}</div></div>`);
+        const pct = (v) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
+        const w = el(`<div class="vital ${cls}${max > 0 && cur / max <= 0.25 ? " low" : ""}"><div class="vital-label">${label}</div><div class="vbar" aria-hidden="true"><i style="--pct:${pct(cur)}%"></i></div></div>`);
         const ctrl = el(`<div class="stepper"></div>`);
         const minus = el(`<button class="step" type="button" aria-label="Decrease ${plainLabel}">−</button>`);
         const val = el(`<span class="vital-val" role="status" aria-live="polite">${cur} / ${max}</span>`);
@@ -773,6 +783,9 @@ export const Sheet = {
             if (ch.state.deathRolls) c.state.deathRolls = ch.state.deathRolls;
           });
           val.textContent = `${c.state[key]} / ${max}`;
+          w.querySelector(".vbar > i").style.setProperty("--pct", pct(c.state[key]) + "%");
+          w.classList.toggle("low", max > 0 && c.state[key] / max <= 0.25);
+          val.classList.remove("pulse"); void val.offsetWidth; val.classList.add("pulse");
           // Concentration interruption: taking HP damage prompts a WIL roll.
           if (key === "hp" && d < 0 && c.state.hp < prevHp) this.concentrationCheck();
           if (key === "hp" && ((prevHp <= 0 && c.state.hp > 0) || (prevHp > 0 && c.state.hp <= 0))) {
@@ -790,7 +803,7 @@ export const Sheet = {
       top.appendChild(vitals);
 
       // Movement Tracker
-      top.appendChild(this.buildMovementDOM(c, () => this.render()));
+      panes.overview.appendChild(this.buildMovementDOM(c, () => this.render()));
 
       // Permanent WP loss (rituals / corruption)
       if (c.state.wpPenalty || (c.spells.tricks || []).length || (c.spells.known || []).length) {
@@ -799,10 +812,10 @@ export const Sheet = {
         const plus = el(`<button class="step" title="lose 1 permanent max WP">+</button>`);
         minus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = Math.max(0, (ch.state.wpPenalty || 0) - 1); ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
         plus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = (ch.state.wpPenalty || 0) + 1; ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
-        pen.append(minus, plus); top.appendChild(pen);
+        pen.append(minus, plus); panes.magic.appendChild(el(`<div class="panel"></div>`)).appendChild(pen);
       }
       // Rest buttons
-      const restRow = el(`<div class="rest-row"></div>`);
+      const restRow = el(`<div class="rest-row grid-3" style="margin-top:10px"></div>`);
       [["Round rest","round","+D6 WP"],["Stretch rest","stretch","+D6 HP/WP, heal 1 condition"],["Shift rest","shift","full HP/WP, all conditions"]].forEach(([label,kind,hint]) => {
         const b = el(`<button class="btn ghost rest-btn" title="${hint}">${label}</button>`);
         b.onclick = () => this.rest(kind);
@@ -810,6 +823,38 @@ export const Sheet = {
       });
       top.appendChild(restRow);
       root.appendChild(top);
+      const dyingSlot = el(`<div></div>`); root.appendChild(dyingSlot);
+      // Tab bar
+      const condCount = Object.values(c.state.conditions || {}).filter(Boolean).length;
+      const markCount = Object.values(c.skills).filter((v) => v.mark).length;
+      const badges = { overview: condCount, skills: markCount };
+      const tabBar = el(`<div class="tabs" role="tablist" aria-label="Character sheet sections"></div>`);
+      const selectTab = (k, focus) => {
+        this.tab = k; try { localStorage.setItem("dragonbane.sheetTab", k); } catch (_) {}
+        tabBar.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.tab === k; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+        Object.entries(panes).forEach(([pk, pn]) => { pn.hidden = pk !== k; });
+      };
+      TABS.forEach(([k, label]) => {
+        const b = el(`<button type="button" class="tab" role="tab" id="sheet-tab-${k}" data-tab="${k}" aria-controls="sheet-pane-${k}">${label}${badges[k] ? ` <span class="tab-badge">${badges[k]}</span>` : ""}</button>`);
+        b.onclick = () => {
+          selectTab(k);
+          // If the bar is stuck under the header, jump to the top of the new pane.
+          const hh = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 60;
+          const anchor = tabBar.previousElementSibling || tabBar;
+          const y = anchor.getBoundingClientRect().bottom + window.scrollY - hh;
+          if (window.scrollY > y) window.scrollTo(0, y);
+        };
+        tabBar.appendChild(b);
+      });
+      tabBar.onkeydown = (e) => {
+        const i = TABS.findIndex(([k]) => k === this.tab);
+        if (e.key === "ArrowRight") { e.preventDefault(); selectTab(TABS[(i + 1) % TABS.length][0], true); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); selectTab(TABS[(i + TABS.length - 1) % TABS.length][0], true); }
+      };
+      root.appendChild(tabBar);
+      TABS.forEach(([k]) => root.appendChild(panes[k]));
+      panes.overview.classList.add("two-col");
+      selectTab(this.tab);
 
       // Advanced / GM Automation panel (Phase 18) — gated behind one toggle.
       if (Settings.gmAutomation()) {
@@ -845,7 +890,7 @@ export const Sheet = {
         statusRow.append(coldBtn, coldRoll, disBtn, disRoll, fearBtn);
         gmPanel.appendChild(statusRow);
         if (af.disease) gmPanel.appendChild(el(`<p class="stat-line">Disease virulence: <b>${af.disease.virulence}</b></p>`));
-        root.appendChild(gmPanel);
+        panes.overview.appendChild(gmPanel);
       }
 
       // Death & dying
@@ -870,19 +915,19 @@ export const Sheet = {
         } else {
           dyingPanel.appendChild(el(`<p class="notice" style="border-color:var(--bad)">Your hero has fallen. Heal them above 0 HP to revive (or delete below).</p>`));
         }
-        root.appendChild(dyingPanel);
+        dyingSlot.appendChild(dyingPanel);
       }
 
       // Conditions
       const condPanel = el(`<div class="panel"><h3>Conditions</h3><p class="stat-line">Each imposes a bane on rolls using its attribute. Gained by pushing a roll.</p></div>`);
-      const cw = el(`<div class="chip-wrap"></div>`);
+      const cw = el(`<div class="cond-grid"></div>`);
       (DB.conditions || []).forEach((cn) => {
         const on = !!c.state.conditions[cn.key];
-        const chip = el(`<button class="skill-chip ${on?"cond-on":""}">${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
+        const chip = el(`<button class="skill-chip ${on?"cond-on":""}" aria-pressed="${on?"true":"false"}">${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
         chip.onclick = () => this.mutate((ch) => { ch.state.conditions[cn.key] = !ch.state.conditions[cn.key]; });
         cw.appendChild(chip);
       });
-      condPanel.appendChild(cw); root.appendChild(condPanel);
+      condPanel.appendChild(cw); panes.overview.insertBefore(condPanel, panes.overview.firstChild);
 
       // Skills
       const skPanel = el(`<div class="panel"><h3>Skills</h3><p class="stat-line">Tap a skill to roll it. Tap the ◦ to toggle an advancement mark (ticked on a Dragon/Demon). ⚠ = a condition banes this skill.</p></div>`);
@@ -898,13 +943,20 @@ export const Sheet = {
       gainBtn.onclick = () => this.gainHeroicAbility(1);
       const catchupBtn = el(`<button class="btn ghost" title="replacement PC catch-up: extra advancement roll per session played">💀 Catch up (Death)</button>`);
       catchupBtn.onclick = () => this.replacementCatchup();
-      advRow.append(advBtn, teachBtn, studyBtn, gainBtn, catchupBtn);
+      advRow.append(advBtn);
       if (Settings.soloMode()) {
         const missionBtn = el(`<button class="btn ghost" title="solo: gain 5 advancement marks for a completed mission" style="border-color:var(--accent)">🏅 Mission (+5 marks)</button>`);
         missionBtn.onclick = () => this.soloMissionMarks();
         advRow.appendChild(missionBtn);
       }
+      const advMore = el(`<details class="adv-menu"><summary>Train teacher · Study library · Gain ability · Catch up</summary></details>`);
+      const advMoreRow = el(`<div class="rest-row" style="margin:6px 0 4px"></div>`);
+      advMoreRow.append(teachBtn, studyBtn, gainBtn, catchupBtn); advMore.appendChild(advMoreRow);
       skPanel.appendChild(advRow);
+      // Filter: all skills / trained only (remembered).
+      let trainedOnly = false; try { trainedOnly = localStorage.getItem("dragonbane.skillFilter") === "trained"; } catch (_) {}
+      const seg = el(`<div class="seg" role="group" aria-label="Skill filter"><button type="button" data-f="all">All</button><button type="button" data-f="trained">Trained</button></div>`);
+      skPanel.appendChild(seg);
       const skList = el(`<div class="skill-list"></div>`);
       Object.entries(c.skills).sort((x,y)=>x[0].localeCompare(y[0])).forEach(([n,v]) => {
         const baned = condByAttr[v.attribute];
@@ -916,15 +968,19 @@ export const Sheet = {
         row.querySelector(".sk-name").onclick = () => Roller.skill(this.id, n);
         skList.appendChild(row);
       });
-      skPanel.appendChild(skList); root.appendChild(skPanel);
+      const applyFilter = () => { skList.classList.toggle("trained-only", trainedOnly); seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", (b.dataset.f === "trained") === trainedOnly ? "true" : "false")); };
+      seg.querySelectorAll("button").forEach((b) => { b.onclick = () => { trainedOnly = b.dataset.f === "trained"; try { localStorage.setItem("dragonbane.skillFilter", trainedOnly ? "trained" : "all"); } catch (_) {} applyFilter(); }; });
+      applyFilter();
+      skPanel.appendChild(skList); skPanel.appendChild(advMore); panes.skills.appendChild(skPanel);
 
       // Abilities
-      root.appendChild(el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p><b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`));
+      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p><b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`);
+      panes.overview.appendChild(abPanel);
 
       // Magic — always shown so a non-caster can still Learn magic (Magic Talent, Dracomancy, …).
       {
         const hasMagic = (c.spells.tricks||[]).length || (c.spells.known||[]).length;
-        const magicPanel = el(`<details class="panel rule-accordion"${hasMagic ? " open" : ""} style="padding:10px"><summary style="font-size:1.2rem;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></summary><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"></div></details>`);
+        const magicPanel = el(`<div class="panel"><h3 style="display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></h3><div></div></div>`);
         const inner = magicPanel.querySelector("div");
         const learnBtn = el(`<button class="btn ghost" style="margin-bottom:8px">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
@@ -933,7 +989,7 @@ export const Sheet = {
         const spellRow = (x, isTrick) => {
           const isPrep = isTrick || x.prepared !== false;
           const tagStr = isTrick ? "Trick · 1 WP" : `Rank ${x.rank}` + (isPrep ? " · Prepared" : " · Grimoire");
-          const row = el(`<div class="cast-row"><div class="cast-info"><b>${esc(x.name)}</b> <span class="tag" style="${!isPrep ? 'background:var(--muted);color:#fff' : ''}">${tagStr}</span><br><span class="stat-line">${esc(x.text||"")}</span></div></div>`);
+          const row = el(`<div class="cast-row"><div class="cast-info"><b>${esc(x.name)}</b> <span class="tag" style="${!isPrep ? 'background:var(--ink-soft);color:var(--bg-panel)' : ''}">${tagStr}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></div></div>`);
           const btns = el(`<div class="cast-actions"></div>`);
           const cast = el(`<button class="btn secondary cast-btn">Cast</button>`);
           cast.onclick = () => Roller.cast(this.id, x, isTrick);
@@ -946,18 +1002,18 @@ export const Sheet = {
           return row;
         };
         if ((c.spells.tricks||[]).length) {
-          const tDet = el(`<details open style="margin-bottom:10px;background:var(--bg-raised);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">🎩 Magic Tricks (${c.spells.tricks.length})</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div></details>`);
+          const tDet = el(`<div><h4 class="magic-sub">🎩 Magic Tricks (${c.spells.tricks.length})</h4><div style="display:flex;flex-direction:column"></div></div>`);
           const tDiv = tDet.querySelector("div");
           c.spells.tricks.forEach((x) => tDiv.appendChild(spellRow(x, true)));
           inner.appendChild(tDet);
         }
         if ((c.spells.known||[]).length) {
-          const sDet = el(`<details open style="margin-bottom:6px;background:var(--bg-raised);padding:8px;border-radius:6px;border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">📜 Known Spells (${c.spells.known.length})</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div></details>`);
+          const sDet = el(`<div><h4 class="magic-sub">📜 Known Spells (${c.spells.known.length})</h4><div style="display:flex;flex-direction:column"></div></div>`);
           const sDiv = sDet.querySelector("div");
           c.spells.known.forEach((x) => sDiv.appendChild(spellRow(x, false)));
           inner.appendChild(sDet);
         }
-        root.appendChild(magicPanel);
+        panes.magic.insertBefore(magicPanel, panes.magic.firstChild);
       }
 
       // Active spells & effects (Phase 4B) — always shown so any hero can track a
@@ -976,7 +1032,7 @@ export const Sheet = {
         const doAddFx = () => { const n = fxName.value.trim(); if (!n) return; this.addEffect(n, false, ""); };
         fxBtn.onclick = doAddFx; fxName.onkeydown = (e) => { if (e.key === "Enter") doAddFx(); };
         addFx.append(fxName, fxBtn); fxPanel.appendChild(addFx);
-        root.appendChild(fxPanel);
+        panes.magic.appendChild(fxPanel);
       }
 
       // Familiar WP splitting (Phase 15) — a mage may assign up to half their
@@ -1012,7 +1068,7 @@ export const Sheet = {
           rm.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + (f.wp || 0)); ch.state.familiar = null; });
           famPanel.appendChild(rm);
         }
-        root.appendChild(famPanel);
+        panes.magic.appendChild(famPanel);
       }
 
       // Summons & Companions (Phase 4B)
@@ -1039,14 +1095,14 @@ export const Sheet = {
       const doAddComp = () => { const n = compName.value.trim(); if (!n) return; this.addCompanion(n, Math.max(0, Number(compHp.value) || 0), ""); };
       compBtn.onclick = doAddComp; compName.onkeydown = (e) => { if (e.key === "Enter") doAddComp(); };
       addComp.append(compName, compHp, compBtn); compPanel.appendChild(addComp);
-      root.appendChild(compPanel);
+      panes.magic.appendChild(compPanel);
 
       // Inventory + encumbrance (slot-based, rules-accurate)
       const used = encUsed(c), limit = encLimit(c), over = used > limit;
       const invPanel = el(`<div class="panel"><h3>Inventory</h3></div>`);
       const coinTot = (c.inventory.money.gold||0)+(c.inventory.money.silver||0)+(c.inventory.money.copper||0);
       const coinSlots = Math.floor(coinTot / ((DB.currency && DB.currency.coinsPerItem) || 100));
-      invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":""}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>`));
+      invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":(limit && used/limit>=0.75?"warn":"")}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>`));
       invPanel.appendChild(el(`<p class="stat-line">${used} / ${limit} item slots used${coinSlots?` · ${coinTot} coins → ${coinSlots} slot${coinSlots>1?"s":""}`:""}${over?` · <b style="color:var(--bad)">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
       if (over) {
         const strBtn = el(`<button class="btn ghost block" style="border-color:var(--bad);color:var(--bad);margin-bottom:10px">⚖ Roll STR to move (over-encumbered)</button>`);
@@ -1065,7 +1121,8 @@ export const Sheet = {
       const counts = { armor: 0, helmet: 0, weapon: 0 };
       items.forEach((x) => { if (x.equipped) { const k = classifyItem(x.name); if (counts[k] != null) counts[k]++; } });
       const itemRow = (it, i, isEquipped) => {
-        const row = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)}</span></div>`);
+        const line = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)}</span><span class="inv-ctrl"></span></div>`);
+        const row = line.querySelector(".inv-ctrl"); // controls cluster (wraps as one unit)
         const slot = classifyItem(it.name);
         const wpns = resolveEquippedWeapons([it]);
         wpns.forEach((wpn) => {
@@ -1107,14 +1164,14 @@ export const Sheet = {
           row.append(el(`<span class="stat-line">wt</span>`), wt);
         }
         if (it.name.match(/\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i)) {
-          const useBtn = el(`<button class="step" style="width:auto;padding:0 6px;border-color:#50c878;color:#50c878" title="consume potion/brew">🧪 Use</button>`);
+          const useBtn = el(`<button class="step" style="width:auto;padding:0 6px;border-color:var(--ok);color:var(--ok)" title="consume potion/brew">🧪 Use</button>`);
           useBtn.onclick = () => SpellAutomation.usePotion(this.id, it, i);
           row.append(useBtn);
         }
         const rm = el(`<button class="step rm" aria-label="Remove ${esc(it.name)}">✕</button>`);
         rm.onclick = () => this.mutate((ch) => { ch.inventory.items.splice(i, 1); });
         row.append(rm);
-        return row;
+        return line;
       };
 
       const equippedIdx = items.map((it, i) => ({ it, i })).filter((x) => x.it.equipped);
@@ -1151,7 +1208,7 @@ export const Sheet = {
         ctrl.append(m, v, p); box.appendChild(ctrl); money.appendChild(box);
       });
       invPanel.appendChild(el(`<h3 style="margin-top:14px">Money</h3>`)); invPanel.appendChild(money);
-      root.appendChild(invPanel);
+      panes.gear.appendChild(invPanel);
 
       // Flavor + notes
       const flav = el(`<div class="panel"><h3>Character</h3>
@@ -1192,24 +1249,24 @@ export const Sheet = {
       const notes = el(`<textarea rows="4" placeholder="Session notes, threads, loot…"></textarea>`);
       notes.value = c.notes || "";
       notes.oninput = () => { if (canEdit) Store.update(this.id, (ch) => { ch.notes = notes.value; }); }; // save without re-render
-      notesField.appendChild(notes); flav.appendChild(notesField); root.appendChild(flav);
+      notesField.appendChild(notes); flav.appendChild(notesField); panes.story.appendChild(flav);
 
       if (canEdit) {
         if (inPartyCamp) {
           const inParty = c.campaignId === Sync.campaign.id;
           const partyBtn = el(`<button class="btn secondary block" style="margin-top:14px">${inParty ? "🛡️ Remove from Party Campaign" : "⚡ Add to Party Campaign"}</button>`);
           partyBtn.onclick = () => { Store.toggleParty(this.id); this.render(); };
-          root.appendChild(partyBtn);
+          panes.story.appendChild(partyBtn);
         }
         // Delete
-        const del = el(`<button class="btn ghost block" style="margin-top:6px">Delete hero</button>`);
+        const del = el(`<button class="btn danger-ghost block" style="margin-top:6px">Delete hero</button>`);
         del.onclick = async () => { if (await confirmModal("Delete " + c.identity.name + "? This cannot be undone.", { title: "Delete hero", okText: "Delete", danger: true })) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
-        root.appendChild(del);
+        panes.story.appendChild(del);
       } else {
         notes.readOnly = true;
         root.querySelectorAll("input").forEach(inp => inp.disabled = true);
         root.addEventListener("click", (e) => {
-          if (e.target.id === "sheet-back" || e.target.closest("#sheet-back")) return;
+          if (e.target.id === "sheet-back" || e.target.closest("#sheet-back, .tabs, .seg, .more-btn, summary")) return;
           e.stopPropagation();
           e.preventDefault();
           this.toast("🔒 Read-Only: You cannot roll or edit another player's hero.");
@@ -1220,6 +1277,23 @@ export const Sheet = {
       const y = window.scrollY;
       const s = $("#screen"); s.innerHTML = ""; s.appendChild(root); window.scrollTo(0, y);
       root.querySelector("#sheet-back").onclick = () => { window.activeCharacterId = null; Router.go("home"); };
+      this.applyClamps(root);
+    },
+
+    // Long ability/spell texts collapse to two lines with a "More" toggle
+    // (measured after mount, per visible pane, so only real overflow gets one).
+    applyClamps(root) {
+      const run = () => root.querySelectorAll(".tab-panel:not([hidden]) .clampable:not([data-clamped])").forEach((t) => {
+        if (!t.textContent || t.textContent.length < 120) { t.dataset.clamped = "0"; return; }
+        t.classList.add("clamp");
+        if (t.scrollHeight <= t.clientHeight + 2) { t.classList.remove("clamp"); t.dataset.clamped = "0"; return; }
+        t.dataset.clamped = "1";
+        const more = el(`<button type="button" class="more-btn" aria-expanded="false">More</button>`);
+        more.onclick = (e) => { e.stopPropagation(); const open = t.classList.toggle("clamp"); more.textContent = open ? "More" : "Less"; more.setAttribute("aria-expanded", open ? "false" : "true"); };
+        t.after(more);
+      });
+      run();
+      root.querySelectorAll(".tabs .tab").forEach((b) => b.addEventListener("click", () => requestAnimationFrame(run)));
     }
   };
 

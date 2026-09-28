@@ -4,6 +4,7 @@ import { $, el, GLOSSARY } from './core.js';
 import { modal, showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
 import { Router } from './router.js';
+import { startIcons } from './icons.js';
 
 export function init() {
     if (typeof Sync !== "undefined") Sync.init();
@@ -27,6 +28,13 @@ export function init() {
     }
 
     Theme.init();
+    startIcons();
+    // Sticky tab bars sit just under the header; expose its live height.
+    const hdr = document.querySelector(".app-header");
+    const setHdr = () => { if (hdr) document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px"); };
+    setHdr();
+    if (hdr && window.ResizeObserver) new ResizeObserver(setHdr).observe(hdr);
+    window.addEventListener("resize", setHdr);
     Router.init();
 
     // Inline glossary: tap (or Enter/Space on) any .gloss token to show its definition.
