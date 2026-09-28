@@ -13,6 +13,8 @@ import { SoloMode } from './solo.js';
 import { GM } from './gm.js';
 import { icon } from './icons.js';
 import { crest, emblem, illo } from './graphics.js';
+import { renderRuleDetail, rulesScreen } from './library.js';
+export { renderRuleDetail };
 import { Router } from './router.js';
 
 export function renderPartyBanner() {
@@ -172,78 +174,7 @@ export const Screens = {
 
     party() { return Combat.view(); },
 
-    rules() {
-      const root = el(`
-        <div>
-          ${sectionTitle("Rules library & Compendiums")}
-          <div class="panel search-panel" style="margin-bottom:12px;padding:10px">
-            <div class="search-wrap">
-              <span class="search-ic">${icon("search")}</span>
-              <input type="search" id="rules-search" class="input" placeholder="Search rules, spells, gear, journeys…" aria-label="Search rules, spells, gear, journeys" autocomplete="off" style="width:100%">
-              <button type="button" class="search-clear" aria-label="Clear search" hidden>✕</button>
-            </div>
-            <div class="search-count" role="status" aria-live="polite"></div>
-            <div class="empty-illo search-empty" hidden>${illo("book")}</div>
-          </div>
-          <div class="u-col2" id="rules-acc-wrap"></div>
-        </div>`);
-      root.insertBefore(helpBox("Rules library", [
-        "Tap a category header to expand it; tap again to collapse.",
-        "Type in the <b>search</b> box to filter across every rule, spell, and item.",
-        "New to the game? Start with <b>📘 How to Play</b> for the full tutorial.",
-        "Extra magic schools appear only with <b>Book of Magic</b> on (About)."
-      ]), root.querySelector("#rules-acc-wrap"));
-
-      const cats = [
-        ["📘 How to Play (Tutorial)", "howtoplay"],
-        ["🔄 Core Loop & Gameplay Stages", "stages"],
-        ["🌲 Wilderness Journeys & Travel", "journeys"],
-        ["🧑 Kin", "kin"],
-        ["🛡️ Professions", "professions"],
-        ["🎯 Skills", "skills"],
-        ["⚡ Heroic Abilities", "heroicAbilities"],
-        ["✨ Spells & Tricks", "spells"],
-        ["⚔️ Weapons & Armor", "equipment"],
-        ["🎒 Adventuring Gear", "gear"]
-      ];
-
-      const accWrap = root.querySelector("#rules-acc-wrap");
-      cats.forEach(([label, key]) => {
-        const contentHtml = renderRuleDetail(key, null);
-        const acc = el(`<details class="rule-accordion" data-cat="${key}" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px;overflow:hidden">
-          <summary class="cat-summary">
-            <span>${label}</span><span class="chev" aria-hidden="true"></span>
-          </summary>
-          <div class="rule-content" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">${contentHtml}</div>
-        </details>`);
-        accWrap.appendChild(acc);
-      });
-
-      const sInp = root.querySelector("#rules-search");
-      const sClr = root.querySelector(".search-clear");
-      const sCnt = root.querySelector(".search-count");
-      sInp.oninput = (e) => {
-        const q = e.target.value.toLowerCase().trim();
-        let hits = 0;
-        root.querySelectorAll("details.rule-accordion").forEach(acc => {
-          if (!q) {
-            acc.style.display = "";
-            acc.open = false;
-          } else {
-            const text = acc.textContent.toLowerCase();
-            const match = text.includes(q);
-            acc.style.display = match ? "" : "none";
-            if (match) { acc.open = true; if (acc.parentElement && acc.parentElement.id === "rules-acc-wrap") hits++; }
-          }
-        });
-        sClr.hidden = !q;
-        sCnt.textContent = q ? (hits ? `${hits} of ${cats.length} categories match` : "No matches") : "";
-        const sEmpty = root.querySelector(".search-empty"); if (sEmpty) sEmpty.hidden = !(q && !hits);
-      };
-      sClr.onclick = () => { sInp.value = ""; sInp.oninput({ target: sInp }); sInp.focus(); };
-
-      return root;
-    },
+    rules() { return rulesScreen(); },
 
     about() {
       const installed = window.matchMedia("(display-mode: standalone)").matches;
@@ -378,101 +309,6 @@ export const Screens = {
       reader.readAsText(file);
     }
   };
-
-  /* ---- Rule detail rendering ----------------------------------------- */
-
-export function renderRuleDetail(key, container) {
-    let html = "";
-    if (key === "howtoplay") {
-      const acc = (title, body, open) => `<details class="rule-accordion" style="background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px"${open ? " open" : ""}><summary class="u-bold-ptr">${title}</summary><div class="stat-line u-mt2">${body}</div></details>`;
-      html = `<div class="panel" style="border-left:4px solid var(--accent)">
-        <h3>📘 How to Play</h3>
-        <p class="stat-line">Combined rules primer + how to drive this app. Nav tabs: <b>⚔ Heroes</b>, <b>🛡 Combat</b>, <b>🧭 Solo</b> (when enabled), <b>🎲 GM</b> (when enabled), <b>📖 Rules</b>, <b>⚙ About</b>.</p>
-        ${acc("🎬 Your first session — Start → Keep playing → End well", "<b>START.</b><br>① On <b>⚔ Heroes</b>, tap <b>Forge a new hero</b> (or <b>Use a pre-generated hero</b> to skip creation).<br>② Choose how you'll play. <b>With friends:</b> one person opens <b>⚙ About → Create campaign</b> and shares the join code; everyone else taps <b>Join</b>. <b>Solo (no GM):</b> About → turn on <b>Solo Mode</b>, open the <b>🧭 Solo</b> tab, and pick your hero under <b>🎲 Rolling as</b>.<br>③ Set the opening <b>scene</b> — where you are and your goal (group: the GM says it aloud; solo: type it in the Solo <b>Journal</b>).<br><br><b>KEEP PLAYING — repeat this each scene:</b><br>④ Decide what happens: the <b>GM</b> narrates, or (solo) tap the <b>Fortune Chart</b> oracle for a yes/no answer.<br>⑤ <b>Act:</b> open your sheet and tap a <b>skill</b> to roll <b>D20 ≤ its level</b>. Miss? <b>Push</b> (take a Condition and re-roll) or (solo) <b>🎲 Fail forward</b>.<br>⑥ <b>Fights</b> run on the <b>🛡 Combat</b> tab: add foes, <b>Draw initiative</b>, then attack/cast and apply damage.<br>⑦ <b>Recover</b> with the sheet's <b>Rest</b> buttons (Round / Stretch / Shift).<br>⑧ Keep notes in the <b>Journal</b> / Notes and track open questions as <b>🧵 Threads</b>.<br><br><b>END WELL.</b><br>⑨ At a good stopping point, on the sheet tap <b>End session — advancement</b>: answer the 5 questions, then roll each marked skill to try to improve it.<br>⑩ <b>Solo:</b> when a mission is complete, tap <b>🏅 Mission +5</b> instead.<br>⑪ Progress saves automatically (and syncs in a campaign; use <b>About → Export</b> for a backup).<br>⑫ Jot the <b>next scene</b> in your journal so you can pick up easily next time.", true)}
-        ${acc("① Setup &amp; storage", "The app runs offline in <b>Local</b> mode (top-right pill) — no login. For a shared party, tap the pill or <b>About → Multiplayer</b> to <b>create a campaign</b> (get a join code) or <b>join</b> one. Optional Google link in About backs up across devices. Content toggles in About: <b>Book of Magic</b>, <b>Solo Mode</b>, <b>GM Automation</b>, <b>GM Screen</b>.", true)}
-        ${acc("② Make a hero", "<b>Heroes → Forge a new hero</b> runs the 9-step wizard: roll 4D6-drop-lowest ×6 and assign to STR/CON/AGL/INT/WIL/CHA, pick kin, profession (mages/Harmonism-bards pick a school), age, trained skills (6 + age bonus), heroic ability or magic, gear, details. Or <b>Use a pre-generated hero</b> for a Core Set PC. Everything derived (HP=CON, WP=WIL, movement, damage bonus, skill chances) is computed for you.", false)}
-        ${acc("③ Core roll mechanic", "Roll <b>D20 ≤ skill</b> (tap a skill on the sheet). <b>1 = Dragon</b> (crit), <b>20 = Demon</b> (fumble) — both auto-add an advancement mark. A <b>boon</b> rolls 2D20 keep lowest, a <b>bane</b> keep highest (net stepper; conditions/worn-armor auto-apply banes). Fail a roll → <b>Push</b>: take a condition (its attribute is then baned) and re-roll. Six conditions: Exhausted/STR, Sickly/CON, Dazed/AGL, Angry/INT, Scared/WIL, Disheartened/CHA.", false)}
-        ${acc("④ Combat", "<b>Combat</b> tab: add heroes, Bestiary monsters, rulebook NPCs, or custom foes. <b>Draw initiative</b> (cards 1–10, low acts first). Each turn = move + action; expand a row for weapon attacks (auto damage bonus + armor mitigation via the damage applier), spell casting, movement pool, and parry/dodge reactions. Monsters auto-hit (roll their D6 table ×Ferocity); NPCs roll d20. <b>Next turn/round</b> redraws. GM-locked in a synced campaign.", false)}
-        ${acc("⑤ Magic", "Tap a spell/trick on the sheet or in combat. Tricks (rank 0) cost 1 WP, auto-succeed. Spells cost 2 WP/level (power level 1–3), roll the school skill; failure still spends WP; Demon → mishap table. Metal armor/weapon blocks casting. The VTT resolution card handles heal/damage/AoE/summon/etc. Learn new spells/schools via the sheet's Magic panel.", false)}
-        ${acc("⑥ Rest, death &amp; advancement", "<b>Round rest</b> +D6 WP (once/shift), <b>Stretch rest</b> +D6 HP/WP + heal a condition (once/shift), <b>Shift rest</b> full HP/WP + clear conditions. At <b>0 HP</b> a dying panel runs death rolls (D20 ≤ CON; 3 successes stabilize, 3 fail = death). <b>End session — advancement</b> answers the 5 questions then rolls each marked skill (improve on a roll over its level, max 18).", false)}
-        ${acc("▶ Running a NON-SOLO game (group + GM)", "One player <b>creates a campaign</b> (About) → becomes GM → shares the join code; others <b>join</b>. Add your PC to the party (Heroes card toggle / sheet). Sheets, party HP/WP/conditions, and the combat tracker sync live. GM turns on <b>GM Screen</b> (About) for the <b>🎲 GM</b> tab: live party panel, peek any sheet, drop monsters/NPCs into combat, hand out damage/conditions/fear, roll+push private tables, broadcast messages. Combat controls (initiative/turns/reset) are GM-locked in a synced campaign. Loop: GM frames a scene → players roll skills → combat as needed → rest → end-of-session advancement.", false)}
-        ${acc("🧭 Running a SOLO game (no GM)", "Enable <b>Solo Mode</b> (About) → <b>🧭 Solo</b> tab; creation grants a 2nd free heroic ability (Army of One / Sole Survivor). Solo tab tools: <b>Fortune Chart</b> oracle (ask yes/no etc. at a likelihood), <b>Inspiration</b> (3D20 prompt), <b>Dragon/Demon</b> narrative twists, <b>NPC generator</b> + attack-table AI, and <b>Wilderness Journeys &amp; Travel Tools</b> (random shift, Camp/Forage skill rolls, Journey Mishap with follow-up WIL/CON check). <b>Link a hero</b> at the top of the Solo tab so those rolls use your sheet + full dice engine. Loop: set a scene → ask the oracle → roll skills/combat → mishaps → advance (Solo: <b>Mission +5 marks</b>). Fail-forward turns failures into complications.", false)}
-        ${acc("🔤 Glossary (game terms)", "<b>HP</b> Hit Points — how much damage you can take (0 = dying). · <b>WP</b> Willpower Points — the fuel for spells &amp; heroic abilities. · <b>Skill</b> a rating 1–18; you succeed by rolling D20 <b>≤</b> it (roll-under). · <b>Boon</b> roll 2D20, keep the lower (better). · <b>Bane</b> roll 2D20, keep the higher (worse). · <b>Push</b> re-roll a failed check by taking a Condition. · <b>Condition</b> one of six states (Exhausted/Sickly/Dazed/Angry/Scared/Disheartened); each banes rolls using its attribute. · <b>Dragon</b> a natural 1 = critical success. · <b>Demon</b> a natural 20 = fumble. · <b>Kin</b> your ancestry (Human, Elf, Dwarf…). · <b>Heroic ability</b> a special power (some cost WP). · <b>Round</b> ~10s of combat. · <b>Stretch</b> a short break (minutes). · <b>Shift</b> ~6 hours (Morning/Day/Evening/Night). · <b>Advancement mark</b> a tick a skill earns on a Dragon/Demon; at session end you may roll to improve it. · <b>Oracle</b> (solo) a yes/no answer engine that stands in for a GM.", false)}
-      </div>`;
-    } else if (key === "stages") {
-      html = `<div class="panel" style="border-left:4px solid var(--accent)">
-        <h3>Core Gameplay Loop &amp; Stages</h3>
-        <details class="u-mb2" open><summary style="cursor:pointer"><b>⏱️ Time Scales (Rounds vs Shifts)</b></summary>
-          <p class="stat-line u-mt1">· <b>Combat Rounds:</b> Roughly 10 seconds. Every combatant gets 1 Turn (Action + Movement).<br>· <b>Wilderness Shifts:</b> Roughly 6 hours (Morning, Day, Evening, Night).</p>
-        </details>
-        <details class="u-mb2"><summary style="cursor:pointer"><b>⚔️ Combat Stage Sequence</b></summary>
-          <p class="stat-line u-mt1">1. <b>Draw Initiative:</b> 1 to 10 ascending.<br>2. <b>Take Turns:</b> Move + Action (Attack, Cast, Dash, Rally).<br>3. <b>Reaction:</b> Parry or Evade (spends your upcoming action).<br>4. <b>End Round:</b> Redraw cards if needed.</p>
-        </details>
-        <details class="u-mb2"><summary style="cursor:pointer"><b>🎲 Core D20 Mechanic &amp; Pushing</b></summary>
-          <p class="stat-line u-mt1">Roll D20 ≤ Skill level. 1 is Dragon (Critical), 20 is Demon (Mishap). If you fail, you can <b>Push</b> the roll by accepting a Condition Bane (Exhausted, Battered, etc.).</p>
-        </details>
-      </div>`;
-    } else if (key === "journeys") {
-      html = `<div class="panel" style="border-left:4px solid var(--ok)">
-        <h3>Wilderness Journeys &amp; Travel</h3>
-        <p class="stat-line"><b>Time Measurement:</b> In wilderness, time is measured in <b>Shifts</b> (Morning, Day, Evening, Night — ~6h each). Travel speed: 1 node/hex per shift.</p>
-        <p><b>⛺ Camp &amp; Rest:</b> Making camp requires a Bushcraft check. Success lets party rest (Shift rest = restore full HP/WP). Failure means no rest &amp; roll on Mishap Table.</p>
-        <p><b>🍄 Foraging &amp; Hunting:</b> Spend a shift making Bushcraft/Hunting checks to gather rations.</p>
-        <h4 style="margin:8px 0 4px 0;color:var(--bad)">🎲 Journey Mishaps (D6)</h4>
-        <p class="stat-line">${(DB.journeyMishaps || []).map((x) => `${x.d6}: ${esc(x.effect)}`).join(" · ")}</p>
-      </div>`;
-    } else if (key === "kin") {
-      html = (DB.kin || []).map((k) => `
-        <div class="panel">
-          <h3>${emblem("kin", k.key)} ${esc(k.name)} <span class="tag">Move ${k.movement}</span></h3>
-          ${(k.abilities || []).map((a) => `<p><b>${esc(a.name)}</b> ${a.wp ? `<span class="tag">WP ${a.wp}</span>` : `<span class="tag">No WP</span>`}<br><span class="stat-line">${esc(a.text)}</span></p>`).join("")}
-        </div>`).join("");
-    } else if (key === "professions") {
-      html = (DB.professions || []).map((p) => `
-        <div class="panel">
-          <h3>${emblem("prof", p.key)} ${esc(p.name)} <span class="tag">${esc(p.keyAttribute)}</span></h3>
-          <p class="stat-line">${p.skills ? "Skills: " + p.skills.map(esc).join(", ") : "Mage — choose a school of magic."}</p>
-          <p>${(p.heroicAbilities || []).length ? "Heroic ability: " + p.heroicAbilities.map((h) => `<span class="tag">${esc(h)}</span>`).join("") : '<span class="tag">Gets magic instead</span>'}</p>
-        </div>`).join("");
-    } else if (key === "skills") {
-      const byKind = { general: [], weapon: [], magic: [] };
-      (DB.skills || []).forEach((s) => byKind[s.kind]?.push(s));
-      html = Object.entries({ general: "General", weapon: "Weapon", magic: "Magic schools" }).map(([k, label]) => `
-        <div class="panel"><h3>${label}</h3>
-          ${byKind[k].map((s) => `<span class="tag">${esc(s.name)} (${esc(s.attribute)})</span>`).join("")}
-        </div>`).join("");
-    } else if (key === "heroicAbilities") {
-      html = `<div class="panel">` + (DB.heroicAbilities || []).map((a) => `
-        <p><b>${esc(a.name)}</b> <span class="tag">${a.req ? esc(a.req) : "No req"}</span> <span class="tag">${a.wp == null ? "No WP" : "WP " + a.wp}</span><br>
-        <span class="stat-line">${esc(a.text)}</span></p>`).join("") + `</div>`;
-    } else if (key === "spells") {
-      const labels = { general: "General Magic", animism: "Animism", elementalism: "Elementalism", mentalism: "Mentalism" };
-      const renderSchool = (k, pool, isNew) => {
-        const tricks = (pool.tricks || []).map((t) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(t.name)}</b> <span class="tag">Trick</span><br><span class="stat-line">${esc(t.text)}</span></p>`).join("");
-        const spells = (pool.spells || []).map((s) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(s.name)}</b> <span class="tag">Rank ${s.rank}</span><br><span class="stat-line">${esc(s.range || s.ingredients || s.item || "")}${s.duration ? " · " + esc(s.duration) : ""} — ${esc(s.text)}</span></p>`).join("");
-        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary class="school-summary"><span class="ss-name">${emblem("school", k)}🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span class="ss-tags">${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line u-mb25"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div class="u-mt2">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div class="u-mt2">${spells}</div></details>` : ""}</div></details>`;
-      };
-      const parts = [];
-      if (Magic.enabled()) parts.push(`<p class="notice">Book of Magic content is ON (toggle it in Settings). Revised core spells are always applied.</p>`);
-      CORE_SCHOOLS.forEach((k) => parts.push(renderSchool(k, Magic.corePool(k), false)));
-      if (Magic.enabled()) Object.keys(MAGICX.schools || {}).forEach((k) => parts.push(renderSchool(k, Magic.newSchoolPool(k), true)));
-      html = parts.join("");
-    } else if (key === "equipment") {
-      const w = (DB.weapons || []).map((x) => `<p><b>${esc(x.name)}</b> <span class="tag">${esc(x.skill || x.type)}</span> <span class="stat-line">${esc(x.damage)}${x.str ? " · STR " + x.str : ""}${x.range ? " · " + x.range + "m" : ""} · ${esc(x.cost)}</span></p>`).join("");
-      const a = (DB.armor || []).map((x) => `<span class="tag">${esc(x.name)} (rating ${x.rating})</span>`).join("");
-      const h = (DB.helmets || []).map((x) => `<span class="tag">${esc(x.name)} (+${x.rating})</span>`).join("");
-      html = `<div class="panel"><h3>Weapons &amp; Shields</h3>${w}</div>
-              <div class="panel"><h3>Armor</h3>${a}<h3 class="u-mt25">Helmets</h3>${h}</div>`;
-    } else if (key === "gear") {
-      html = `<div class="panel"><h3>Adventuring gear</h3>` + (DB.gear || []).map((g) =>
-        `<p><b>${esc(g.name)}</b> <span class="tag">${esc(g.cost)}</span> <span class="tag">wt ${g.weight}</span><br><span class="stat-line">${esc(g.effect || "")}</span></p>`).join("") + `</div>`;
-    }
-    if (container) {
-      container.innerHTML = html;
-      container.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-    return html;
-  }
 
   /* =================================================================
    * Router
