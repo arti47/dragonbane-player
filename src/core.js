@@ -38,7 +38,11 @@ export const Dice = {
     d(sides) { return Math.floor(Math.random() * sides) + 1; },
     // Parse and roll a spec like "D6", "2D8", "4D6".
     roll(spec) {
-      const m = /^(\d*)d(\d+)$/i.exec(String(spec).trim());
+      const str = String(spec).replace(/\s+/g, "");
+      if (/^[+-]?(\d*d\d+|\d+)([+-](\d*d\d+|\d+))+$/i.test(str)) {
+        return str.match(/[+-]?(\d*d\d+|\d+)/gi).reduce((t, term) => t + (term[0] === "-" ? -1 : 1) * this.roll(term.replace(/^[+-]/, "")), 0);
+      }
+      const m = /^(\d*)d(\d+)$/i.exec(str);
       if (!m) return parseInt(spec, 10) || 0;
       const n = parseInt(m[1] || "1", 10), sides = parseInt(m[2], 10);
       let t = 0; for (let i = 0; i < n; i++) t += this.d(sides);

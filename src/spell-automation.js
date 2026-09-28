@@ -1,6 +1,7 @@
 /* spell-automation.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { $, Dice, el, esc, uid } from './core.js';
+import { $, DB, Dice, MAGICX, el, esc, uid } from './core.js';
+import { normName } from './rules.js';
 import { confirmModal, modal, showToast } from './ui.js';
 import { effHpMax, effWpMax, equippedArmor } from './derived.js';
 import { Magic } from './settings.js';
@@ -41,6 +42,21 @@ export const SpellAutomation = {
       if (n.match(/haste|speed/)) return "haste";
       if (n.match(/slow|daze|exhaust|paralyze|terror|command|dominate|sleep|ensnaring roots|banish|demon face|bloodlust|rage/)) return "slow";
       return "utility";
+    },
+    // Damage/heal dice from the spell's own text at a power level: the first
+    // "NdX" is the PL1 base; "each power level (beyond the first) adds D6 / one
+    // die / an additional D6" adds one die per level above 1. Fallback: PL·D6.
+    spellDice(spell, pl) {
+      const text = String((spell && (spell.text || spell.desc || spell.effect)) || "");
+      const base = /(\d+)D(\d+)/i.exec(text);
+      if (!base) return `${pl}D6`;
+      const n = Number(base[1]), sides = Number(base[2]);
+      const extra = Math.max(0, (Number(pl) || 1) - 1);
+      if (!extra || !/each power level|per power level/i.test(text)) return `${n}D${sides}`;
+      const add = /power level[^.]*?(?:adds?|additional|another)\s+(?:an?\s+|one\s+)?(\d*)D(\d+)/i.exec(text);
+      const addSides = add ? Number(add[2]) : sides;
+      const addN = add && add[1] ? Number(add[1]) : 1;
+      return addSides === sides ? `${n + addN * extra}D${sides}` : `${n}D${sides}+${addN * extra}D${addSides}`;
     },
     getRangeLimit(spell) {
       if (!spell || !spell.range) return 999;
@@ -95,7 +111,8 @@ export const SpellAutomation = {
       const fromChar = (ch) => ({ key: "char:" + ch.id, name: ch.identity && ch.identity.name || ch.name || "Hero", label: `${(ch.identity && ch.identity.name) || "Hero"} (HP ${ch.state && ch.state.hp}/${effHpMax(ch)})`, isChar: true, charId: ch.id, armor: (equippedArmor(ch) ? equippedArmor(ch).rating : 0) });
 
       const combHeroes = combs.filter(isHeroCb);
-      const combFoes = combs.filter(x => !isHeroCb(x));
+      const alive = (x) => !x.defeated && (x.hp == null || x.hp > 0);
+      const combFoes = combs.filter(x => !isHeroCb(x) && alive(x));
       const inCombatCharIds = new Set(combs.map(x => x.charId).filter(Boolean));
       const rosterAllies = Store.list().filter(ch => ch && ch.id && !inCombatCharIds.has(ch.id));
 
@@ -110,12 +127,17 @@ export const SpellAutomation = {
       const hasteList = (isNpcCaster ? combFoes : combHeroes).map(fromCb);
 
       const findT = (list, key) => list.find(t => t.key === key);
-      const buildSelect = (list, emptyLabel) => {
+      // Selects always open on a real target (the first living one, or a preferred
+      // key such as the caster for heals) so an effect never silently no-ops.
+      const buildSelect = (list, emptyLabel, preferKey) => {
         const s = el(`<select class="input" style="min-width:150px"></select>`);
         list.forEach(t => s.appendChild(el(`<option value="${esc(t.key)}">${esc(t.label)}</option>`)));
         if (!list.length && emptyLabel) s.appendChild(el(`<option value="">${esc(emptyLabel)}</option>`));
+        if (list.length) s.value = (preferKey && list.some(t => t.key === preferKey)) ? preferKey : list[0].key;
         return s;
       };
+      const selfKey = (() => { const a = allies.find(t => t.charId === charId || (t.cb && t.cb.charId === charId)); return a ? a.key : null; })();
+      const needTarget = (sel) => { showToast("Pick a target first (or type a custom one).", "error"); if (sel && sel.focus) sel.focus(); };
       const applyHp = (t, delta) => {
         if (!t) return;
         if (t.isChar) {
@@ -133,12 +155,13 @@ export const SpellAutomation = {
       if (cat === "heal") {
         const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>`);
         row.append(el(`<span class="stat-line">Heal:</span>`));
-        const tSel = buildSelect(allies, "— no targets —");
-        const dIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6" title="healing dice">`);
+        const tSel = buildSelect(allies, "— no targets —", selfKey);
+        const dIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="healing dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok-fill);color:var(--on-fill);border:none" title="Apply Healing">💚 Heal</button>`);
         btn.onclick = () => {
-          let amt = Dice.roll(dIn.value.trim() || `${pl}D6`); if (plMult === 2) amt *= 2;
           const t = findT(allies, tSel.value);
+          if (!t && allies.length) { needTarget(tSel); return; }
+          let amt = Dice.roll(dIn.value.trim() || this.spellDice(spell, pl)); if (plMult === 2) amt *= 2;
           if (t) applyHp(t, +amt);
           card.innerHTML = `<p class="outcome ok">💚 Healed <b>${amt} HP</b>${t ? ` → ${esc(t.name)}` : " (apply manually)"}.</p>`;
         };
@@ -156,13 +179,14 @@ export const SpellAutomation = {
         rMid.append(distIn, el(`<span class="stat-line">m (max ${this.getRangeLimit(spell)}m)</span>`));
         const isPsychic = /mental|death|stench|psychic|soul|boneshaker/i.test(spell.name || "");
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
-        const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
+        const fIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="damage dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Strike target">💥 Strike</button>`);
         btn.onclick = async () => {
           const dist = Number(distIn.value) || 0, maxR = this.getRangeLimit(spell);
           if (dist > maxR && !(await confirmModal(`Distance (${dist}m) exceeds range (${maxR}m). Strike anyway?`, { title: "Out of range", okText: "Strike anyway" }))) return;
-          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`); if (plMult === 2) dmg *= 2;
-          const t = findT(enemies, tSel.value);
+          const t = cstIn.value.trim() ? null : findT(enemies, tSel.value);
+          if (!t && !cstIn.value.trim()) { needTarget(enemies.length ? tSel : cstIn); return; }
+          let dmg = Dice.roll(fIn.value.trim() || this.spellDice(spell, pl)); if (plMult === 2) dmg *= 2;
           const arm = (armLbl.querySelector("input").checked && t) ? t.armor : 0;
           const net = Math.max(0, dmg - arm);
           if (t) applyHp(t, -net);
@@ -179,11 +203,12 @@ export const SpellAutomation = {
         enemies.forEach(t => { chkWrap.appendChild(el(`<label style="font-size:12px;display:flex;gap:6px"><input type="checkbox" value="${esc(t.key)}" checked> ${esc(t.label)}</label>`)); });
         if (!enemies.length) chkWrap.appendChild(el(`<span class="stat-line">No enemies in combat — roll &amp; apply manually.</span>`));
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" checked> Armor mitigates</label>`);
-        const fIn = el(`<input type="text" class="input" style="width:70px" value="${pl}D6">`);
+        const fIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="damage dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Blast all checked targets">💥 Blast AoE</button>`);
         btn.onclick = () => {
-          let dmg = Dice.roll(fIn.value.trim() || `${pl}D6`); if (plMult === 2) dmg *= 2;
           const ids = Array.from(chkWrap.querySelectorAll("input:checked")).map(x => x.value);
+          if (enemies.length && !ids.length) { needTarget(); return; }
+          let dmg = Dice.roll(fIn.value.trim() || this.spellDice(spell, pl)); if (plMult === 2) dmg *= 2;
           const names = [];
           ids.forEach(id => { const t = findT(enemies, id); if (t) { const arm = armLbl.querySelector("input").checked ? t.armor : 0; const net = Math.max(0, dmg - arm); applyHp(t, -net); names.push(`${t.name} (−${net})`); } });
           card.innerHTML = `<p class="outcome bad">💥 Blast <b>${dmg} raw</b> → ${names.join(", ") || "roll & apply manually"}.</p>`;
@@ -284,19 +309,61 @@ export const SpellAutomation = {
 
       out.appendChild(card);
     },
+    // Drink / apply a brewed dose or bought potion. The effect comes from the
+    // item's own data (core gear or Alchemy recipe), so "Healing Potion (dose)"
+    // heals its 2D6. The dose is only consumed when it is actually used.
     usePotion(charId, item, itemIdx) {
-      const pl = 1;
-      const fakeSpell = { name: item.name.replace(/\s*\(dose\)/i,""), range: "Touch", text: "Alchemical brew" };
-      const m = modal(`🧪 Alchemical Brew: ${item.name}`);
-      const pw = el(`<div id="pot_wrap"></div>`);
-      m.body.appendChild(pw);
-      this.renderCard(charId, fakeSpell, pl, false, false, 0, pw);
-      Store.update(charId, ch => {
-        if (ch.inventory?.items?.[itemIdx]) {
-          ch.inventory.items.splice(itemIdx, 1);
-        }
+      const base = String(item.name || "").replace(/\s*\(dose\)/i, "").replace(/\s*\(×?\s*\d+\)/, "").trim();
+      const key = normName(base);
+      const gear = (DB.gear || []).find((g) => normName(String(g.name).replace(/\s*\(dose\)/i, "")) === key);
+      let recipe = null;
+      Object.values((MAGICX && MAGICX.schools) || {}).concat(Object.values((MAGICX && MAGICX.newSpells) || {})).forEach((pool) => {
+        [...((pool && pool.tricks) || []), ...((pool && pool.spells) || [])].forEach((x) => { if (!recipe && x && normName(x.name) === key) recipe = x; });
       });
-      Roller.refresh(charId);
+      const text = (gear && gear.effect) || (recipe && recipe.text) || item.text || "";
+      const hpDice = (/(\d*D\d+)\s*HP/i.exec(text) || [])[1] || (/heal|healing|restor/i.test(base) ? (/(\d*D\d+)/i.exec(text) || [])[1] : null);
+      const wpDice = (/(\d*D\d+)\s*WP/i.exec(text) || [])[1] || null;
+      const m = modal(`🧪 ${item.name}`);
+      m.body.appendChild(el(`<p class="stat-line">${text ? esc(text) : "Alchemical brew — resolve its effect with your GM."}</p>`));
+      const consume = () => Store.update(charId, (ch) => {
+        const items = (ch.inventory && ch.inventory.items) || [];
+        const i = items[itemIdx] && items[itemIdx].name === item.name ? itemIdx : items.findIndex((x) => x && x.name === item.name);
+        if (i >= 0) items.splice(i, 1);
+      });
+      const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
+      if (hpDice || wpDice) {
+        // Target: the drinker by default, or any hero on the roster.
+        const heroes = Store.list();
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><span class="stat-line" style="margin:0">Who drinks it:</span></div>`);
+        const sel = el(`<select class="input" style="min-width:150px"></select>`);
+        heroes.forEach((h) => sel.appendChild(el(`<option value="${esc(h.id)}">${esc(h.identity.name)} (HP ${h.state.hp}/${effHpMax(h)})</option>`)));
+        sel.value = charId;
+        const btn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);border:none">🧪 Drink${hpDice ? ` · ${hpDice} HP` : ""}${wpDice ? ` · ${wpDice} WP` : ""}</button>`);
+        btn.onclick = () => {
+          btn.disabled = true;
+          const tid = sel.value || charId;
+          const hp = hpDice ? Dice.roll(hpDice) : 0, wp = wpDice ? Dice.roll(wpDice) : 0;
+          let gotHp = 0, gotWp = 0;
+          Store.update(tid, (ch) => {
+            const h0 = ch.state.hp || 0, w0 = ch.state.wp || 0;
+            ch.state.hp = Math.min(effHpMax(ch), h0 + hp); ch.state.wp = Math.min(effWpMax(ch), w0 + wp);
+            gotHp = ch.state.hp - h0; gotWp = ch.state.wp - w0;
+            if (ch.state.hp > 0) { ch.state.deathRolls = { successes: 0, failures: 0 }; ch.state.rallied = false; }
+          });
+          consume();
+          // Mirror HP/WP onto the hero's combat row.
+          const cd = Combat.load(); const cb = (cd.combatants || []).find((x) => x.charId === tid);
+          if (cb) { const t = Store.get(tid); cb.hp = t.state.hp; cb.wp = t.state.wp; cb.defeated = false; Combat.save(cd); }
+          const who = (Store.get(tid) || {}).identity?.name || "Hero";
+          out.innerHTML = `<p class="outcome ok">💚 ${esc(who)}: ${hpDice ? `rolled ${hp} → +${gotHp} HP` : ""}${hpDice && wpDice ? " · " : ""}${wpDice ? `rolled ${wp} → +${gotWp} WP` : ""}. Dose used.</p>`;
+          Roller.refresh(charId); if (tid !== charId) Roller.refresh(tid);
+        };
+        row.appendChild(sel); m.body.append(row, btn, out);
+      } else {
+        const btn = el(`<button class="btn block">🧪 Use (consume dose)</button>`);
+        btn.onclick = () => { btn.disabled = true; consume(); out.innerHTML = `<p class="outcome ok">Dose used — apply the effect above.</p>`; Roller.refresh(charId); };
+        m.body.append(btn, out);
+      }
     }
   };
 

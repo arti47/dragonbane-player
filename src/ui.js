@@ -48,11 +48,18 @@ export function modal(title) {
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     };
     document.addEventListener("keydown", onKey, true);
+    back._close = close;
     back.onclick = (e) => { if (e.target === back) close(); };
     x.onclick = close;
     // Move focus into the dialog (first focusable, else the card itself).
     requestAnimationFrame(() => { const f = focusables(); (f[0] || card).focus(); });
     return { body, close, back };
+  }
+
+  // Close every open dialog (used on navigation so a stale roll window never
+  // lingers over a new screen). Each close resolves its confirm/prompt promise.
+  export function closeAllModals() {
+    document.querySelectorAll(".modal-back").forEach((b) => { if (typeof b._close === "function") b._close(); else b.remove(); });
   }
 
   /* =================================================================

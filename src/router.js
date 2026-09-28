@@ -1,6 +1,7 @@
 /* router.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { $ } from './core.js';
+import { closeAllModals } from './ui.js';
 import { Settings } from './settings.js';
 import { Screens } from './screens.js';
 import { GM } from './gm.js';
@@ -8,6 +9,7 @@ import { init } from './main.js';
 
 export const Router = {
     go(route) {
+      closeAllModals();
       if (route !== "sheet") window.activeCharacterId = null;
       if (route === "solo" && !Settings.soloMode()) {
         this.go("home");
