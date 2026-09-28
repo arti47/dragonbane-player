@@ -38,7 +38,7 @@ export const GM = {
 
     view() {
       const root = el(`<div class="screen-gm"></div>`);
-      root.appendChild(el(sectionTitle("🎲 GM Screen")));
+      root.appendChild(el(sectionTitle("GM Screen")));
       root.appendChild(helpBox("GM Screen", [
         "<b>Party</b>: glance at each hero's HP/WP/conditions; use <b>Open sheet</b>, <b>− Damage</b>, <b>+ Condition</b>, <b>😱 Fear</b>.",
         "<b>Drop into combat</b>: add a Bestiary monster or rulebook NPC straight to the shared tracker.",
@@ -61,11 +61,11 @@ export const GM = {
           <b>${esc(c.identity.name)}</b>
           <span class="stat-line">${esc(c.identity.kin || "")} ${esc(c.identity.profession || "")}</span>
         </div>`));
-        row.appendChild(el(`<div class="stat-line" style="margin:4px 0">
+        row.appendChild(el(`<div class="stat-line u-my1">
           HP <b style="color:${dying ? "var(--bad)" : "inherit"}">${c.state ? c.state.hp : "?"}</b>/${effHpMax(c)}
           · WP <b>${c.state ? c.state.wp : "?"}</b>/${effWpMax(c)}
-          ${dying ? ' · <b style="color:var(--bad)">🩸 DYING</b>' : ""}
-          ${conds.length ? ` · <span style="color:var(--bad)">${conds.map(esc).join(", ")}</span>` : ""}
+          ${dying ? ' · <b class="u-bad">🩸 DYING</b>' : ""}
+          ${conds.length ? ` · <span class="u-bad">${conds.map(esc).join(", ")}</span>` : ""}
         </div>`));
         const actions = el(`<div class="gm-tools"></div>`);
         const open = el(`<button class="btn ghost">Open sheet ↗</button>`);
@@ -115,7 +115,7 @@ export const GM = {
         send.onclick = () => { if (Sync.pushBroadcast(ta.value)) ta.value = ""; };
         bPanel.append(ta, send);
         if ((Sync.broadcast || []).length) {
-          const clear = el(`<button class="btn ghost" style="margin-top:6px">Clear feed (${Sync.broadcast.length})</button>`);
+          const clear = el(`<button class="btn ghost u-mt15">Clear feed (${Sync.broadcast.length})</button>`);
           clear.onclick = async () => { if (await confirmModal("Clear the GM message feed for all players?", { title: "Clear feed", okText: "Clear", danger: true })) Sync.clearBroadcast(); };
           bPanel.appendChild(clear);
         }
@@ -135,15 +135,18 @@ export const GM = {
           const r = Dice.d(6);
           const row = (rows || []).find((x) => x.d6 === r) || {};
           out.innerHTML = "";
-          out.appendChild(el(`<p class="outcome" style="margin:4px 0;font-size:var(--fs-md)"><b>D6: ${r}</b> — ${esc(row.effect || "")}</p>`));
+          out.appendChild(el(`<p class="outcome gm-roll-out"><b>D6: ${r}</b> — ${esc(row.effect || "")}</p>`));
+          inner.querySelectorAll(".d6-row").forEach((p) => p.classList.toggle("hit", +p.dataset.d6 === r));
           if (Sync.isGm()) {
-            const push = el(`<button class="btn ghost" style="border-color:var(--accent)">📢 Push to players</button>`);
+            const push = el(`<button class="btn ghost u-bd-accent">📢 Push to players</button>`);
             push.onclick = () => Sync.pushBroadcast(`${title} (D6: ${r}) — ${row.effect || ""}`);
             out.appendChild(push);
           }
         };
         inner.append(rollBtn, out);
-        (rows || []).forEach((x) => inner.appendChild(el(`<p class="stat-line" style="margin:2px 0"><b>${x.d6}</b> — ${esc(x.effect)}</p>`)));
+        const list = el(`<div class="d6-list"></div>`);
+        (rows || []).forEach((x) => list.appendChild(el(`<p class="stat-line d6-row" data-d6="${x.d6}"><b class="d6-face">${x.d6}</b><span>— ${esc(x.effect)}</span></p>`)));
+        inner.appendChild(list);
         d.appendChild(inner); return d;
       };
       ref.appendChild(d6Table("Demon fumble — melee (D6)", DB.demonMelee));
@@ -198,7 +201,7 @@ export const GM = {
         const fr = Dice.d(6); const row = (DB.fearTable || []).find((x) => x.d6 === fr) || {};
         let label = "";
         Store.update(id, (ch) => { label = applyInvoluntaryConditionTo(ch, "scared"); });
-        out.innerHTML = `<p class="outcome bad">${r} vs WIL ${c.attributes.WIL} — fails! ${esc(label)}.</p><p class="stat-line" style="margin-top:6px"><b>Fear table (D6: ${fr})</b> — ${esc(row.effect || "")}</p>`;
+        out.innerHTML = `<p class="outcome bad">${r} vs WIL ${c.attributes.WIL} — fails! ${esc(label)}.</p><p class="stat-line u-mt15"><b>Fear table (D6: ${fr})</b> — ${esc(row.effect || "")}</p>`;
         this.refresh();
       };
       m.body.append(el(`<p class="modal-msg">Force ${esc(c.identity.name)} to resist a fear attack (WIL roll). On a failure they gain Scared and a fear-table result.</p>`), b, out);

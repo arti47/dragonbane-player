@@ -1,7 +1,7 @@
 /* sheet.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
-import { confirmModal, modal, promptModal, showToast } from './ui.js';
+import { confirmModal, modal, promptModal, showToast, showUndoToast } from './ui.js';
 import { Calc, classifyItem, heroicReqMet, resolveEquippedWeapons } from './rules.js';
 import { applyInvoluntaryConditionTo, effHpMax, effWpMax, encLimit, encUsed, isConcentration, isSummonSpell, isTrackableSpell, lightDieFor, normalizeInventory } from './derived.js';
 import { Magic, Settings } from './settings.js';
@@ -18,7 +18,9 @@ export const Sheet = {
       const c = Store.get(id);
       if (!c) { Router.go("home"); return; }
       normalizeInventory(c); Store.update(id, normalizeInventory);
-      this.id = id; window.activeCharacterId = id; this._fresh = true; this.render();
+      this.id = id; window.activeCharacterId = id; this._fresh = true;
+      document.querySelectorAll(".toast.toast-error, .toast.toast-warn").forEach((t) => t.remove());
+      this.render();
     },
     mutate(fn) {
       const c = Store.get(this.id);
@@ -106,8 +108,8 @@ export const Sheet = {
         const m = modal("Stretch rest");
         const info = el(`<p class="stat-line">Heals D6 HP and D6 WP, and lets you recover one condition.${hasFastHealer ? " <b>Fast Healer:</b> +D6 HP." : ""}${hasInnerPeace ? " <b>Inner Peace:</b> +D6 HP, +D6 WP, and +1 condition." : ""}${deprived ? " <b style='color:var(--bad)'>Sleep-deprived — no WP or condition recovery.</b>" : ""}</p>`);
         const assistLbl = el(`<label style="display:flex;align-items:center;gap:6px;margin:6px 0;cursor:pointer"><input type="checkbox"> Tended by an ally (successful HEALING roll) → heal 2D6 HP instead of D6</label>`);
-        const restBtn = el(`<button class="btn block" style="margin-top:8px">Rest</button>`);
-        const out = el(`<div class="roll-result" role="status" aria-live="polite" style="margin-top:10px"></div>`);
+        const restBtn = el(`<button class="btn block u-mt2">Rest</button>`);
+        const out = el(`<div class="roll-result u-mt25" role="status" aria-live="polite"></div>`);
         restBtn.onclick = () => {
           restBtn.disabled = true; restBtn.style.opacity = "0.4";
           const assisted = assistLbl.querySelector("input").checked;
@@ -168,7 +170,7 @@ export const Sheet = {
         const row = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)} <span class="tag">D${die}</span></span></div>`);
         const out = el(`<span class="stat-line"></span>`);
         const b = el(`<button class="step" style="width:auto;padding:0 8px">Roll D${die}</button>`);
-        b.onclick = () => { const r = Dice.d(die); if (r === 1) { this.mutate((ch) => { ch.inventory.items[i].lit = false; }); out.innerHTML = `<b style="color:var(--bad)">${r} — went out!</b>`; b.disabled = true; } else { out.innerHTML = `${r} — still burning`; } };
+        b.onclick = () => { const r = Dice.d(die); if (r === 1) { this.mutate((ch) => { ch.inventory.items[i].lit = false; }); out.innerHTML = `<b class="u-bad">${r} — went out!</b>`; b.disabled = true; } else { out.innerHTML = `${r} — still burning`; } };
         row.append(b, out); m.body.appendChild(row);
       });
     },
@@ -187,7 +189,7 @@ export const Sheet = {
         const tbl = DB.fearTable || []; const fr = Dice.d(6); const row = tbl.find((x) => x.d6 === fr) || tbl[0];
         let label = "";
         this.mutate((ch) => { label = applyInvoluntaryConditionTo(ch, "scared"); });
-        out.innerHTML = `<p class="outcome bad">${r} vs WIL ${wil} — fear takes hold! ${esc(label)}.</p><p class="notice" style="border-color:var(--bad)">Fear table (D6=${fr}): ${esc(row ? row.effect : "")}</p>`;
+        out.innerHTML = `<p class="outcome bad">${r} vs WIL ${wil} — fear takes hold! ${esc(label)}.</p><p class="notice u-bd-bad">Fear table (D6=${fr}): ${esc(row ? row.effect : "")}</p>`;
       };
       m.body.append(el(`<p class="stat-line">A fear attack forces a WIL roll; failure applies Scared and a fear-table result.</p>`), btn, out);
     },
@@ -222,7 +224,7 @@ export const Sheet = {
         const row = el(`<div class="inv-row"><span class="inv-name">${esc(fx.name)}</span></div>`);
         const out = el(`<span class="stat-line"></span>`);
         const b = el(`<button class="step" style="width:auto;padding:0 8px">Roll WIL</button>`);
-        b.onclick = () => { b.disabled = true; const r = Dice.d(20), ok = r <= wil; if (ok) { out.innerHTML = `${r} — maintained`; } else { this.mutate((ch) => { const i = (ch.effects || []).findIndex((e) => e.id === fx.id); if (i >= 0) ch.effects.splice(i, 1); }); out.innerHTML = `<b style="color:var(--bad)">${r} — concentration broken</b>`; } };
+        b.onclick = () => { b.disabled = true; const r = Dice.d(20), ok = r <= wil; if (ok) { out.innerHTML = `${r} — maintained`; } else { this.mutate((ch) => { const i = (ch.effects || []).findIndex((e) => e.id === fx.id); if (i >= 0) ch.effects.splice(i, 1); }); out.innerHTML = `<b class="u-bad">${r} — concentration broken</b>`; } };
         row.append(b, out); m.body.appendChild(row);
       });
     },
@@ -242,8 +244,8 @@ export const Sheet = {
       
       const head = el(`<p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
         <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p>`);
-      const btn = el(`<button class="btn block roll-go" style="margin-top:12px">Roll Death Roll</button>`);
-      const out = el(`<div class="roll-result" style="margin-top:14px"></div>`);
+      const btn = el(`<button class="btn block roll-go u-mt3">Roll Death Roll</button>`);
+      const out = el(`<div class="roll-result u-mt35"></div>`);
 
       btn.onclick = () => {
         btn.disabled = true; btn.style.opacity = "0.4";
@@ -276,7 +278,7 @@ export const Sheet = {
         } else if (dead) {
           html += `<p class="stat-line" style="color:var(--bad);font-size:var(--fs-lg)"><b>💀 Your hero has succumbed to their wounds.</b></p>`;
         } else {
-          html += `<p class="stat-line" style="margin-top:8px">Successes <span class="dr-dots">${dots(sCount,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(fCount,"bad")}</span></p>`;
+          html += `<p class="stat-line u-mt2">Successes <span class="dr-dots">${dots(sCount,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(fCount,"bad")}</span></p>`;
         }
         out.innerHTML = html;
         Roller.stage(out, roll, `CON ${con}`, success, dragon, demon);
@@ -320,7 +322,7 @@ export const Sheet = {
 
       const panel = el(`<div class="move-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin:8px 0">
         <div class="move-meter" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
-          <span>🏃 <b>Movement Pool:</b> <small style="color:var(--muted)">(Rating ${baseMove}m)</small></span>
+          <span>🏃 <b>Movement Pool:</b> <small class="u-muted">(Rating ${baseMove}m)</small></span>
           <span class="move-val" style="font-size:var(--fs-xl);font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
         </div>
         
@@ -328,7 +330,7 @@ export const Sheet = {
           💡 <b>Splitting:</b> Move freely before, after, or during action. Unused meters cannot be saved for later rounds.
         </p>
 
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="u-col2">
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
             <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Action: Dash. Doubles pool for round & uses Action.">⚡ Dash ${c.state.isDashing ? "(2x)" : ""}</button>
             <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted speed 20m">🐴 Mount</button>
@@ -338,23 +340,23 @@ export const Sheet = {
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="move-lbl">WALK:</span>
-            <button type="button" class="move-btn" style="flex:1" title="Step 1 meter">+1m</button>
-            <button type="button" class="move-btn" style="flex:1" title="Step 2 meters (1 grid square)">+2m</button>
-            <button type="button" class="move-btn" style="flex:1" title="Step 4 meters">+4m</button>
+            <button type="button" class="move-btn u-f1" title="Step 1 meter">+1m</button>
+            <button type="button" class="move-btn u-f1" title="Step 2 meters (1 grid square)">+2m</button>
+            <button type="button" class="move-btn u-f1" title="Step 4 meters">+4m</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="move-lbl">HAZARDS:</span>
-            <button type="button" class="move-btn" style="flex:1" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
-            <button type="button" class="move-btn" style="flex:1" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
-            <button type="button" class="move-btn" style="flex:1" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
+            <button type="button" class="move-btn u-f1" title="Passing closed unlocked door consumes ½ total pool">🚪 Door (−½)</button>
+            <button type="button" class="move-btn u-f1" title="Water halves speed (costs 2m pool per 1m moved)">🌊 Water (+1m)</button>
+            <button type="button" class="move-btn u-f1" title="Leap horizontal gap (≤¼ auto, ≤½ Acrobatics check)">🤸 Leap</button>
           </div>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="move-lbl">TACTICS:</span>
-            <button type="button" class="move-btn" style="flex:1" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
-            <button type="button" class="move-btn" style="flex:1" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
-            <button type="button" class="move-btn" style="flex:1" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
+            <button type="button" class="move-btn u-f1" title="Rough terrain check (Acrobatics). Fail = Prone & lose pool">🪨 Rough check</button>
+            <button type="button" class="move-btn u-f1" title="Voluntarily leaving enemy reach (within 2m) requires Evade check">⚔️ Disengage</button>
+            <button type="button" class="move-btn u-f1" title="Free immediate 2m move after successful dodge/parry">🛡️ Reaction Move</button>
           </div>
 
           <div style="display:flex;justify-content:flex-end">
@@ -501,12 +503,12 @@ export const Sheet = {
       m.body.appendChild(el(`<p class="stat-line">Learning a school normally needs the Magic Talent heroic ability and a teacher. Dracomancy is learn-in-play only and requires mastering another school (a rank-5 spell).</p>`));
 
       // ---- Learn a spell ----
-      m.body.appendChild(el(`<p class="section-title" style="margin-top:14px"><b>Learn a spell</b></p>`));
+      m.body.appendChild(el(`<p class="section-title u-mt35"><b>Learn a spell</b></p>`));
       const spellSchools = [...knownSchools]; if (hasIntSchool && !spellSchools.includes("general")) spellSchools.push("general");
       if (!spellSchools.length) { m.body.appendChild(el(`<p class="stat-line">Learn a school first.</p>`)); return; }
       const sel = el(`<select></select>`);
       spellSchools.forEach((k) => sel.appendChild(el(`<option value="${k}">${esc(k === "harmonism" ? "Harmonism" : Magic.cap(k))}</option>`)));
-      const listWrap = el(`<div style="margin-top:8px"></div>`);
+      const listWrap = el(`<div class="u-mt2"></div>`);
       const renderList = () => {
         listWrap.innerHTML = "";
         const cur = Store.get(this.id);
@@ -565,12 +567,12 @@ export const Sheet = {
         qWrap.appendChild(row);
       });
       updCounter();
-      const rollBtn = el(`<button class="btn block pick-go" style="margin-top:10px">Mark skills &amp; roll advancement</button>`);
+      const rollBtn = el(`<button class="btn block pick-go u-mt25">Mark skills &amp; roll advancement</button>`);
       rollBtn.onclick = () => {
         Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); });
         m.close(); this.rollAdvancement();
       };
-      m.body.append(qWrap, counter, el(`<p class="section-title" style="margin-top:8px"><b>Mark skills (your choice)</b></p>`), wrap, rollBtn);
+      m.body.append(qWrap, counter, el(`<p class="section-title u-mt2"><b>Mark skills (your choice)</b></p>`), wrap, rollBtn);
     },
     rollAdvancement() {
       const c = Store.get(this.id);
@@ -622,7 +624,7 @@ export const Sheet = {
       m.body.appendChild(el(`<p class="stat-line"><i>${esc(c.identity.weakness)}</i></p>`));
       const picked = [];
       const { wrap } = this.markSkillPicker(picked, () => 2);
-      const btn = el(`<button class="btn block pick-go" style="margin-top:8px">Overcome (mark 2 skills)</button>`);
+      const btn = el(`<button class="btn block pick-go u-mt2">Overcome (mark 2 skills)</button>`);
       btn.onclick = () => {
         if (picked.length !== 2) { showToast("Pick exactly two skills to mark.", "error"); return; }
         this.mutate((ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); ch.identity.weakness = ""; ch.state.weaknessCooldown = true; });
@@ -645,7 +647,7 @@ export const Sheet = {
         let roll, improved, reached18 = false, newLvl;
         this.mutate((ch) => { const sk = ch.skills[n]; const before = sk.level; roll = Dice.d(20); improved = roll > sk.level && sk.level < 18; if (improved) sk.level = Math.min(18, sk.level + 1); newLvl = sk.level; ch.state.teacherTrained[n] = true; if (before < 18 && sk.level === 18) reached18 = true; });
         out.innerHTML = `<p class="outcome ${improved ? "ok" : "bad"}">Rolled ${roll} → ${improved ? `improved to ${newLvl}` : `no change (${newLvl})`}</p>`;
-        if (reached18) { const cont = el(`<button class="btn block" style="margin-top:8px">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
+        if (reached18) { const cont = el(`<button class="btn block u-mt2">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
       };
       m.body.append(sel, btn, out);
     },
@@ -664,7 +666,7 @@ export const Sheet = {
         let roll, improved, reached18 = false, newLvl;
         this.mutate((ch) => { const sk = ch.skills[n]; const before = sk.level; roll = Dice.d(20); improved = roll > sk.level && sk.level < 18; if (improved) sk.level = Math.min(18, sk.level + 1); newLvl = sk.level; if (before < 18 && sk.level === 18) reached18 = true; });
         out.innerHTML = `<p class="outcome ${improved ? "ok" : "bad"}">Rolled ${roll} → ${improved ? `improved to ${newLvl}` : `no change (${newLvl})`}</p>`;
-        if (reached18) { const cont = el(`<button class="btn block" style="margin-top:8px">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
+        if (reached18) { const cont = el(`<button class="btn block u-mt2">★ Reached 18 — choose a free heroic ability</button>`); cont.onclick = () => { m.close(); this.gainHeroicAbility(1); }; out.appendChild(cont); }
       };
       m.body.append(sel, btn, out);
     },
@@ -678,7 +680,7 @@ export const Sheet = {
       const capFn = () => Math.max(1, parseInt(countInput.value || "1", 10));
       const { wrap, refresh } = this.markSkillPicker(picked, capFn);
       countInput.oninput = () => refresh();
-      const rollBtn = el(`<button class="btn block pick-go" style="margin-top:10px">Mark skills &amp; roll catch-up advancement</button>`);
+      const rollBtn = el(`<button class="btn block pick-go u-mt25">Mark skills &amp; roll catch-up advancement</button>`);
       rollBtn.onclick = () => {
         const n = capFn();
         if (picked.length !== n) { showToast(`Please pick exactly ${n} skill(s) to mark.`, "error"); return; }
@@ -695,7 +697,7 @@ export const Sheet = {
       const m = modal("Mission complete — +5 advancement marks");
       m.body.appendChild(el(`<p class="stat-line">Solo play: on returning from a successful mission, mark 5 skills of your choice, then roll advancement.</p>`));
       const { wrap } = this.markSkillPicker(picked, () => 5);
-      const btn = el(`<button class="btn block pick-go" style="margin-top:8px">Mark 5 &amp; roll advancement</button>`);
+      const btn = el(`<button class="btn block pick-go u-mt2">Mark 5 &amp; roll advancement</button>`);
       btn.onclick = () => { if (picked.length !== 5) { showToast("Pick exactly 5 skills to mark.", "error"); return; } Store.update(this.id, (ch) => { picked.forEach((n) => { if (ch.skills[n]) ch.skills[n].mark = true; }); }); m.close(); this.rollAdvancement(); };
       m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
     },
@@ -725,7 +727,7 @@ export const Sheet = {
       ]));
       if (!canEdit) {
         root.appendChild(el(`<div class="panel" style="border-color:var(--bad);background:var(--tint-bad);padding:10px 14px;margin-bottom:12px">
-          <b style="color:var(--bad)">🔒 Read-Only View</b><br>
+          <b class="u-bad">🔒 Read-Only View</b><br>
           <span class="stat-line" style="font-size:var(--fs-sm)">You are viewing another player's hero. Rolling dice and editing stats are disabled.</span>
         </div>`));
       }
@@ -740,10 +742,11 @@ export const Sheet = {
         });
         feed.appendChild(list);
         root.appendChild(feed);
+        Router.markMessagesRead();
       }
 
       // Identity + derived + HP/WP
-      const top = el(`<div class="panel"></div>`);
+      const top = el(`<div class="panel hero-top${c.state.hp <= 0 ? " is-dying" : ""}"></div>`);
       const portUrl = c.identity.portraitUrl;
       const nameWords = (c.identity.name || "?").trim().split(/\s+/);
       const initials = (nameWords.length > 1 ? nameWords[0][0] + nameWords[nameWords.length - 1][0] : nameWords[0].slice(0, 2)).toUpperCase();
@@ -819,10 +822,10 @@ export const Sheet = {
         const plus = el(`<button class="step" title="lose 1 permanent max WP">+</button>`);
         minus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = Math.max(0, (ch.state.wpPenalty || 0) - 1); ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
         plus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = (ch.state.wpPenalty || 0) + 1; ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
-        pen.append(minus, plus); panes.magic.appendChild(el(`<div class="panel"></div>`)).appendChild(pen);
+        pen.append(minus, plus); this._penEl = pen;
       }
       // Rest buttons
-      const restRow = el(`<div class="rest-row grid-3" style="margin-top:10px"></div>`);
+      const restRow = el(`<div class="rest-row grid-3 u-mt25"></div>`);
       [["Round rest","round","+D6 WP"],["Stretch rest","stretch","+D6 HP/WP, heal 1 condition"],["Shift rest","shift","full HP/WP, all conditions"]].forEach(([label,kind,hint]) => {
         const b = el(`<button class="btn ghost rest-btn" title="${hint}">${label}</button>`);
         b.onclick = () => this.rest(kind);
@@ -894,7 +897,7 @@ export const Sheet = {
         const t = c.state.time || { round: 0, stretch: 0, shift: 0 };
         const gmPanel = el(`<details class="panel gm-auto"${this._gmOpen ? " open" : ""}><summary><h3>⏱️ GM Automation</h3></summary></details>`);
         gmPanel.addEventListener("toggle", () => { this._gmOpen = gmPanel.open; });
-        gmPanel.appendChild(el(`<p class="stat-line">Time — Round <b>${t.round}</b> · Stretch <b>${t.stretch}</b> · Shift <b>${t.shift}</b>${c.state.awakeShifts >= 3 ? ` · <b style="color:var(--bad)">sleep-deprived (${c.state.awakeShifts} shifts)</b>` : c.state.awakeShifts ? ` · awake ${c.state.awakeShifts} shift(s)` : ""}${c.state.roundRestUsed ? " · round rest used" : ""}</p>`));
+        gmPanel.appendChild(el(`<p class="stat-line">Time — Round <b>${t.round}</b> · Stretch <b>${t.stretch}</b> · Shift <b>${t.shift}</b>${c.state.awakeShifts >= 3 ? ` · <b class="u-bad">sleep-deprived (${c.state.awakeShifts} shifts)</b>` : c.state.awakeShifts ? ` · awake ${c.state.awakeShifts} shift(s)` : ""}${c.state.roundRestUsed ? " · round rest used" : ""}</p>`));
         const clockRow = el(`<div class="rest-row"></div>`);
         [["+ Round", "round"], ["+ Stretch", "stretch"], ["+ Shift", "shift"]].forEach(([label, unit]) => { const b = el(`<button class="btn ghost">${label}</button>`); b.onclick = () => this.advanceClock(unit); clockRow.appendChild(b); });
         gmPanel.appendChild(clockRow);
@@ -902,14 +905,14 @@ export const Sheet = {
         // Light sources (toggle lit; burn-out rolls on +Stretch)
         const lights = (c.inventory.items || []).map((it, i) => ({ it, i })).filter((x) => lightDieFor(x.it.name));
         if (lights.length) {
-          gmPanel.appendChild(el(`<p class="stat-line" style="margin-top:6px"><b>Light sources</b> (toggle lit; burn-out rolls on “+ Stretch”)</p>`));
+          gmPanel.appendChild(el(`<p class="stat-line u-mt15"><b>Light sources</b> (toggle lit; burn-out rolls on “+ Stretch”)</p>`));
           const lw = el(`<div class="chip-wrap"></div>`);
           lights.forEach(({ it, i }) => { const chip = el(`<button class="skill-chip ${it.lit ? "on" : ""}">${it.lit ? "🔥" : "🕯️"} ${esc(it.name)} <span class="stat-line">D${lightDieFor(it.name)}</span></button>`); chip.onclick = () => this.mutate((ch) => { ch.inventory.items[i].lit = !ch.inventory.items[i].lit; }); lw.appendChild(chip); });
           gmPanel.appendChild(lw);
         }
 
         // Cold & disease + fear
-        const statusRow = el(`<div class="rest-row" style="margin-top:6px"></div>`);
+        const statusRow = el(`<div class="rest-row u-mt15"></div>`);
         const af = c.state.afflictions || { cold: false, disease: null };
         const coldBtn = el(`<button class="btn ghost ${af.cold ? "" : ""}" title="toggle cold; roll CON when active">${af.cold ? "❄️ Cold ON" : "❄️ Cold"}</button>`);
         coldBtn.onclick = () => this.mutate((ch) => { ch.state.afflictions.cold = !ch.state.afflictions.cold; });
@@ -919,7 +922,7 @@ export const Sheet = {
         disBtn.onclick = () => this.mutate((ch) => { ch.state.afflictions.disease = ch.state.afflictions.disease ? null : { virulence: Dice.roll("3D6") }; });
         const disRoll = el(`<button class="btn ghost" title="CON roll vs disease">Disease CON roll</button>`);
         disRoll.onclick = () => this.afflictionRoll("disease");
-        const fearBtn = el(`<button class="btn ghost" style="border-color:var(--bad)">😱 Fear attack</button>`);
+        const fearBtn = el(`<button class="btn ghost u-bd-bad">😱 Fear attack</button>`);
         fearBtn.onclick = () => this.fearAttack();
         statusRow.append(coldBtn, coldRoll, disBtn, disRoll, fearBtn);
         gmPanel.appendChild(statusRow);
@@ -947,7 +950,7 @@ export const Sheet = {
           saved.onclick = () => this.mutate((ch) => { ch.state.hp = Dice.roll("D6"); ch.state.rallied = false; ch.state.deathRolls = { successes: 0, failures: 0 }; });
           btns.append(rally, saved); dyingPanel.appendChild(btns);
         } else {
-          dyingPanel.appendChild(el(`<p class="notice" style="border-color:var(--bad)">Your hero has fallen. Heal them above 0 HP to revive (or delete below).</p>`));
+          dyingPanel.appendChild(el(`<p class="notice u-bd-bad">Your hero has fallen. Heal them above 0 HP to revive (or delete below).</p>`));
         }
         dyingSlot.appendChild(dyingPanel);
       }
@@ -979,7 +982,7 @@ export const Sheet = {
       catchupBtn.onclick = () => this.replacementCatchup();
       advRow.append(advBtn);
       if (Settings.soloMode()) {
-        const missionBtn = el(`<button class="btn ghost" title="solo: gain 5 advancement marks for a completed mission" style="border-color:var(--accent)">🏅 Mission (+5 marks)</button>`);
+        const missionBtn = el(`<button class="btn ghost u-bd-accent" title="solo: gain 5 advancement marks for a completed mission">🏅 Mission (+5 marks)</button>`);
         missionBtn.onclick = () => this.soloMissionMarks();
         advRow.appendChild(missionBtn);
       }
@@ -1016,7 +1019,8 @@ export const Sheet = {
         const hasMagic = (c.spells.tricks||[]).length || (c.spells.known||[]).length;
         const magicPanel = el(`<div class="panel"><h3 style="display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></h3><div></div></div>`);
         const inner = magicPanel.querySelector("div");
-        const learnBtn = el(`<button class="btn ghost" style="margin-bottom:8px">＋ Learn a spell or school</button>`);
+        if (this._penEl) { magicPanel.appendChild(this._penEl); this._penEl = null; }
+        const learnBtn = el(`<button class="btn ghost u-mb2">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
         inner.appendChild(learnBtn);
         if (!hasMagic) inner.appendChild(el(`<p class="stat-line empty-note">No spells known. If your hero can learn magic (e.g. the Magic Talent heroic ability), tap ＋ above.</p>`));
@@ -1057,7 +1061,7 @@ export const Sheet = {
         if (!(c.effects || []).length) fxPanel.appendChild(el(`<p class="stat-line empty-note">Nothing active. Use “+ Track” on a lasting spell, or add one below.</p>`));
         (c.effects || []).forEach((fx, i) => {
           const row = el(`<div class="comp-row"><div class="comp-info"><b>${esc(fx.name)}</b> ${fx.concentration ? '<span class="tag">Concentration</span>' : fx.notes ? `<span class="tag">${esc(fx.notes)}</span>` : ""}</div></div>`);
-          const rm = el(`<button class="step rm" title="end effect" aria-label="End effect">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.effects.splice(i, 1));
+          const rm = el(`<button class="step rm" title="end effect" aria-label="End effect">✕</button>`); rm.onclick = () => { let gone; this.mutate((ch) => { gone = ch.effects.splice(i, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((ch) => { ch.effects.splice(i, 0, gone); })); };
           row.appendChild(rm); fxPanel.appendChild(row);
         });
         const addFx = el(`<div class="inv-add"></div>`);
@@ -1098,7 +1102,7 @@ export const Sheet = {
           toMage.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; if (f.wp > 0 && ch.state.wp < effWpMax(ch)) { f.wp--; ch.state.wp++; } });
           fctrl.append(toMage, fval, toFam); fw.appendChild(fctrl);
           pools.append(mw, fw); famPanel.appendChild(pools);
-          const rm = el(`<button class="btn ghost block" style="margin-top:8px">Release familiar (return its WP)</button>`);
+          const rm = el(`<button class="btn ghost block u-mt2">Release familiar (return its WP)</button>`);
           rm.onclick = () => this.mutate((ch) => { const f = ch.state.familiar; ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + (f.wp || 0)); ch.state.familiar = null; });
           famPanel.appendChild(rm);
         }
@@ -1118,7 +1122,7 @@ export const Sheet = {
         }
         const sethp = el(`<button class="step" title="set max HP">HP</button>`);
         sethp.onclick = async () => { const raw = await promptModal(`Max HP for ${cp.name}?`, { title: "Set max HP", inputType: "number", defaultValue: cp.hpMax || "", okText: "Set" }); if (raw == null) return; const n = parseInt(raw, 10); if (!isNaN(n)) this.mutate((ch) => { ch.companions[i].hpMax = Math.max(0, n); ch.companions[i].hp = Math.max(0, n); }); };
-        const rm = el(`<button class="step rm" aria-label="Remove companion">✕</button>`); rm.onclick = () => this.mutate((ch) => ch.companions.splice(i, 1));
+        const rm = el(`<button class="step rm" aria-label="Remove companion">✕</button>`); rm.onclick = () => { let gone; this.mutate((ch) => { gone = ch.companions.splice(i, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((ch) => { ch.companions.splice(i, 0, gone); })); };
         row.append(sethp, rm);
         compPanel.appendChild(row);
       });
@@ -1137,7 +1141,7 @@ export const Sheet = {
       const coinTot = (c.inventory.money.gold||0)+(c.inventory.money.silver||0)+(c.inventory.money.copper||0);
       const coinSlots = Math.floor(coinTot / ((DB.currency && DB.currency.coinsPerItem) || 100));
       invPanel.appendChild(el(`<div class="enc-bar"><div class="enc-fill ${over?"over":(limit && used/limit>=0.75?"warn":"")}" style="width:${Math.min(100, limit?used/limit*100:0)}%"></div></div>`));
-      invPanel.appendChild(el(`<p class="stat-line">${used} / ${limit} item slots used${coinSlots?` · ${coinTot} coins → ${coinSlots} slot${coinSlots>1?"s":""}`:""}${over?` · <b style="color:var(--bad)">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
+      invPanel.appendChild(el(`<p class="stat-line">${used} / ${limit} item slots used${coinSlots?` · ${coinTot} coins → ${coinSlots} slot${coinSlots>1?"s":""}`:""}${over?` · <b class="u-bad">Over-encumbered! Make a STR roll to move.</b>`:""}</p>`));
       if (over) {
         const strBtn = el(`<button class="btn ghost block" style="border-color:var(--bad);color:var(--bad);margin-bottom:10px">⚖ Roll STR to move (over-encumbered)</button>`);
         strBtn.onclick = () => {
@@ -1155,7 +1159,7 @@ export const Sheet = {
       const counts = { armor: 0, helmet: 0, weapon: 0 };
       items.forEach((x) => { if (x.equipped) { const k = classifyItem(x.name); if (counts[k] != null) counts[k]++; } });
       const itemRow = (it, i, isEquipped) => {
-        const line = el(`<div class="inv-row"><span class="inv-name">${esc(it.name)}</span><span class="inv-ctrl"></span></div>`);
+        const line = el(`<div class="inv-row${(classifyItem(it.name) || resolveEquippedWeapons([it]).length || /\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i.test(it.name)) ? " multi" : ""}"><span class="inv-name">${esc(it.name)}</span><span class="inv-ctrl"></span></div>`);
         const row = line.querySelector(".inv-ctrl"); // controls cluster (wraps as one unit)
         const slot = classifyItem(it.name);
         const wpns = resolveEquippedWeapons([it]);
@@ -1203,7 +1207,7 @@ export const Sheet = {
           row.append(useBtn);
         }
         const rm = el(`<button class="step rm" aria-label="Remove ${esc(it.name)}">✕</button>`);
-        rm.onclick = () => this.mutate((ch) => { ch.inventory.items.splice(i, 1); });
+        rm.onclick = () => { let gone; this.mutate((ch) => { gone = ch.inventory.items.splice(i, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((ch) => { ch.inventory.items.splice(i, 0, gone); })); };
         row.append(rm);
         return line;
       };
@@ -1241,7 +1245,7 @@ export const Sheet = {
         p.onclick = () => this.mutate((ch) => { ch.inventory.money[coin] = ch.inventory.money[coin] + 1; });
         ctrl.append(m, v, p); box.appendChild(ctrl); money.appendChild(box);
       });
-      invPanel.appendChild(el(`<h3 style="margin-top:14px">Money</h3>`)); invPanel.appendChild(money);
+      invPanel.appendChild(el(`<h3 class="u-mt35">Money</h3>`)); invPanel.appendChild(money);
       panes.gear.appendChild(invPanel);
 
       // Flavor + notes
@@ -1266,7 +1270,7 @@ export const Sheet = {
       }
       // Overcome Weakness / re-choose after cooldown.
       if (c.identity.weakness) {
-        const owBtn = el(`<button class="btn ghost" style="border-color:var(--accent)">⚡ Overcome Weakness (+2 marks)</button>`);
+        const owBtn = el(`<button class="btn ghost u-bd-accent">⚡ Overcome Weakness (+2 marks)</button>`);
         owBtn.onclick = () => this.overcomeWeakness();
         flav.appendChild(owBtn);
       } else if (c.state.weaknessCooldown) {
@@ -1288,12 +1292,15 @@ export const Sheet = {
       if (canEdit) {
         if (inPartyCamp) {
           const inParty = c.campaignId === Sync.campaign.id;
-          const partyBtn = el(`<button class="btn secondary block" style="margin-top:14px">${inParty ? "🛡️ Remove from Party Campaign" : "⚡ Add to Party Campaign"}</button>`);
+          const partyBtn = el(`<button class="btn secondary block u-mt35">${inParty ? "🛡️ Remove from Party Campaign" : "⚡ Add to Party Campaign"}</button>`);
           partyBtn.onclick = () => { Store.toggleParty(this.id); this.render(); };
           panes.story.appendChild(partyBtn);
         }
         // Delete
-        const del = el(`<button class="btn danger-ghost block" style="margin-top:6px">Delete hero</button>`);
+        const printBtn = el(`<button class="btn ghost block no-print u-mt35">🖨 Print sheet</button>`);
+        printBtn.onclick = () => window.print();
+        panes.story.appendChild(printBtn);
+        const del = el(`<button class="btn danger-ghost block u-mt15">Delete hero</button>`);
         del.onclick = async () => { if (await confirmModal("Delete " + c.identity.name + "? This cannot be undone.", { title: "Delete hero", okText: "Delete", danger: true })) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
         panes.story.appendChild(del);
       } else {

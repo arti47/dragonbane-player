@@ -75,7 +75,7 @@ export function showToast(msg, type) {
     const existing = document.querySelectorAll(".toast").length;
     t.style.bottom = (84 + existing * 46) + "px";
     t.style.pointerEvents = "auto"; t.style.cursor = "pointer";
-    const dur = isErr ? 5200 : 2600;
+    const dur = isErr || type === "undo" ? 5200 : 2600;
     t.style.setProperty("--dur", dur + "ms");
     document.body.appendChild(t);
     requestAnimationFrame(() => t.classList.add("show"));
@@ -88,6 +88,14 @@ export function showToast(msg, type) {
     t.addEventListener("pointermove", (e) => { if (x0 == null) return; const dx = e.clientX - x0; t.style.transform = `translate(calc(-50% + ${dx}px), 0)`; t.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160)); });
     const end = (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; t.style.transition = ""; if (Math.abs(dx) > 60) { clearTimeout(timer); t.onclick = null; t.remove(); } else { t.style.transform = ""; t.style.opacity = ""; } };
     t.addEventListener("pointerup", end); t.addEventListener("pointercancel", end);
+    return t;
+  }
+  // "Removed X · Undo" — a toast with an Undo action (~5s). onUndo restores.
+export function showUndoToast(msg, onUndo) {
+    const t = showToast(msg, "undo");
+    const b = el(`<button type="button" class="undo-btn">Undo</button>`);
+    b.onclick = (e) => { e.stopPropagation(); try { onUndo(); } finally { t.remove(); } };
+    t.appendChild(b);
     return t;
   }
   // Promise<boolean>. opts: { title, okText, cancelText, danger }

@@ -41,6 +41,40 @@ export function init() {
     Router.init();
     placeHelp(screenEl, modal);
 
+    // Steppers: hold −/+ to repeat (after 400ms, ~11/s) with a light haptic tick.
+    {
+      let hold = null, rep = null;
+      const stop = () => { clearTimeout(hold); clearInterval(rep); hold = rep = null; };
+      document.addEventListener("pointerdown", (e) => {
+        const b = e.target.closest && e.target.closest("button.step, button.mini-step");
+        if (!b || b.disabled || !/^[−+-]$/.test(b.textContent.trim())) return;
+        try { navigator.vibrate && navigator.vibrate(4); } catch (_) {}
+        stop(); b.addEventListener("pointerleave", stop, { once: true });
+        hold = setTimeout(() => { rep = setInterval(() => { if (!b.isConnected || b.disabled) { stop(); return; } b.click(); try { navigator.vibrate && navigator.vibrate(3); } catch (_) {} }, 90); }, 400);
+      });
+      ["pointerup", "pointercancel"].forEach((ev) => document.addEventListener(ev, stop, true));
+      window.addEventListener("blur", stop);
+      window.addEventListener("scroll", stop, { passive: true });
+    }
+
+    // Swipe left/right on a tab pane (sheet, solo) to move between tabs.
+    {
+      let sx = 0, sy = 0, pane = null;
+      document.addEventListener("touchstart", (e) => {
+        const t = e.touches[0]; pane = null;
+        if (e.touches.length !== 1 || !e.target.closest) return;
+        if (e.target.closest("input, textarea, select, .stepper, .roll-ctl, .modal-card, .tabs, [data-noswipe]")) return;
+        pane = e.target.closest(".tab-panel"); sx = t.clientX; sy = t.clientY;
+      }, { passive: true });
+      document.addEventListener("touchend", (e) => {
+        if (!pane) return; const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy; const p = pane; pane = null;
+        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        const bar = p.parentElement && p.parentElement.querySelector(":scope > .tabs[role='tablist']"); if (!bar) return;
+        const tabs = [...bar.querySelectorAll(".tab")]; const i = tabs.findIndex((b) => b.getAttribute("aria-selected") === "true");
+        const next = tabs[i + (dx < 0 ? 1 : -1)]; if (next) next.click();
+      }, { passive: true });
+    }
+
     // Inline glossary: tap (or Enter/Space on) any .gloss token to show its definition.
     const showGloss = (node) => { const d = GLOSSARY[node.dataset.gloss]; if (d) showToast(d); };
     document.addEventListener("click", (e) => { const g = e.target.closest && e.target.closest("[data-gloss]"); if (g) { e.preventDefault(); showGloss(g); } });

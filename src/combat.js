@@ -1,7 +1,7 @@
 /* combat.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { $, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
-import { confirmModal, modal, showToast } from './ui.js';
+import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { resolveEquippedWeapons } from './rules.js';
 import { effHpMax, effWpMax, equippedArmor } from './derived.js';
 import { Settings } from './settings.js';
@@ -34,6 +34,7 @@ export const Combat = {
     },
     save(s) {
       localStorage.setItem(this.KEY, JSON.stringify(s));
+      try { window.dispatchEvent(new Event("db:changed")); } catch (_) {}
       if (typeof Sync !== "undefined" && Sync.enabled && Sync.campaign) {
         Sync.pushCombat(s);
       }
@@ -144,7 +145,7 @@ export const Combat = {
         this.mutate((st) => { const ref = st.combatants.find((c) => c.id === combatantId); if (ref) { ref.acted = true; ref.done = true; } });
         out.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}">${r} vs ${sk.level} — ${ok ? "Success" : "Failure"}! (the reaction consumes your upcoming action)</p>`;
         if (ok && kind === "dodge") {
-          const mv = el(`<button class="btn secondary block" style="margin-top:8px">+2 m free move (successful dodge)</button>`);
+          const mv = el(`<button class="btn secondary block u-mt2">+2 m free move (successful dodge)</button>`);
           mv.onclick = () => { Store.update(cb.charId, (c2) => { c2.state.moveSpent = Math.max(0, (c2.state.moveSpent || 0) - 2); }); mv.disabled = true; mv.textContent = "✓ +2 m granted"; };
           out.appendChild(mv);
         }
@@ -332,7 +333,7 @@ export const Combat = {
       side.insertBefore(ctrl, addPanel);
 
       // Combatant list (ordered accordions)
-      const list = el(`<div class="combat-list" style="display:flex;flex-direction:column;gap:8px"></div>`);
+      const list = el(`<div class="combat-list u-col2"></div>`);
       const ord = this.ordered(s);
       const currentId = (ord.find((c) => c.init != null && !c.done) || {}).id;
       ord.forEach((cb) => {
@@ -423,7 +424,7 @@ export const Combat = {
           topActions.appendChild(open);
         }
         const rm = el(`<button class="step rm" aria-label="Remove combatant">✕</button>`);
-        rm.onclick = (e) => { e.stopPropagation(); this.mutate((st) => { st.combatants = st.combatants.filter((c) => c.id !== cb.id); }); };
+        rm.onclick = (e) => { e.stopPropagation(); let gone, at = -1; this.mutate((st) => { at = st.combatants.findIndex((c) => c.id === cb.id); if (at >= 0) gone = st.combatants.splice(at, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((st) => { st.combatants.splice(Math.min(at, st.combatants.length), 0, gone); })); };
         topActions.appendChild(rm);
 
         // Vitals
@@ -450,15 +451,15 @@ export const Combat = {
           };
           hpMin.onclick = (e) => { e.preventDefault(); doHp(-1); };
           hpPl.onclick = (e) => { e.preventDefault(); doHp(1); };
-          vitRow.append(el(`<span class="stat-line" style="margin:0"><b>HP:</b></span>`), hpMin, hpSpan, hpPl);
+          vitRow.append(el(`<span class="stat-line u-m0"><b>HP:</b></span>`), hpMin, hpSpan, hpPl);
           if (cb.armor != null && cb.armor > 0) vitRow.append(el(`<span class="tag" style="margin-left:6px">Armor ${cb.armor}</span>`));
           body.appendChild(vitRow);
         }
 
         // Attacks
         if (cb.kind === "monster" && cb.attacks && cb.attacks.length) {
-          const atkDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
-          atkDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Monster Attacks (Auto-hit):</b>${(cb.ferocity || 1) > 1 ? ` <span class="tag">Ferocity ${cb.ferocity} — ${cb.ferocity} attacks/turn</span>` : ""}</p>`));
+          const atkDiv = el(`<div class="u-col15"></div>`);
+          atkDiv.appendChild(el(`<p class="stat-line u-mb15only"><b>Monster Attacks (Auto-hit):</b>${(cb.ferocity || 1) > 1 ? ` <span class="tag">Ferocity ${cb.ferocity} — ${cb.ferocity} attacks/turn</span>` : ""}</p>`));
 
           const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:var(--fs-lg);padding:10px;margin-bottom:6px;box-shadow:0 2px 6px var(--tint-shade)">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
           d6BannerBtn.onclick = () => Roller.monsterTableRoll(cb);
@@ -467,7 +468,7 @@ export const Combat = {
           const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
           cb.attacks.forEach((atk, i) => {
             const rangeStr = (cb.attacks.length === 6) ? `${i+1}` : (cb.attacks.length === 3 ? `${i*2+1}-${i*2+2}` : `${i+1}`);
-            const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg);background:var(--card-bg);color:var(--text)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small style="color:var(--muted)">(${atk.damage})</small>` : ""}</button>`);
+            const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg);background:var(--card-bg);color:var(--text)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small class="u-muted">(${atk.damage})</small>` : ""}</button>`);
             b.onclick = () => Roller.monsterAttack(cb.name, atk, null, cb.id);
             grid.appendChild(b);
           });
@@ -475,20 +476,20 @@ export const Combat = {
         } else if (cb.kind === "hero" && cb.charId) {
           const h = Store.get(cb.charId);
           if (h) {
-            const hDiv = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+            const hDiv = el(`<div class="u-col2"></div>`);
             if (isDyingHero) {
               const drBox = el(`<div style="padding:10px;border:1px dashed var(--bad);border-radius:var(--r-sm);background:var(--tint-bad);margin-bottom:8px">
-                <b style="color:var(--bad)">🩸 Unconscious & Dying</b><br>
+                <b class="u-bad">🩸 Unconscious & Dying</b><br>
                 <span class="stat-line" style="font-size:var(--fs-sm)">Your hero is down at 0 HP. Roll a death roll each round. 3 successes = stabilize (+D6 HP); 3 failures = death.</span>
               </div>`);
-              const bigRoll = el(`<button class="btn block" style="border-color:var(--bad);color:var(--bad);margin-top:6px">💀 Death roll</button>`);
+              const bigRoll = el(`<button class="btn danger-ghost block u-mt15">💀 Death roll</button>`);
               bigRoll.onclick = () => Sheet.deathRollModal(cb.charId);
               drBox.appendChild(bigRoll);
               hDiv.appendChild(drBox);
             }
             const hWeapons = resolveEquippedWeapons(h.inventory && h.inventory.items);
             if (hWeapons.length) {
-              hDiv.appendChild(el(`<p class="stat-line" style="margin:0"><b>Equipped Weapons:</b></p>`));
+              hDiv.appendChild(el(`<p class="stat-line u-m0"><b>Equipped Weapons:</b></p>`));
               const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
               hWeapons.forEach(w => {
                 const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg)">${esc(w.name)} <br><small>${esc(w.skill)} (${w.damage})</small></button>`);
@@ -499,11 +500,11 @@ export const Combat = {
             }
             const allSpells = [...((h.spells && h.spells.tricks) || []), ...((h.spells && h.spells.known) || [])];
             if (allSpells.length) {
-              hDiv.appendChild(el(`<p class="stat-line" style="margin:4px 0 0 0"><b>Known Spells & Tricks:</b></p>`));
+              hDiv.appendChild(el(`<p class="stat-line u-mt1only"><b>Known Spells & Tricks:</b></p>`));
               const sGrid = el(`<div class="spell-chips"></div>`);
               allSpells.forEach(sp => {
                 const isT = (h.spells.tricks || []).includes(sp);
-                const b = el(`<button class="btn ghost block combat-action" style="border-color:var(--accent)">★ ${esc(sp.name)} <br><small style="color:var(--muted)">${isT ? "Trick (1 WP)" : `Rank ${sp.rank||1} Spell`}</small></button>`);
+                const b = el(`<button class="btn ghost block combat-action u-bd-accent">★ ${esc(sp.name)} <br><small class="u-muted">${isT ? "Trick (1 WP)" : `Rank ${sp.rank||1} Spell`}</small></button>`);
                 b.onclick = () => Roller.cast(cb.charId, sp, isT);
                 sGrid.appendChild(b);
               });
@@ -516,13 +517,13 @@ export const Combat = {
               const initRow = el(`<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"></div>`);
               initRow.appendChild(el(`<p class="stat-line" style="margin:0;width:100%"><b>Initiative:</b>${cb.initUsed ? ' <span class="tag">used this round</span>' : ""}</p>`));
               if (hasVet) {
-                const vb = el(`<button class="btn ghost" style="flex:1">♻ Veteran${cb.prevInit != null ? ` (keep ${cb.prevInit})` : ""} · 1 WP</button>`);
+                const vb = el(`<button class="btn ghost u-f1">♻ Veteran${cb.prevInit != null ? ` (keep ${cb.prevInit})` : ""} · 1 WP</button>`);
                 if (cb.initUsed || cb.prevInit == null) { vb.disabled = true; vb.style.opacity = "0.5"; }
                 vb.onclick = () => this.useVeteran(cb.id);
                 initRow.appendChild(vb);
               }
               if (hasLF) {
-                const lb = el(`<button class="btn ghost" style="flex:1">⚡ Lightning Fast · 2 WP</button>`);
+                const lb = el(`<button class="btn ghost u-f1">⚡ Lightning Fast · 2 WP</button>`);
                 if (cb.initUsed) { lb.disabled = true; lb.style.opacity = "0.5"; }
                 lb.onclick = () => this.useLightningFast(cb.id);
                 initRow.appendChild(lb);
@@ -530,18 +531,18 @@ export const Combat = {
               hDiv.appendChild(initRow);
             }
             // Reactions (Phase 16) — parry / dodge consume the upcoming action.
-            const reactRow = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
+            const reactRow = el(`<div class="u-row15-mt"></div>`);
             reactRow.appendChild(el(`<p class="stat-line" style="margin:0;width:100%"><b>Reactions:</b></p>`));
-            const parryB = el(`<button class="btn ghost" style="flex:1">🛡 Parry</button>`);
+            const parryB = el(`<button class="btn ghost u-f1">🛡 Parry</button>`);
             parryB.onclick = () => this.reaction(cb.id, "parry");
-            const dodgeB = el(`<button class="btn ghost" style="flex:1">🤸 Dodge</button>`);
+            const dodgeB = el(`<button class="btn ghost u-f1">🤸 Dodge</button>`);
             dodgeB.onclick = () => this.reaction(cb.id, "dodge");
             reactRow.append(parryB, dodgeB);
             hDiv.appendChild(reactRow);
             if (hDiv.children.length) body.appendChild(hDiv);
           }
         } else if (cb.kind === "npc") {
-          const npcDiv = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
+          const npcDiv = el(`<div class="u-col15"></div>`);
           if (cb.desc) npcDiv.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0;font-size:var(--fs-lg)">${esc(cb.desc)}</p>`));
           if (cb.weapons && cb.weapons.length) {
             const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
@@ -552,13 +553,13 @@ export const Combat = {
             });
             npcDiv.appendChild(grid);
           } else {
-            npcDiv.appendChild(el(`<p class="stat-line" style="margin:0">💡 Ordinary NPCs roll standard combat skills against PCs. True Monsters auto-hit.</p>`));
+            npcDiv.appendChild(el(`<p class="stat-line u-m0">💡 Ordinary NPCs roll standard combat skills against PCs. True Monsters auto-hit.</p>`));
           }
           if (cb.spells && cb.spells.length) {
-            npcDiv.appendChild(el(`<p class="stat-line" style="margin:4px 0 0 0"><b>Known Spells:</b></p>`));
+            npcDiv.appendChild(el(`<p class="stat-line u-mt1only"><b>Known Spells:</b></p>`));
             const sGrid = el(`<div class="spell-chips"></div>`);
             cb.spells.forEach(sp => {
-              const b = el(`<button class="btn ghost block combat-action" style="border-color:var(--accent)">🪄 ${esc(sp.name)} <br><small style="color:var(--muted)">Rank ${sp.rank||1} Spell</small></button>`);
+              const b = el(`<button class="btn ghost block combat-action u-bd-accent">🪄 ${esc(sp.name)} <br><small class="u-muted">Rank ${sp.rank||1} Spell</small></button>`);
               b.onclick = () => Roller.npcCast(cb.name, sp, cb.id);
               sGrid.appendChild(b);
             });

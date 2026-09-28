@@ -72,6 +72,7 @@ const P = {
   party: '<path d="M4 20l5-13 8 8zM14 4l1 2M19 5l-2 2M20 10h-2M12 8l1 1"/>',
   hand: '<path d="M8 13V5a1.5 1.5 0 013 0v6M11 11V4a1.5 1.5 0 013 0v7M14 11V5.5a1.5 1.5 0 013 0V14a7 7 0 01-7 7c-3 0-4.5-2-6-4l-2-3a1.5 1.5 0 012.5-1.5L8 15"/>',
   horse: '<path d="M6 21v-6l-2-3 3-6 3-2 1 2 5 2 4 6-2 2-3-2-2 3v4"/>',
+  printer: '<path d="M7 9V3h10v6M7 17H4v-7a1 1 0 011-1h14a1 1 0 011 1v7h-3"/><rect x="7" y="14" width="10" height="7"/>',
   letters: '<path d="M3 18l4-11 4 11M4.5 14h5M14 12a3 3 0 116 0v6M20 15h-3a2 2 0 100 3h3"/>',
 };
 
@@ -89,7 +90,7 @@ const MAP = {
   "🔗": "link", "🎬": "clapper", "🔮": "orb", "🌅": "sunrise", "🌆": "sunrise", "🌙": "moon",
   "❓": "question", "🛌": "bed", "🌊": "wave", "🪨": "rock", "✅": "check", "🖼": "image",
   "🔥": "fire", "🕯": "candle", "⚖": "scales", "🏹": "bow", "🎉": "party", "👋": "hand",
-  "🐴": "horse", "🔤": "letters",
+  "🐴": "horse", "🔤": "letters", "🖨": "printer",
 };
 // Icons that carry a semantic tint (the rest inherit the text colour).
 const TINT = { heart: "var(--hp)", drop: "var(--hp)", bolt: "var(--wp)", dragon: "var(--gold-ink)", medal: "var(--gold-ink)", sparkle: "var(--gold-ink)", demon: "var(--bad)", skull: "var(--ink-soft)", warn: "var(--gold-ink)" };

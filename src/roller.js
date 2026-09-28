@@ -50,14 +50,14 @@ export const Roller = {
       const armorBane = armorBanedSkills(c).has(name);
       let net = (condBane ? -1 : 0) + (armorBane ? -1 : 0);
       const m = modal(`Roll: ${name}`);
-      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span style="color:var(--bad)">${sk.attribute} condition → bane</span>` : ""}${armorBane ? ` · <span style="color:var(--bad)">worn armor → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
+      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span class="u-bad">${sk.attribute} condition → bane</span>` : ""}${armorBane ? ` · <span class="u-bad">worn armor → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
       const ctl = el(`<div class="roll-ctl"></div>`);
       const lbl = el(`<span class="net-lbl">${this.netLabel(net)}</span>`);
       const minus = el(`<button class="step">−</button>`), plus = el(`<button class="step">+</button>`);
       minus.onclick = () => { net--; lbl.textContent = this.netLabel(net); };
       plus.onclick = () => { net++; lbl.textContent = this.netLabel(net); };
       ctl.append(el(`<span class="stat-line">Boon / Bane</span>`), minus, lbl, plus);
-      const rollBtn = el(`<button class="btn block roll-go" style="margin-top:12px">Roll d20</button>`);
+      const rollBtn = el(`<button class="btn block roll-go u-mt3">Roll d20</button>`);
       const result = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doRoll = (pushedCondition) => {
         if (!pushedCondition) {
@@ -89,7 +89,7 @@ export const Roller = {
             cw.appendChild(chip);
           });
           if (hasSS) {
-            const chip = el(`<button class="skill-chip" style="border-color:var(--accent)">💫 Sole Survivor <span class="stat-line">−3 WP</span></button>`);
+            const chip = el(`<button class="skill-chip u-bd-accent">💫 Sole Survivor <span class="stat-line">−3 WP</span></button>`);
             chip.onclick = () => { Store.update(charId, (ch) => { ch.state.wp -= 3; }); this.refresh(charId); doRoll("Sole Survivor (−3 WP)"); };
             cw.appendChild(chip);
           }
@@ -103,8 +103,8 @@ export const Roller = {
         // Fail forward (solo): turn a failure into success-at-a-cost.
         if (!success && !pushedCondition && Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && (DRAGONBANE_SOLO.failForward || []).length) {
           const ffWrap = el(`<div class="push-wrap" style="margin-top:8px;border-top:1px dashed var(--line);padding-top:8px"></div>`);
-          const ffBtn = el(`<button class="btn ghost" style="border-color:var(--accent)" title="Optional house aid — not an official table">🎲 Fail forward (succeed at a cost)</button>`);
-          const ffOut = el(`<div style="margin-top:6px"></div>`);
+          const ffBtn = el(`<button class="btn ghost u-bd-accent" title="Optional house aid — not an official table">🎲 Fail forward (succeed at a cost)</button>`);
+          const ffOut = el(`<div class="u-mt15"></div>`);
           ffBtn.onclick = () => { const t = DRAGONBANE_SOLO.failForward; const r = Dice.d(t.length); ffOut.innerHTML = `<p class="stat-line" style="border-left:3px solid var(--accent);padding-left:8px">D${t.length}=${r}: ${esc(t[r - 1])}</p>`; };
           ffWrap.append(ffBtn, ffOut); result.appendChild(ffWrap);
         }
@@ -215,7 +215,7 @@ export const Roller = {
       }
 
       if (c.state.conditions && c.state.conditions[attr]) {
-        atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ ${attr} condition bane applies</p>`));
+        atkDiv.appendChild(el(`<p class="warn-bane u-my1">⚠ ${attr} condition bane applies</p>`));
       }
 
       // STR-requirement bane + two-handed grip (−3 STR req). Melee weapons only.
@@ -237,7 +237,7 @@ export const Roller = {
 
       if (isRanged) {
         if (equippedHelmet(c) && equippedHelmet(c).rangedBane) {
-          atkDiv.appendChild(el(`<p class="warn-bane" style="margin:4px 0">⚠ Great Helm → bane on all ranged attacks</p>`));
+          atkDiv.appendChild(el(`<p class="warn-bane u-my1">⚠ Great Helm → bane on all ranged attacks</p>`));
         }
         if (typeof c.state.combatAmmo !== "number") c.state.combatAmmo = 12;
         const pbRow = el(`<label class="roll-opt" style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);margin:6px 0;cursor:pointer"><input type="checkbox"> Point-blank (engaged within 2m) → Bane</label>`);
@@ -253,17 +253,17 @@ export const Roller = {
         atkDiv.appendChild(ammoRow);
       }
 
-      const rollAtkBtn = el(`<button class="btn block roll-go" style="margin-top:10px">Roll Attack (d20 ≤ ${target})</button>`);
+      const rollAtkBtn = el(`<button class="btn block roll-go u-mt25">Roll Attack (d20 ≤ ${target})</button>`);
       
       // Bottom section: Damage Roll
-      const dmgDiv = el(`<div style="margin-top:12px"></div>`);
+      const dmgDiv = el(`<div class="u-mt3"></div>`);
       const dmgOut = el(`<div class="dmg-result" role="status" aria-live="polite"></div>`);
       const rollDmgBtn = el(`<button class="btn secondary block" disabled style="opacity:0.4;cursor:not-allowed">Roll Damage (${esc(weapon.damage)}${bonusDie ? " +" + bonusDie : ""})</button>`);
       rollDmgBtn.onclick = () => {
         const base = Dice.roll(weapon.damage);
         let tot = base; let p = `${weapon.damage} = <b>${base}</b>`;
         if (bonusDie) { const b = Dice.roll(bonusDie); tot += b; p += ` · ${attr} bonus ${bonusDie} = <b>${b}</b>`; }
-        dmgOut.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">${tot} damage</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
+        dmgOut.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">${tot} damage</p><p class="stat-line u-mt1only">${p}</p></div>`;
         dmgOut.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
       };
       dmgDiv.appendChild(rollDmgBtn);
@@ -313,7 +313,7 @@ export const Roller = {
           Store.update(charId, (ch) => { if (ch.skills?.[skillName]) ch.skills[skillName].mark = true; });
         }
 
-        let outcomeHtml = `<div style="margin-top:10px"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:var(--fs-2xl);margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:var(--fs-md);font-weight:normal">(${r.used} vs ${target})</small></p>`;
+        let outcomeHtml = `<div class="u-mt25"><p class="outcome ${success ? "ok" : "bad"}" style="font-size:var(--fs-2xl);margin:0">${crit ? "🐉 Dragon Critical Hit!" : fumble ? "👿 Demon Fumble!" : success ? "Hit!" : "Miss!"} <small style="font-size:var(--fs-md);font-weight:normal">(${r.used} vs ${target})</small></p>`;
         if ((crit || fumble) && !(c.skills?.[skillName]?.mark)) outcomeHtml += `<p class="stat-line" style="color:var(--ok);margin:4px 0 0 0">★ Auto-marked ${esc(skillName)} for advancement</p>`;
         outcomeHtml += `</div>`;
         out.innerHTML = outcomeHtml;
@@ -325,7 +325,7 @@ export const Roller = {
           if (tbl.length) {
             const fr = Dice.d(6);
             const row = tbl.find((x) => x.d6 === fr) || tbl[0];
-            out.appendChild(el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--r-sm);border-left:3px solid var(--bad)"><p class="stat-line" style="margin:0"><b>👿 ${isRanged ? "Ranged" : "Melee"} fumble (D6: ${fr})</b> — ${esc(row.effect)}</p></div>`));
+            out.appendChild(el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--r-sm);border-left:3px solid var(--bad)"><p class="stat-line u-m0"><b>👿 ${isRanged ? "Ranged" : "Melee"} fumble (D6: ${fr})</b> — ${esc(row.effect)}</p></div>`));
           }
         }
 
@@ -336,7 +336,7 @@ export const Roller = {
           const hasSS = curChar?.abilities?.some(a => a.name === "Sole Survivor") && (curChar?.state?.wp || 0) >= 3;
           // Append real DOM nodes (not outerHTML) so the push handlers survive.
           const pushWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--r-sm)"></div>`);
-          const pushHdr = el(`<p class="stat-line" style="margin:0 0 6px 0"><b>Push roll</b> (mark a condition & re-roll):</p>`);
+          const pushHdr = el(`<p class="stat-line u-mb15only"><b>Push roll</b> (mark a condition & re-roll):</p>`);
           if (!unchosen.length) pushHdr.innerHTML = hasSS ? "<b>Push roll</b> — all six conditions held; only Sole Survivor lets you push:" : "<b>Push roll</b> — all six conditions held; you cannot push.";
           pushWrap.appendChild(pushHdr);
           const cw = el(`<div class="push-conditions" style="display:flex;flex-wrap:wrap;gap:4px"></div>`);
@@ -365,7 +365,7 @@ export const Roller = {
           rollDmgBtn.textContent = `Choose a critical effect first…`;
           rollDmgBtn.className = "btn secondary block"; rollDmgBtn.style.background = ""; rollDmgBtn.style.color = "";
           const choiceWrap = el(`<div style="margin-top:10px;padding:8px;background:var(--tint-gold);border:1px dashed var(--gold);border-radius:var(--r-sm)"></div>`);
-          choiceWrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0"><b>🐉 Dragon — choose one critical effect:</b></p>`));
+          choiceWrap.appendChild(el(`<p class="stat-line u-mb15only"><b>🐉 Dragon — choose one critical effect:</b></p>`));
           const chips = el(`<div class="chip-wrap"></div>`);
           const armChip = el(`<button class="skill-chip">🗡 Ignore armor (piercing)</button>`);
           const dblChip = el(`<button class="skill-chip">💥 Double damage</button>`);
@@ -380,7 +380,7 @@ export const Roller = {
                 const b1 = Dice.roll(weapon.damage), b2 = Dice.roll(weapon.damage);
                 let tot = b1 + b2; let p = `${weapon.damage} crit (${b1}+${b2}) = <b>${b1 + b2}</b>`;
                 if (bonusDie) { const b = Dice.roll(bonusDie); tot += b; p += ` · ${attr} bonus ${bonusDie} = <b>${b}</b>`; }
-                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:var(--fs-3xl);margin:0">💥 ${tot} CRITICAL DAMAGE!</p><p class="stat-line" style="margin:4px 0 0 0">${p}</p></div>`;
+                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:var(--fs-3xl);margin:0">💥 ${tot} CRITICAL DAMAGE!</p><p class="stat-line u-mt1only">${p}</p></div>`;
                 out.appendChild(Roller.renderDamageApplier(combatantId, tot, false));
               };
             } else {
@@ -391,7 +391,7 @@ export const Roller = {
                 const base = Dice.roll(weapon.damage);
                 let tot = base; let p = `${weapon.damage} = <b>${base}</b>`;
                 if (bonusDie) { const b = Dice.roll(bonusDie); tot += b; p += ` · ${attr} bonus ${bonusDie} = <b>${b}</b>`; }
-                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">${tot} damage${ignore ? " (ignores armor)" : ""}</p><p class="stat-line" style="margin:4px 0 0 0">${p}${second ? " · you may make a free attack against another enemy within reach" : ""}</p></div>`;
+                out.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:2px dashed var(--ok)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">${tot} damage${ignore ? " (ignores armor)" : ""}</p><p class="stat-line u-mt1only">${p}${second ? " · you may make a free attack against another enemy within reach" : ""}</p></div>`;
                 out.appendChild(Roller.renderDamageApplier(combatantId, tot, ignore));
               };
             }
@@ -452,10 +452,10 @@ export const Roller = {
       if (d6Roll) {
         bodyElems.push(el(`<p class="stat-line" style="font-size:var(--fs-lg);color:var(--ok);margin:0 0 8px 0"><b>🎲 Rolled ${d6Roll} on Monster Attack Table!</b></p>`));
       }
-      bodyElems.push(el(`<p class="stat-line" style="margin:0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
+      bodyElems.push(el(`<p class="stat-line u-m0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
       if (atk.damage) {
         const base = Dice.roll(atk.damage);
-        out.innerHTML = `<div style="margin-top:12px;padding:10px;background:var(--bg-raised);border-radius:var(--r-md);border:1px solid var(--line)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">💥 ${base} damage</p><p class="stat-line" style="margin:4px 0 0 0">${atk.damage} = <b>${base}</b></p></div>`;
+        out.innerHTML = `<div style="margin-top:12px;padding:10px;background:var(--bg-raised);border-radius:var(--r-md);border:1px solid var(--line)"><p class="outcome ok" style="font-size:var(--fs-2xl);margin:0">💥 ${base} damage</p><p class="stat-line u-mt1only">${atk.damage} = <b>${base}</b></p></div>`;
         const ignoreArm = /ignores armor/i.test(atk.desc || "");
         out.appendChild(Roller.renderDamageApplier(combatantId, base, ignoreArm));
       }
@@ -483,7 +483,7 @@ export const Roller = {
         const atk = cb.attacks[idx] || cb.attacks[0];
         const block = el(`<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)"></div>`);
         block.appendChild(el(`<p class="stat-line" style="margin:0 0 4px 0;font-size:var(--fs-lg);color:var(--ok)"><b>🎲 Attack ${k + 1}/${fero} — rolled ${d6}: ${esc(atk.name)}</b></p>`));
-        block.appendChild(el(`<p class="stat-line" style="margin:0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
+        block.appendChild(el(`<p class="stat-line u-m0"><b>Automatic hit!</b> · ${esc(atk.desc || "")}</p>`));
         if (atk.damage) {
           const base = Dice.roll(atk.damage);
           block.appendChild(el(`<p class="outcome ok" style="font-size:var(--fs-xl);margin:6px 0 0 0">💥 ${base} damage <small style="font-weight:normal">(${atk.damage})</small></p>`));
@@ -559,7 +559,7 @@ export const Roller = {
       const sel = el(`<select class="input" style="width:100%;margin-bottom:10px"></select>`);
       roles.forEach(r => sel.appendChild(el(`<option value="${r}">${r}</option>`)));
       const rollBtn = el(`<button class="btn block">🎲 Roll D6 AI Action</button>`);
-      const out = el(`<div style="margin-top:12px"></div>`);
+      const out = el(`<div class="u-mt3"></div>`);
       rollBtn.onclick = () => {
         const role = sel.value;
         const roleMap = { "Melee Attacker": "melee", "Ranged Attacker": "ranged", "Sneaky Attacker": "sneaky", "Magic Attacker": "magic" };
@@ -574,7 +574,7 @@ export const Roller = {
         const cb = combatantId ? (Combat.load().combatants || []).find((c) => c.id === combatantId) : null;
         // The NPC makes an attack → resolve it (roll + damage applier) with its weapon.
         if (cb && cb.weapons && cb.weapons[0] && /\b(attack|blow|shot|strike)\b/i.test(actionText)) {
-          const b = el(`<button class="btn secondary block" style="margin-top:8px">🎲 Resolve ${esc(cb.weapons[0].name)}</button>`);
+          const b = el(`<button class="btn secondary block u-mt2">🎲 Resolve ${esc(cb.weapons[0].name)}</button>`);
           b.onclick = () => this.npcAttack(npcName, cb.weapons[0], combatantId);
           out.appendChild(b);
         }
@@ -592,11 +592,11 @@ export const Roller = {
       const wrap = el(`<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)"></div>`);
       const hero = (Combat.load().combatants || []).find((c) => c.kind === "hero" && c.charId);
       const btn = el(`<button class="btn block">🎲 Roll ${attr}${isFear ? " to resist fear" : ""}</button>`);
-      const o = el(`<div style="margin-top:6px"></div>`);
+      const o = el(`<div class="u-mt15"></div>`);
       let getLvl, onFail;
       if (hero) {
         const ch0 = Store.get(hero.charId);
-        wrap.appendChild(el(`<p class="stat-line" style="margin:0 0 6px 0">${esc(ch0.identity.name)} · ${attr} ${ch0.attributes[attr]}</p>`));
+        wrap.appendChild(el(`<p class="stat-line u-mb15only">${esc(ch0.identity.name)} · ${attr} ${ch0.attributes[attr]}</p>`));
         getLvl = () => (Store.get(hero.charId) || ch0).attributes[attr];
         onFail = () => { if (!isFear) return ""; let lbl = ""; Store.update(hero.charId, (c2) => { lbl = applyInvoluntaryConditionTo(c2, "scared"); }); this.refresh(hero.charId); return " — " + lbl; };
       } else {
@@ -608,7 +608,7 @@ export const Roller = {
       }
       btn.onclick = () => {
         const lvl = getLvl(), r = Dice.d(20), ok = r <= lvl;
-        o.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"}" style="margin:0">${r} vs ${attr} ${lvl} — ${ok ? "resisted, no ill effect." : "failed" + onFail() + "."}</p>`;
+        o.innerHTML = `<p class="outcome ${ok ? "ok" : "bad"} u-m0">${r} vs ${attr} ${lvl} — ${ok ? "resisted, no ill effect." : "failed" + onFail() + "."}</p>`;
         btn.disabled = true; btn.style.opacity = "0.5"; btn.style.cursor = "not-allowed";
       };
       wrap.append(btn, o);
@@ -628,7 +628,7 @@ export const Roller = {
         <p class="stat-line" style="margin:4px 0 0 0;font-size:var(--fs-sm)">${esc(spell.text || spell.desc || "Magical spell.")}</p>
       </div>`);
 
-      const skillRow = el(`<div class="roll-ctl" style="margin-bottom:10px">
+      const skillRow = el(`<div class="roll-ctl u-mb25">
         <span class="stat-line">Magic Skill</span>
         <button class="step" id="sm">−</button>
         <span class="net-lbl" id="slvl">${skillLvl}</span>
@@ -639,14 +639,14 @@ export const Roller = {
 
       const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       
-      const d20Btn = el(`<button class="btn secondary block" style="margin-bottom:8px">🎲 Roll D20 Magic Check (vs PC Target)</button>`);
+      const d20Btn = el(`<button class="btn secondary block u-mb2">🎲 Roll D20 Magic Check (vs PC Target)</button>`);
       d20Btn.onclick = () => {
         const r = Dice.d(20);
         const success = r <= skillLvl;
         if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
         out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${success ? "var(--ok)" : "var(--bad)"}">
           <p class="outcome ${success ? "ok" : "bad"}" style="margin:0;font-size:var(--fs-xl)">Rolled ${r} vs Skill ${skillLvl} — ${success ? "SUCCESS!" : "FAILED!"}</p>
-          ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
+          ${cb.wp != null ? `<p class="stat-line u-mt1only">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
         this.stage(out, r, skillLvl, success, r === 1, r === 20);
         if (success) {
@@ -660,7 +660,7 @@ export const Roller = {
         if (cb.wp != null && cb.wp > 0) { cb.wp = Math.max(0, cb.wp - 2); Combat.save(comb); Combat.rerender(); }
         out.innerHTML = `<div style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid var(--ok)">
           <p class="outcome ok" style="margin:0;font-size:var(--fs-xl)">Spell Cast Automatically!</p>
-          ${cb.wp != null ? `<p class="stat-line" style="margin:4px 0 0 0">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
+          ${cb.wp != null ? `<p class="stat-line u-mt1only">WP Remaining: ${cb.wp}/${cb.maxWp||cb.wp}</p>` : ""}
         </div>`;
         const pl = spell.rank || 1;
         SpellAutomation.renderCard(combatantId, spell, pl, false, false, 2, out);
@@ -759,7 +759,7 @@ export const Roller = {
       let pl = 1;
       const condCn = (DB.conditions || []).find((cn) => cn.attribute === castAttr && c.state.conditions[cn.key]);
       const condBane = !!condCn;
-      const head = el(`<p class="stat-line">Roll <b>${esc(schoolName)}</b> (level ${level})${condBane ? ` · <span style="color:var(--bad)">${esc(condCn.name)} → bane</span>` : ""}. ${perLevel} WP per power level.</p>`);
+      const head = el(`<p class="stat-line">Roll <b>${esc(schoolName)}</b> (level ${level})${condBane ? ` · <span class="u-bad">${esc(condCn.name)} → bane</span>` : ""}. ${perLevel} WP per power level.</p>`);
       const plRow = el(`<div class="roll-ctl"></div>`);
       const plLbl = el(`<span class="net-lbl">Power level ${pl} · ${pl * perLevel} WP</span>`);
       const pm = el(`<button class="step">−</button>`), pp = el(`<button class="step">+</button>`);
@@ -773,7 +773,7 @@ export const Roller = {
         <span>📖 Cast Unprepared from Grimoire (Doubles time)</span>
       </label>`);
 
-      const castBtn = el(`<button class="btn block roll-go" style="margin-top:12px">Cast</button>`);
+      const castBtn = el(`<button class="btn block roll-go u-mt3">Cast</button>`);
       if (hasMetal) { castBtn.disabled = true; castBtn.style.opacity = "0.4"; castBtn.style.cursor = "not-allowed"; castBtn.title = "Remove metal armor/weapon to cast"; }
       const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doCast = (pushedCondition) => {
@@ -801,10 +801,10 @@ export const Roller = {
         let html = `<div class="dice-faces">${r.dice.map((d) => `<span class="die ${d === r.used ? "used" : ""}">${d}</span>`).join("")}</div>`;
         html += `<p class="outcome ${success ? "ok" : "bad"}">${dragon ? "🐉 DRAGON — cast! choose: double damage/range, no WP cost, or cast another (bane)" : demon ? "👹 DEMON — magical mishap!" : success ? `Success — power level ${pl}` : "Failed — WP still spent"}</p>`;
         if (!pushedCondition) html += `<p class="stat-line">−${cost} WP.</p>`;
-        if (isUnprepared && success) html += `<p class="stat-line" style="color:var(--bad)">⏳ Unprepared: Casting time doubled (takes 2 rounds/stretches).</p>`;
+        if (isUnprepared && success) html += `<p class="stat-line u-bad">⏳ Unprepared: Casting time doubled (takes 2 rounds/stretches).</p>`;
         if (demon) {
           const roll = Dice.d(20); const text = MISHAPS[roll - 1];
-          html += `<p class="notice" style="border-color:var(--bad)"><b>Mishap (D20=${roll}):</b> ${esc(text)}</p>`;
+          html += `<p class="notice u-bd-bad"><b>Mishap (D20=${roll}):</b> ${esc(text)}</p>`;
           if (roll <= 6) { let oflabel = ""; Store.update(charId, (ch) => { oflabel = applyInvoluntaryConditionTo(ch, CONDITION_BY_MISHAP[roll - 1]); }); if (/lost \d+ (WP|HP)/.test(oflabel)) html += `<p class="stat-line">${esc(oflabel)}.</p>`; }
           else if (roll === 7) { const dmg = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.hp = Math.max(0, ch.state.hp - dmg); }); html += `<p class="stat-line">Took ${dmg} damage.</p>`; }
           else if (roll === 8) { const wl = Dice.roll(pl + "D6"); Store.update(charId, (ch) => { ch.state.wp = Math.max(0, ch.state.wp - wl); }); html += `<p class="stat-line">Lost a further ${wl} WP.</p>`; }
@@ -835,7 +835,7 @@ export const Roller = {
           const cw = el(`<div class="chip-wrap"></div>`);
           remaining.forEach((cn) => { const chip = el(`<button class="skill-chip">${esc(cn.name)}</button>`); chip.onclick = () => { Store.update(charId, (ch) => { ch.state.conditions[cn.key] = true; }); doCast("gained " + cn.name); }; cw.appendChild(chip); });
           if (hasSS2) {
-            const chip = el(`<button class="skill-chip" style="border-color:var(--accent)">💫 Sole Survivor (−3 WP)</button>`);
+            const chip = el(`<button class="skill-chip u-bd-accent">💫 Sole Survivor (−3 WP)</button>`);
             chip.onclick = () => { Store.update(charId, (ch) => { ch.state.wp -= 3; }); doCast("Sole Survivor (−3 WP)"); };
             cw.appendChild(chip);
           }

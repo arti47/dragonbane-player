@@ -33,7 +33,7 @@ export const Store = {
     listLocalOnly() {
       return this.list().filter((c) => !c.campaignId);
     },
-    save(chars) { localStorage.setItem(this.KEY, JSON.stringify(chars)); },
+    save(chars) { localStorage.setItem(this.KEY, JSON.stringify(chars)); try { window.dispatchEvent(new Event("db:changed")); } catch (_) {} },
     put(c) {
       const list = this.list();
       const idx = list.findIndex((x) => x.id === c.id);

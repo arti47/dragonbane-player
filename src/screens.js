@@ -47,10 +47,10 @@ export function renderPartyBanner() {
     }).join("");
     const bannerEl = el(`<div class="panel" style="border-color:var(--accent);background:var(--tint-accent);margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <h3 style="margin:0">🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
+        <h3 class="u-m0">🛡️ Party Roster (${esc(Sync.campaign.name)})</h3>
         <span class="tag code">${esc(Sync.campaign.joinCode)}</span>
       </div>
-      <div style="margin-top:8px">${items}</div>
+      <div class="u-mt2">${items}</div>
     </div>`);
     bannerEl.querySelectorAll(".roster-row[data-id]").forEach(row => {
       row.onclick = () => Sheet.open(row.dataset.id);
@@ -181,7 +181,7 @@ export const Screens = {
             </div>
             <div class="search-count" role="status" aria-live="polite"></div>
           </div>
-          <div id="rules-acc-wrap" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="u-col2" id="rules-acc-wrap"></div>
         </div>`);
       root.insertBefore(helpBox("Rules library", [
         "Tap a category header to expand it; tap again to collapse.",
@@ -254,9 +254,9 @@ export const Screens = {
           <div class="panel">
             <h3>Data management</h3>
             <div class="rest-row">
-              <button class="btn secondary" id="btn-export">Export heroes (JSON)</button>
-              <button class="btn secondary" id="btn-import">Import heroes (JSON)</button>
-              <button class="btn ghost" id="btn-clear" style="color:var(--bad)">Clear all storage</button>
+              <button class="btn secondary data-btn" id="btn-export">⬇ Export heroes (JSON)</button>
+              <button class="btn secondary data-btn" id="btn-import">⬆ Import heroes (JSON)</button>
+              <button class="btn danger-ghost data-btn" id="btn-clear">Clear all storage</button>
             </div>
             <input type="file" id="file-import" accept=".json" style="display:none">
           </div>
@@ -305,7 +305,7 @@ export const Screens = {
         }
 
         if (!Sync.campaign) {
-          const createRow = el(`<div style="margin-top:8px"><button class="btn secondary block" id="btn-create-camp">⚡ Create New Party Campaign</button></div>`);
+          const createRow = el(`<div class="u-mt2"><button class="btn secondary block" id="btn-create-camp">⚡ Create New Party Campaign</button></div>`);
           createRow.querySelector("#btn-create-camp").onclick = async () => {
             const n = await promptModal("Enter a Campaign / Party Name:", { title: "Create campaign", defaultValue: "Misty Vale Adventurers", okText: "Create" });
             if (n !== null) Sync.createCampaign(n.trim() || "Dragonbane Campaign");
@@ -379,7 +379,7 @@ export const Screens = {
 export function renderRuleDetail(key, container) {
     let html = "";
     if (key === "howtoplay") {
-      const acc = (title, body, open) => `<details class="rule-accordion" style="background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px"${open ? " open" : ""}><summary style="font-weight:bold;cursor:pointer">${title}</summary><div style="margin-top:8px" class="stat-line">${body}</div></details>`;
+      const acc = (title, body, open) => `<details class="rule-accordion" style="background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px"${open ? " open" : ""}><summary class="u-bold-ptr">${title}</summary><div class="stat-line u-mt2">${body}</div></details>`;
       html = `<div class="panel" style="border-left:4px solid var(--accent)">
         <h3>📘 How to Play</h3>
         <p class="stat-line">Combined rules primer + how to drive this app. Nav tabs: <b>⚔ Heroes</b>, <b>🛡 Combat</b>, <b>🧭 Solo</b> (when enabled), <b>🎲 GM</b> (when enabled), <b>📖 Rules</b>, <b>⚙ About</b>.</p>
@@ -397,14 +397,14 @@ export function renderRuleDetail(key, container) {
     } else if (key === "stages") {
       html = `<div class="panel" style="border-left:4px solid var(--accent)">
         <h3>Core Gameplay Loop &amp; Stages</h3>
-        <details style="margin-bottom:8px" open><summary style="cursor:pointer"><b>⏱️ Time Scales (Rounds vs Shifts)</b></summary>
-          <p class="stat-line" style="margin-top:4px">· <b>Combat Rounds:</b> Roughly 10 seconds. Every combatant gets 1 Turn (Action + Movement).<br>· <b>Wilderness Shifts:</b> Roughly 6 hours (Morning, Day, Evening, Night).</p>
+        <details class="u-mb2" open><summary style="cursor:pointer"><b>⏱️ Time Scales (Rounds vs Shifts)</b></summary>
+          <p class="stat-line u-mt1">· <b>Combat Rounds:</b> Roughly 10 seconds. Every combatant gets 1 Turn (Action + Movement).<br>· <b>Wilderness Shifts:</b> Roughly 6 hours (Morning, Day, Evening, Night).</p>
         </details>
-        <details style="margin-bottom:8px"><summary style="cursor:pointer"><b>⚔️ Combat Stage Sequence</b></summary>
-          <p class="stat-line" style="margin-top:4px">1. <b>Draw Initiative:</b> 1 to 10 ascending.<br>2. <b>Take Turns:</b> Move + Action (Attack, Cast, Dash, Rally).<br>3. <b>Reaction:</b> Parry or Evade (spends your upcoming action).<br>4. <b>End Round:</b> Redraw cards if needed.</p>
+        <details class="u-mb2"><summary style="cursor:pointer"><b>⚔️ Combat Stage Sequence</b></summary>
+          <p class="stat-line u-mt1">1. <b>Draw Initiative:</b> 1 to 10 ascending.<br>2. <b>Take Turns:</b> Move + Action (Attack, Cast, Dash, Rally).<br>3. <b>Reaction:</b> Parry or Evade (spends your upcoming action).<br>4. <b>End Round:</b> Redraw cards if needed.</p>
         </details>
-        <details style="margin-bottom:8px"><summary style="cursor:pointer"><b>🎲 Core D20 Mechanic &amp; Pushing</b></summary>
-          <p class="stat-line" style="margin-top:4px">Roll D20 ≤ Skill level. 1 is Dragon (Critical), 20 is Demon (Mishap). If you fail, you can <b>Push</b> the roll by accepting a Condition Bane (Exhausted, Battered, etc.).</p>
+        <details class="u-mb2"><summary style="cursor:pointer"><b>🎲 Core D20 Mechanic &amp; Pushing</b></summary>
+          <p class="stat-line u-mt1">Roll D20 ≤ Skill level. 1 is Dragon (Critical), 20 is Demon (Mishap). If you fail, you can <b>Push</b> the roll by accepting a Condition Bane (Exhausted, Battered, etc.).</p>
         </details>
       </div>`;
     } else if (key === "journeys") {
@@ -445,7 +445,7 @@ export function renderRuleDetail(key, container) {
       const renderSchool = (k, pool, isNew) => {
         const tricks = (pool.tricks || []).map((t) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(t.name)}</b> <span class="tag">Trick</span><br><span class="stat-line">${esc(t.text)}</span></p>`).join("");
         const spells = (pool.spells || []).map((s) => `<p style="padding:6px 0;border-bottom:1px solid var(--line);margin:0"><b>${esc(s.name)}</b> <span class="tag">Rank ${s.rank}</span><br><span class="stat-line">${esc(s.range || s.ingredients || s.item || "")}${s.duration ? " · " + esc(s.duration) : ""} — ${esc(s.text)}</span></p>`).join("");
-        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary style="font-size:var(--fs-lg);font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span>${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line" style="margin-bottom:10px"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div style="margin-top:8px">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary style="font-weight:bold;cursor:pointer">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div style="margin-top:8px">${spells}</div></details>` : ""}</div></details>`;
+        return `<details class="panel rule-accordion" style="margin-bottom:10px;padding:12px"><summary class="school-summary"><span class="ss-name">🧙‍♂️ ${esc(pool.name || labels[k] || Magic.cap(k))}</span><span class="ss-tags">${isNew ? '<span class="tag">Book of Magic</span> ' : ""}<span class="tag">${(pool.tricks||[]).length + (pool.spells||[]).length}</span></span></summary><div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">${pool.entry ? `<p class="stat-line u-mb25"><i>${esc(pool.entry)}</i></p>` : ""}${tricks ? `<details open style="margin-bottom:8px;background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">✨ Magic Tricks (${(pool.tricks||[]).length})</summary><div class="u-mt2">${tricks}</div></details>` : ""}${spells ? `<details style="background:var(--bg);padding:8px;border-radius:var(--r-sm);border:1px solid var(--line)"><summary class="u-bold-ptr">📖 Ranked Spells (${(pool.spells||[]).length})</summary><div class="u-mt2">${spells}</div></details>` : ""}</div></details>`;
       };
       const parts = [];
       if (Magic.enabled()) parts.push(`<p class="notice">Book of Magic content is ON (toggle it in Settings). Revised core spells are always applied.</p>`);
@@ -457,7 +457,7 @@ export function renderRuleDetail(key, container) {
       const a = (DB.armor || []).map((x) => `<span class="tag">${esc(x.name)} (rating ${x.rating})</span>`).join("");
       const h = (DB.helmets || []).map((x) => `<span class="tag">${esc(x.name)} (+${x.rating})</span>`).join("");
       html = `<div class="panel"><h3>Weapons &amp; Shields</h3>${w}</div>
-              <div class="panel"><h3>Armor</h3>${a}<h3 style="margin-top:10px">Helmets</h3>${h}</div>`;
+              <div class="panel"><h3>Armor</h3>${a}<h3 class="u-mt25">Helmets</h3>${h}</div>`;
     } else if (key === "gear") {
       html = `<div class="panel"><h3>Adventuring gear</h3>` + (DB.gear || []).map((g) =>
         `<p><b>${esc(g.name)}</b> <span class="tag">${esc(g.cost)}</span> <span class="tag">wt ${g.weight}</span><br><span class="stat-line">${esc(g.effect || "")}</span></p>`).join("") + `</div>`;

@@ -153,10 +153,10 @@ export const SpellAutomation = {
       };
 
       if (cat === "heal") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>`);
-        row.append(el(`<span class="stat-line">Heal:</span>`));
+        const row = el(`<div class="sa-form"></div>`);
+        row.append(el(`<span class="sa-lbl">Heal:</span>`));
         const tSel = buildSelect(allies, "— no targets —", selfKey);
-        const dIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="healing dice">`);
+        const dIn = el(`<input type="text" class="input sa-dice" value="${this.spellDice(spell, pl)}" title="healing dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--ok-fill);color:var(--on-fill);border:none" title="Apply Healing">💚 Heal</button>`);
         btn.onclick = () => {
           const t = findT(allies, tSel.value);
@@ -165,21 +165,19 @@ export const SpellAutomation = {
           if (t) applyHp(t, +amt);
           card.innerHTML = `<p class="outcome ok">💚 Healed <b>${amt} HP</b>${t ? ` → ${esc(t.name)}` : " (apply manually)"}.</p>`;
         };
-        row.append(tSel, dIn, btn); card.appendChild(row);
+        const act = el(`<div class="sa-act"></div>`); act.append(dIn, btn);
+        row.append(tSel, act); card.appendChild(row);
       } else if (cat === "damage_single") {
-        const wrap = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
-        const rTop = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
-        rTop.append(el(`<span class="stat-line">Enemy:</span>`));
+        const wrap = el(`<div class="sa-form"></div>`);
         const tSel = buildSelect(enemies, "— none in combat —");
-        const cstIn = el(`<input type="text" class="input" style="width:110px" placeholder="or custom target">`);
-        rTop.append(tSel, cstIn);
-        const rMid = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
-        rMid.append(el(`<span class="stat-line">Dist:</span>`));
-        const distIn = el(`<input type="number" class="input" style="width:56px" value="5" min="0">`);
-        rMid.append(distIn, el(`<span class="stat-line">m (max ${this.getRangeLimit(spell)}m)</span>`));
+        const cstIn = el(`<input type="text" class="input" placeholder="or custom target">`);
+        const tgtBox = el(`<div class="sa-stack"></div>`); tgtBox.append(tSel, cstIn);
+        const distIn = el(`<input type="number" class="input sa-num" value="5" min="0">`);
+        const maxR0 = this.getRangeLimit(spell);
+        const distBox = el(`<div class="sa-act"></div>`); distBox.append(distIn, el(`<span class="stat-line">${maxR0 < 999 ? `m (max ${maxR0}m)` : "m"}</span>`));
         const isPsychic = /mental|death|stench|psychic|soul|boneshaker/i.test(spell.name || "");
         const armLbl = el(`<label style="display:flex;align-items:center;gap:4px;font-size:var(--fs-xs)"><input type="checkbox" ${isPsychic ? "" : "checked"}> Armor mitigates</label>`);
-        const fIn = el(`<input type="text" class="input" style="width:84px" value="${this.spellDice(spell, pl)}" title="damage dice">`);
+        const fIn = el(`<input type="text" class="input sa-dice" value="${this.spellDice(spell, pl)}" title="damage dice">`);
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--bad-fill);color:var(--on-fill);border:none" title="Strike target">💥 Strike</button>`);
         btn.onclick = async () => {
           const dist = Number(distIn.value) || 0, maxR = this.getRangeLimit(spell);
@@ -193,11 +191,12 @@ export const SpellAutomation = {
           const who = cstIn.value.trim() || (t ? t.name : "your target");
           card.innerHTML = `<p class="outcome bad">💥 <b>${net} damage</b> (${dmg} roll${arm ? ` − ${arm} armor` : ""}) → ${esc(who)}.${t ? "" : " <span class='stat-line'>Apply manually.</span>"}</p>`;
         };
-        const rBot = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        const rBot = el(`<div class="sa-act"></div>`);
         rBot.append(fIn, armLbl, btn);
-        wrap.append(rTop, rMid, rBot); card.appendChild(wrap);
+        wrap.append(el(`<span class="sa-lbl">Enemy:</span>`), tgtBox, el(`<span class="sa-lbl">Dist:</span>`), distBox, el(`<span class="sa-lbl">Dice:</span>`), rBot);
+        card.appendChild(wrap);
       } else if (cat === "damage_aoe") {
-        const wrap = el(`<div style="display:flex;flex-direction:column;gap:8px"></div>`);
+        const wrap = el(`<div class="u-col2"></div>`);
         wrap.append(el(`<span class="stat-line">AoE blast targets:</span>`));
         const chkWrap = el(`<div style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--tint-shade);border-radius:var(--r-sm)"></div>`);
         enemies.forEach(t => { chkWrap.appendChild(el(`<label style="font-size:var(--fs-xs);display:flex;gap:6px"><input type="checkbox" value="${esc(t.key)}" checked> ${esc(t.label)}</label>`)); });
@@ -217,9 +216,9 @@ export const SpellAutomation = {
       } else if (cat === "summon") {
         const sKey = Object.keys(SUMMON_STATS).find(k => (spell.name || "").toLowerCase().includes(k)) || "familiar";
         const st = SUMMON_STATS[sKey];
-        const row = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
+        const row = el(`<div class="u-col15"></div>`);
         row.innerHTML = `<p class="notice" style="font-size:var(--fs-xs)"><b>Summon (${sKey.toUpperCase()}):</b> HP ${st.hp}, Armor ${st.armor}, Move ${st.movement}m · ${st.attack}</p>`;
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Add companion to sheet and combat tracker">+ Spawn</button>`);
+        const btn = el(`<button class="skill-chip quick-chip u-bd-accent" title="Add companion to sheet and combat tracker">+ Spawn</button>`);
         btn.onclick = () => {
           const sName = `${spell.name} (${(char.identity && char.identity.name) || char.name || "Caster"})`;
           Store.update(charId, ch => { ch.companions = ch.companions || []; ch.companions.push({ id: uid(), name: sName, hp: st.hp, hpMax: st.hp, notes: `Armor ${st.armor}. ${st.attack}` }); });
@@ -230,9 +229,9 @@ export const SpellAutomation = {
         };
         row.appendChild(btn); card.appendChild(row);
       } else if (cat === "rune") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const row = el(`<div class="u-row"></div>`);
         row.append(el(`<span class="stat-line">Inscribe dormant rune:</span>`));
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Inscribe dormant rune">+ Rune</button>`);
+        const btn = el(`<button class="skill-chip quick-chip u-bd-accent" title="Inscribe dormant rune">+ Rune</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => { ch.effects = ch.effects || []; ch.effects.push({ id: uid(), name: `Dormant Rune (${spell.name})`, isRune: true, pl, notes: spell.text }); });
           Roller.refresh(charId);
@@ -240,7 +239,7 @@ export const SpellAutomation = {
         };
         row.appendChild(btn); card.appendChild(row);
       } else if (cat === "curse") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const row = el(`<div class="u-row"></div>`);
         row.append(el(`<span class="stat-line">Curse target:</span>`));
         const tSel = buildSelect(enemies, "— none in combat —");
         const btn = el(`<button class="skill-chip quick-chip" style="background:var(--arcane-fill);color:var(--on-fill);border:none" title="Hex target">🧿 Hex</button>`);
@@ -251,9 +250,9 @@ export const SpellAutomation = {
         };
         row.append(tSel, btn); card.appendChild(row);
       } else if (cat === "illusion") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const row = el(`<div class="u-row"></div>`);
         row.append(el(`<span class="stat-line">Active illusion (DC ${10 + pl}):</span>`));
-        const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent)" title="Create active illusion">+ Illusion</button>`);
+        const btn = el(`<button class="skill-chip quick-chip u-bd-accent" title="Create active illusion">+ Illusion</button>`);
         btn.onclick = () => {
           Store.update(charId, ch => { ch.effects = ch.effects || []; ch.effects.push({ id: uid(), name: `Illusion: ${spell.name} (DC ${10 + pl})`, isIllusion: true, pl }); });
           Roller.refresh(charId);
@@ -261,7 +260,7 @@ export const SpellAutomation = {
         };
         row.appendChild(btn); card.appendChild(row);
       } else if (cat === "haste") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        const row = el(`<div class="u-row-wrap"></div>`);
         row.append(el(`<span class="stat-line">Haste (2nd turn):</span>`));
         const tSel = buildSelect(hasteList, "— add ally to tracker —");
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--info);color:var(--info)" title="Grant second initiative turn">⚡ Grant Turn</button>`);
@@ -272,7 +271,7 @@ export const SpellAutomation = {
         };
         row.append(tSel, btn); card.appendChild(row);
       } else if (cat === "slow") {
-        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>`);
+        const row = el(`<div class="u-row-wrap"></div>`);
         row.append(el(`<span class="stat-line">Slow/debuff enemy:</span>`));
         const tSel = buildSelect(enemies, "— none in combat —");
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--bad);color:var(--bad)" title="Roll resistance save and apply debuff">⏳ Auto Debuff</button>`);
@@ -287,8 +286,8 @@ export const SpellAutomation = {
       } else {
         // Utility / buff — show the effect text and offer to track it on the sheet.
         const isConc = (spell.duration || "").toLowerCase().includes("concentration");
-        const wrap = el(`<div style="display:flex;flex-direction:column;gap:6px"></div>`);
-        const row = el(`<div style="display:flex;gap:8px;align-items:center"></div>`);
+        const wrap = el(`<div class="u-col15"></div>`);
+        const row = el(`<div class="u-row"></div>`);
         row.append(el(`<span class="stat-line">Utility / Buff (${esc(spell.duration || "Instant")}):</span>`));
         const btn = el(`<button class="skill-chip quick-chip" style="border-color:var(--accent);color:var(--accent-ink)" title="Track this effect on the character sheet">+ Track effect</button>`);
         btn.onclick = () => {
@@ -334,7 +333,7 @@ export const SpellAutomation = {
       if (hpDice || wpDice) {
         // Target: the drinker by default, or any hero on the roster.
         const heroes = Store.list();
-        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><span class="stat-line" style="margin:0">Who drinks it:</span></div>`);
+        const row = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><span class="stat-line u-m0">Who drinks it:</span></div>`);
         const sel = el(`<select class="input" style="min-width:150px"></select>`);
         heroes.forEach((h) => sel.appendChild(el(`<option value="${esc(h.id)}">${esc(h.identity.name)} (HP ${h.state.hp}/${effHpMax(h)})</option>`)));
         sel.value = charId;

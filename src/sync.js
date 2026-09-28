@@ -282,6 +282,7 @@ export const Sync = {
         snap.forEach((m) => { const v = m.val() || {}; list.push({ id: m.key, text: v.text || "", ts: v.ts || 0, from: v.from || "" }); });
         list.sort((a, b) => a.ts - b.ts);
         this.broadcast = list;
+        try { window.dispatchEvent(new Event("db:changed")); } catch (_) {}
         const firstLoad = this._broadcastSeen === null;
         const seen = this._broadcastSeen || new Set();
         // Toast only genuinely-new messages from someone else (not on initial load, not your own).

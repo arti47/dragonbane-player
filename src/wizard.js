@@ -181,7 +181,7 @@ export const Wizard = {
       }
       if (this.s.profession === "bard" && Magic.enabled()) {
         const row = el(`<div class="panel" style="margin-top:16px"><b>Harmonism</b><br><span class="stat-line">Bards may study Harmonism (cast via Performance). You'll choose 3 magic tricks and 3 rank-1 spells.</span></div>`);
-        const tog = el(`<button class="toggle ${this.s.bardHarmonism ? "on" : ""}" style="margin-top:8px"><span class="knob"></span></button>`);
+        const tog = el(`<button class="toggle ${this.s.bardHarmonism ? "on" : ""} u-mt2"><span class="knob"></span></button>`);
         tog.onclick = () => { this.s.bardHarmonism = !this.s.bardHarmonism; if (!this.s.bardHarmonism) this.s.spells = { tricks: [], known: [] }; this.render(); };
         row.appendChild(tog); wrap.appendChild(row);
       }
@@ -219,7 +219,7 @@ export const Wizard = {
       const schoolName = isMage && this.s.mageSchool ? this.s.mageSchool[0].toUpperCase() + this.s.mageSchool.slice(1) : null;
       if (isMage && schoolName) this.s.trained.add(schoolName); // school is always trained
       wrap.appendChild(el(sectionTitle("Trained skills")));
-      const counter = el(`<div class="panel notice" id="skill-count"></div>`);
+      const counter = el(`<div class="panel notice sticky-count" id="skill-count"></div>`);
       wrap.appendChild(counter);
       const updateCount = () => {
         const total = this.s.trained.size;
@@ -351,7 +351,7 @@ export const Wizard = {
         inp.value = this.s.identity[key] || "";
         inp.oninput = () => { this.s.identity[key] = inp.value; };
         if (key === "name" && DB.names) {
-          const btnWrap = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
+          const btnWrap = el(`<div class="u-row15-mt"></div>`);
           const genBtn = el(`<button type="button" class="btn step" style="flex:1;font-size:var(--fs-sm)">🎲 Random Hero Name</button>`);
           genBtn.onclick = () => {
             const kinKey = this.s.kin || "human";
@@ -367,7 +367,7 @@ export const Wizard = {
           f.appendChild(inp); f.appendChild(btnWrap); return f;
         }
         if (key !== "name" && DB.flavor && DB.flavor[key]) {
-          const btnWrap = el(`<div style="display:flex;gap:6px;margin-top:6px"></div>`);
+          const btnWrap = el(`<div class="u-row15-mt"></div>`);
           const labelName = key.charAt(0).toUpperCase() + key.slice(1);
           const genBtn = el(`<button type="button" class="btn step" style="flex:1;font-size:var(--fs-sm);padding:4px 8px">🎲 Random ${labelName}</button>`);
           genBtn.onclick = () => {
@@ -511,7 +511,7 @@ export const Pregens = {
       const root = el(`<div></div>`);
       root.appendChild(el(`<div class="wiz-head"><button class="btn ghost" id="pg-back">← Heroes</button><div class="wiz-progress">Pre-generated heroes</div></div>`));
       root.appendChild(el(`<p class="stat-line">Ready-to-play characters from the Dragonbane Core Set. Pick one to add it to your roster — you can rename or adjust it afterwards.</p>`));
-      const grid = el(`<div class="card-grid" style="margin-top:12px"></div>`);
+      const grid = el(`<div class="card-grid u-mt3"></div>`);
       (window.DRAGONBANE_PREGENS || []).forEach((p) => {
         const kin = (DB.kin || []).find((k) => k.key === p.kin);
         const prof = (DB.professions || []).find((x) => x.key === p.profession);
