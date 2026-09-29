@@ -2076,6 +2076,28 @@ p, li, .stat-line, .meta { text-wrap: pretty; }
 }
 @media (prefers-reduced-motion: reduce) { .roll-stage.dragon::after, .roll-stage.demon::after, .hpbar.dying { animation: none; } }
 
+/* ================= AUDIT #5 FOLLOW-UP: nothing pokes out, nothing cut mid-word ================= */
+/* Form controls may shrink inside flex rows (their default min-width pushed the 🎲 button out of the panel) */
+input, select, textarea { min-width: 0; }
+input { text-overflow: ellipsis; }
+.name-gen > .btn { flex: none; }
+/* Side-by-side field pairs wrap to one per line before their text gets cut */
+.field-row > div { flex: 1 1 210px !important; min-width: 0 !important; }
+/* "Rolling as" hero picker always gets the full row */
+.solo-ctx-hero .solo-ctx-sel { flex: 1 1 100%; }
+/* Add rows (combat, GM, sheet): the select/input takes the line; "Add" drops below when there is no room */
+.inv-add { flex-wrap: wrap; }
+.inv-add > select { flex: 1 1 230px; }
+.inv-add > input[type="text"] { flex: 1 1 160px; }
+@media (max-width: 420px) { .inv-add > .btn { padding-left: 10px; padding-right: 10px; } .inv-add { gap: 6px; } }
+@media (max-width: 420px) {
+  select.input, .inv-add select, .modal-card select { padding-left: 10px; padding-right: 28px; background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; }
+}
+/* Guide steps break long tokens instead of overflowing */
+.rl-steps li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+/* Small-desktop sheet: the Overview column is too narrow for two masonry columns */
+@media (min-width: 1024px) and (max-width: 1279px) { .sheet-main .tab-panel.two-col:not([hidden]) { column-count: 1; } }
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }

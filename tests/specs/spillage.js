@@ -1,5 +1,5 @@
 /* spillage.js — no horizontal text/layout overflow on any screen.
-   At 360px and 390px, walks every screen (sheet, home, combat with monsters +
+   At 360px, 390px and 430px, walks every screen (sheet, home, combat with monsters +
    cards expanded, rules with accordions open, solo, about, cast modal) and
    asserts the page never overflows and no leaf element spills its box. Guards the
    mobile-overflow regressions fixed in the v40–v51 changelog. */
@@ -20,13 +20,23 @@ const DETECTOR = () => {
       }
     }
   });
-  return { pageOverflow: document.documentElement.scrollWidth - vw, count };
+  // Controls/children poking out past their panel, card or dialog (e.g. the Solo
+  // foe generator's 🎲 button when the name input refused to shrink).
+  let escapes = 0;
+  document.querySelectorAll("#screen .panel *, .modal-card *").forEach((el) => {
+    if (!el.getClientRects().length || el.closest(".emo") || getComputedStyle(el).position === "fixed") return;
+    const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return;
+    for (let p = el.parentElement; p && !p.matches(".panel, .modal-card"); p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o !== "visible") return; }
+    const box = el.closest(".panel, .modal-card").getBoundingClientRect();
+    if (r.right > box.right + 1.5 || r.right > vw + 0.5) escapes++;
+  });
+  return { pageOverflow: document.documentElement.scrollWidth - vw, count, escapes };
 };
 
 module.exports = {
   name: "spillage",
   async run({ baseURL, newPage, t }) {
-    for (const vw of [360, 390]) {
+    for (const vw of [360, 390, 430]) {
       const page = await newPage({ soloMode: true, bookOfMagic: true, gmAutomation: true, gmScreen: true }, { width: vw, height: 850 });
       page.on("dialog", (d) => d.accept("3"));
       await page.goto(baseURL + "/index.html", { waitUntil: "load" });
@@ -36,6 +46,7 @@ module.exports = {
         const r = await page.evaluate(DETECTOR);
         t.ok(`${vw}px ${label}: no page overflow (${r.pageOverflow}px)`, r.pageOverflow <= 2);
         t.ok(`${vw}px ${label}: no spilling elements (${r.count})`, r.count === 0);
+        t.ok(`${vw}px ${label}: nothing pokes out of its panel (${r.escapes})`, r.escapes === 0);
       };
 
       // Two heroes (mage + knight)

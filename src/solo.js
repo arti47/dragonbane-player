@@ -256,7 +256,7 @@ export const SoloMode = {
         <div class="panel">
           <h3>🔮 Fortune Chart (Oracle)</h3>
           <p class="stat-line">Ask a question, set likelihood, and leave the answer to fate.</p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+          <div class="field-row" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
             <div class="u-f1-140">
               <label class="stat-line">Likelihood</label><br>
               <select id="solo-f-like" class="input u-w100-mt1">
@@ -386,7 +386,7 @@ export const SoloMode = {
         <div class="panel">
           <h3>⚔ Solo NPC &amp; Foe Generator</h3>
           <p class="stat-line">Quickly instantiate simple foes or roll their AI attacks.</p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+          <div class="field-row" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
             <div class="u-f1-140">
               <label class="stat-line">Template</label><br>
               <select id="solo-n-tmpl" class="input u-w100-mt1">
@@ -395,7 +395,7 @@ export const SoloMode = {
             </div>
             <div style="flex:2;min-width:180px">
               <label class="stat-line">Name / Custom Label</label><br>
-              <div style="display:flex;gap:4px;margin-top:4px">
+              <div class="name-gen" style="display:flex;gap:4px;margin-top:4px">
                 <input type="text" id="solo-n-name" class="input u-f1" placeholder="e.g. Deepfall Goblin Scout">
                 <button type="button" class="btn step" id="solo-n-gen" title="Roll random D20 NPC name">🎲</button>
               </div>
