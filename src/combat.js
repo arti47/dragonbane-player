@@ -399,7 +399,7 @@ export const Combat = {
             quickWrap.appendChild(nQuick);
           }
 
-          const actedBadge = el(`<button class="skill-chip quick-chip turn-chip ${cb.acted ? "picked" : ""}" role="checkbox" aria-checked="${cb.acted ? "true" : "false"}" title="Toggle whether character has acted this round"><span class="turn-txt">${cb.acted ? "Done ✓" : "Turn [ ]"}</span></button>`);
+          const actedBadge = el(`<button class="skill-chip quick-chip turn-chip ${cb.acted ? "picked" : ""}" role="checkbox" aria-checked="${cb.acted ? "true" : "false"}" title="Toggle whether character has acted this round"><span class="turn-box" aria-hidden="true"></span><span class="turn-txt">${cb.acted ? "Done" : "Turn"}</span></button>`);
           actedBadge.onclick = (e) => {
             e.stopPropagation();
             this.guardGm(() => this.mutate(st => {
@@ -410,7 +410,7 @@ export const Combat = {
           quickWrap.appendChild(actedBadge);
         }
 
-        const body = el(`<div style="padding:12px;border-top:1px dashed var(--border);display:${isCur ? "block" : "none"};background:var(--bg)"></div>`);
+        const body = el(`<div class="cb-body" style="padding:12px;border-top:1px dashed var(--border);display:${isCur ? "block" : "none"};background:var(--bg)"></div>`);
         
         head.onclick = (e) => {
           if (e.target.tagName === "BUTTON") return;
@@ -469,14 +469,14 @@ export const Combat = {
           const atkDiv = el(`<div class="u-col15"></div>`);
           atkDiv.appendChild(el(`<p class="stat-line u-mb15only"><b>Monster Attacks (Auto-hit):</b>${(cb.ferocity || 1) > 1 ? ` <span class="tag">Ferocity ${cb.ferocity} — ${cb.ferocity} attacks/turn</span>` : ""}</p>`));
 
-          const d6BannerBtn = el(`<button class="btn block" style="background:var(--ok-fill);color:var(--on-fill);font-size:var(--fs-lg);padding:10px;margin-bottom:6px;box-shadow:0 2px 6px var(--tint-shade)">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
+          const d6BannerBtn = el(`<button class="btn block d6-roll">🎲 Roll D6 Monster Attack Table${(cb.ferocity || 1) > 1 ? ` (×${cb.ferocity})` : ""}</button>`);
           d6BannerBtn.onclick = () => Roller.monsterTableRoll(cb);
           atkDiv.appendChild(d6BannerBtn);
 
-          const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
+          const grid = el(`<div class="d6-list atk-list"></div>`);
           cb.attacks.forEach((atk, i) => {
             const rangeStr = (cb.attacks.length === 6) ? `${i+1}` : (cb.attacks.length === 3 ? `${i*2+1}-${i*2+2}` : `${i+1}`);
-            const b = el(`<button class="btn secondary block combat-action" style="font-size:var(--fs-lg);background:var(--card-bg);color:var(--text)"><b>[${rangeStr}]</b> ${esc(atk.name)}${atk.damage ? ` <br><small class="u-muted">(${atk.damage})</small>` : ""}</button>`);
+            const b = el(`<button type="button" class="d6-row atk-row" aria-label="Attack ${rangeStr}: ${esc(atk.name)}"><span class="d6-face">${rangeStr}</span><span class="atk-name">${esc(atk.name)}</span>${atk.damage ? `<small class="atk-dmg">(${atk.damage})</small>` : ""}</button>`);
             b.onclick = () => Roller.monsterAttack(cb.name, atk, null, cb.id);
             grid.appendChild(b);
           });

@@ -236,6 +236,7 @@ export const Table = {
   },
   renderTurn() {
     const d = this.turnDock();
+    requestAnimationFrame(() => document.documentElement.style.setProperty("--dock-h", d.hidden ? "0px" : d.offsetHeight + "px"));
     const { s, cur, isMine, myCbs } = this.myCombatant();
     d.innerHTML = "";
     if (!s) { d.hidden = true; return; }

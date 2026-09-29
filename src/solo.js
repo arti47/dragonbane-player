@@ -78,7 +78,7 @@ export const SoloMode = {
       const sm = Settings.soloMode();
       // One compact context bar: solo mode status + who you're rolling as.
       const banner = el(`
-        <div class="panel solo-ctx">
+        <div class="panel solo-ctx${sm ? " is-on" : ""}">
           <div class="solo-ctx-row">
             <div class="solo-ctx-main">
               <b>🧭 Solo Campaign Mode: <span style="color:${sm ? "var(--ok)" : "var(--muted)"}">${sm ? "Active" : "Standard"}</span></b>
@@ -359,8 +359,8 @@ export const SoloMode = {
           <h3>🐉 Narrative Twists (Out of Combat)</h3>
           <p class="stat-line">Roll 1D6 for non-combat twists when rolling a Dragon or Demon.</p>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn" style="flex:1;background:var(--ok-fill);color:var(--on-fill)" id="solo-t-drag">🐉 Dragon Twist</button>
-            <button class="btn" style="flex:1;background:var(--bad-fill);color:var(--on-fill)" id="solo-t-dem">👹 Demon Twist</button>
+            <button class="btn twist-btn dragon" id="solo-t-drag">🐉 Dragon Twist</button>
+            <button class="btn twist-btn demon" id="solo-t-dem">👹 Demon Twist</button>
           </div>
           <div class="u-mt3" id="solo-t-out"></div>
         </div>`);

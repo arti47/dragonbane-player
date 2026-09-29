@@ -1,5 +1,6 @@
 /* sheet.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
+import { icon } from './icons.js';
 import { Table } from './table.js';
 import { crest, emblem, footTrack, laurel, pips, setPips, slotSquares } from './graphics.js';
 import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
@@ -21,6 +22,7 @@ export const Sheet = {
       if (!c) { Router.go("home"); return; }
       normalizeInventory(c); Store.update(id, normalizeInventory);
       this.id = id; window.activeCharacterId = id; this._fresh = true;
+      try { localStorage.setItem("dragonbane.lastHero", id); } catch (_) {}
       document.querySelectorAll(".toast.toast-error, .toast.toast-warn").forEach((t) => t.remove());
       this.render();
     },
@@ -328,10 +330,6 @@ export const Sheet = {
           <span>🏃 <b>Movement Pool:</b> <small class="u-muted">(Rating ${baseMove}m)</small></span>
           <span class="move-val" style="font-size:var(--fs-xl);font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
         </div>${footTrack(remMove, maxMove)}
-        
-        <p class="stat-line" style="margin:0 0 10px 0;font-size:var(--fs-sm)">
-          💡 <b>Splitting:</b> Move freely before, after, or during action. Unused meters cannot be saved for later rounds.
-        </p>
 
         <div class="u-col2">
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
@@ -347,6 +345,12 @@ export const Sheet = {
             <button type="button" class="move-btn u-f1" title="Step 2 meters (1 grid square)">+2m</button>
             <button type="button" class="move-btn u-f1" title="Step 4 meters">+4m</button>
           </div>
+
+          <details class="move-more"${window._moveMoreOpen ? " open" : ""}><summary>More moves</summary>
+          <div class="u-col2 u-mt2">
+          <p class="stat-line" style="margin:0;font-size:var(--fs-sm)">
+            💡 <b>Splitting:</b> Move freely before, after, or during action. Unused meters cannot be saved for later rounds.
+          </p>
 
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="move-lbl">HAZARDS:</span>
@@ -365,8 +369,12 @@ export const Sheet = {
           <div style="display:flex;justify-content:flex-end">
             <button type="button" class="move-btn move-minor" title="Forced reaction before turn replaces normal turn & movement">💥 Lost Turn (Reaction)</button>
           </div>
+          </div>
+          </details>
         </div>
       </div>`);
+      const more = panel.querySelector(".move-more");
+      more.addEventListener("toggle", () => { window._moveMoreOpen = more.open; });
 
       const doMutate = (fn) => {
         Store.update(c.id, fn);
@@ -761,10 +769,10 @@ export const Sheet = {
         ? `<img src="${portUrl}" alt="Portrait" class="portrait" title="Tap to change portrait">`
         : `<div class="monogram has-crest" role="img" aria-label="Portrait placeholder" title="Tap to upload portrait">${crest(c.identity.name, c.identity.kin, initials)}</div>`;
 
-      const idWrap = el(`<div style="display:flex;align-items:center;gap:12px">
+      const idWrap = el(`<div class="hero-id">
         <div id="portrait-wrap">${portImg}</div>
-        <div style="min-width:0">
-          <h2 class="sheet-name">${esc(c.identity.name)}</h2>
+        <div class="hero-id-txt">
+          <h2 class="sheet-name" title="${esc(c.identity.name)}">${esc(c.identity.name)}</h2>
           <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
         </div>
       </div>`);
@@ -877,11 +885,12 @@ export const Sheet = {
         this.tab = k; try { localStorage.setItem("dragonbane.sheetTab", k); } catch (_) {}
         tabBar.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.tab === k; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
         Object.entries(panes).forEach(([pk, pn]) => { pn.hidden = pk !== k; });
+        top.classList.toggle("compact", k !== "overview");
         if (focus !== undefined || selectTab._ready) { panes[k].classList.remove("pane-in"); void panes[k].offsetWidth; panes[k].classList.add("pane-in"); }
         selectTab._ready = true;
       };
       TABS.forEach(([k, label]) => {
-        const b = el(`<button type="button" class="tab" role="tab" id="sheet-tab-${k}" data-tab="${k}" aria-controls="sheet-pane-${k}">${label}${badges[k] ? ` <span class="tab-badge">${badges[k]}</span>` : ""}</button>`);
+        const b = el(`<button type="button" class="tab" role="tab" id="sheet-tab-${k}" data-tab="${k}" aria-controls="sheet-pane-${k}">${icon({ overview: "shield", skills: "target", magic: "sparkle", gear: "pack", story: "scroll" }[k], "ic tab-ic")}${label}${badges[k] ? ` <span class="tab-badge">${badges[k]}</span>` : ""}</button>`);
         b.onclick = () => {
           selectTab(k);
           // If the bar is stuck under the header, jump to the top of the new pane.
@@ -1009,7 +1018,7 @@ export const Sheet = {
         const baned = condByAttr[v.attribute];
         const row = el(`<div class="skill-row ${v.trained?"trained":""}">
           <button class="mark ${v.mark?"marked":""}" title="advancement mark" aria-label="${v.mark?"Remove":"Add"} advancement mark for ${esc(n)}" aria-pressed="${v.mark?"true":"false"}">${v.mark?"●":"◦"}</button>
-          <button class="sk-name rollable" aria-label="Roll ${esc(n)} (${v.attribute}), skill ${v.level}">${esc(n)} <span class="stat-line">${v.attribute}${baned?" ⚠":""}</span></button>
+          <button class="sk-name rollable" aria-label="Roll ${esc(n)} (${v.attribute}), skill ${v.level}">${esc(n)} <span class="stat-line">${v.attribute}${baned?" ⚠":""}</span><span class="sk-bar" aria-hidden="true" style="--pct:${Math.min(100, v.level * 5)}%"></span></button>
           <b class="sk-lvl">${v.level}</b></div>`);
         row.querySelector(".mark").onclick = () => this.mutate((ch) => { ch.skills[n].mark = !ch.skills[n].mark; });
         row.querySelector(".sk-name").onclick = () => Roller.skill(this.id, n);
@@ -1208,9 +1217,12 @@ export const Sheet = {
           }
         }
         if (!isEquipped) {
-          const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}">`);
+          const wt = el(`<input type="number" class="wt" min="0" step="1" value="${it.weight}" aria-label="Weight of ${esc(it.name)}">`);
           wt.onchange = () => this.mutate((ch) => { ch.inventory.items[i].weight = Math.max(0, Number(wt.value)||0); });
-          row.append(el(`<span class="stat-line">wt</span>`), wt);
+          const chip = el(`<button type="button" class="wt-chip" title="Tap to edit weight" aria-label="Weight ${it.weight} — tap to edit"><span class="stat-line">wt</span> ${it.weight}</button>`);
+          chip.onclick = () => { chip.replaceWith(wt); wt.focus(); wt.select(); };
+          wt.onblur = () => { if (wt.isConnected && String(it.weight) === wt.value) wt.replaceWith(chip); };
+          row.append(chip);
         }
         if (it.name.match(/\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i)) {
           const useBtn = el(`<button class="step" style="width:auto;padding:0 6px;border-color:var(--ok);color:var(--ok)" title="consume potion/brew">🧪 Use</button>`);
@@ -1226,10 +1238,10 @@ export const Sheet = {
       const equippedIdx = items.map((it, i) => ({ it, i })).filter((x) => x.it.equipped);
       const carriedIdx = items.map((it, i) => ({ it, i })).filter((x) => !x.it.equipped);
       if (equippedIdx.length) {
-        invPanel.appendChild(el(`<p class="stat-line" style="margin:6px 0 2px"><b>Equipped</b> <span class="stat-line">(armor · helmet · up to 3 weapons-at-hand — no encumbrance)</span></p>`));
+        invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:6px 0 2px"><b>Equipped</b> <span class="rl-count">${equippedIdx.length}</span> <span class="stat-line">(armor · helmet · up to 3 weapons-at-hand — no encumbrance)</span></p>`));
         equippedIdx.forEach(({ it, i }) => invPanel.appendChild(itemRow(it, i, true)));
       }
-      invPanel.appendChild(el(`<p class="stat-line" style="margin:8px 0 2px"><b>Carried</b></p>`));
+      invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:8px 0 2px"><b>Carried</b> <span class="rl-count">${carriedIdx.length}</span></p>`));
       const itemList = el(`<div></div>`);
       carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
       if (!carriedIdx.length) itemList.appendChild(el(`<p class="stat-line empty-note">No carried items.</p>`));
@@ -1249,7 +1261,7 @@ export const Sheet = {
       // Money
       const money = el(`<div class="money"></div>`);
       ["gold","silver","copper"].forEach((coin) => {
-        const box = el(`<div class="coin"><div class="coin-label">${coin}</div></div>`);
+        const box = el(`<div class="coin"><div class="coin-label"><i class="coin-disc ${coin}" aria-hidden="true"></i>${coin}</div></div>`);
         const ctrl = el(`<div class="stepper"></div>`);
         const m = el(`<button class="step">−</button>`), v = el(`<span class="vital-val">${c.inventory.money[coin]}</span>`), p = el(`<button class="step">+</button>`);
         m.onclick = () => this.mutate((ch) => { ch.inventory.money[coin] = Math.max(0, ch.inventory.money[coin] - 1); });

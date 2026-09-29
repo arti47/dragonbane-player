@@ -79,6 +79,8 @@ export const Wizard = {
       root.appendChild(bodyWrap);
 
       const nav = el(`<div class="wiz-nav"></div>`);
+      const sum = this.summaryLine();
+      if (sum) nav.appendChild(el(`<div class="wiz-summary" aria-live="polite">${sum}</div>`));
       if (this.s.step > 0) { const b = el(`<button class="btn ghost">Back</button>`); b.onclick = () => { this.s.step--; this.render(); }; nav.appendChild(b); }
       const isLast = step === "review";
       const next = el(`<button class="btn">${isLast ? "Create hero" : "Next"}</button>`);
@@ -88,6 +90,19 @@ export const Wizard = {
 
       mountScreen(root);
       root.querySelector("#wiz-cancel").onclick = async () => { if (await confirmModal("Discard this character?", { title: "Discard character", okText: "Discard", danger: true })) Router.go("home"); };
+    },
+    // One-line live summary for the pinned nav: choices so far + computed vitals.
+    summaryLine() {
+      const bits = [];
+      const k = this.kinObj && this.kinObj(), p = this.prof && this.prof(), a = this.ageObj();
+      if (k) bits.push(esc(k.name)); if (p) bits.push(esc(p.name)); if (a) bits.push(esc(a.name));
+      const assigned = this.s.rolled && Object.values(this.s.assign || {}).every((v) => v != null);
+      if (assigned) {
+        const f = this.finalAttrs();
+        bits.push(`<b>HP ${f.CON}</b>`, `<b>WP ${f.WIL}</b>`);
+        if (k) bits.push(`<b>Move ${(k.movement || 0) + Calc.movementMod(f.AGL)}</b>`);
+      }
+      return bits.join(" · ");
     },
     stepTitle(step) {
       return { attributes: "Attributes", kin: "Kin", profession: "Profession", age: "Age",
@@ -100,7 +115,7 @@ export const Wizard = {
       const wrap = el(`<div class="panel"></div>`);
       wrap.appendChild(el(`<p class="stat-line">Roll 4D6 (drop the lowest) six times, then assign each score to an attribute. Age modifiers are applied later.</p>`));
       const rollBtn = el(`<button class="btn block" style="margin-bottom:14px">${this.s.rolled ? "Re-roll all" : "Roll attributes"}</button>`);
-      const grid = el(`<div class="attr-grid"></div>`);
+      const grid = el(`<div class="attr-grid${window._wizManual ? " manual" : ""}"></div>`);
       const renderGrid = () => {
         grid.innerHTML = "";
         if (!this.s.rolled) { grid.appendChild(el(`<p class="stat-line">Press “Roll attributes” to begin.</p>`)); return; }
@@ -133,6 +148,9 @@ export const Wizard = {
           row.appendChild(sel);
           grid.appendChild(row);
         });
+        const man = el(`<button type="button" class="attr-manual-btn">${grid.classList.contains("manual") ? "Hide dropdowns" : "Assign with dropdowns instead"}</button>`);
+        man.onclick = () => { window._wizManual = !grid.classList.contains("manual"); grid.classList.toggle("manual", window._wizManual); renderGrid(); };
+        grid.appendChild(man);
       };
       rollBtn.onclick = () => { this._pick = null; this.s.rolled = [0,0,0,0,0,0].map(() => Dice.attribute()); this.s.assign = { STR:null,CON:null,AGL:null,INT:null,WIL:null,CHA:null }; renderGrid(); };
       renderGrid();
@@ -195,9 +213,10 @@ export const Wizard = {
       wrap.appendChild(el(sectionTitle("Choose your age")));
       const grid = el(`<div class="card-grid"></div>`);
       (DB.ages || []).forEach((a) => {
-        const mods = Object.entries(a.mods).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).join(", ") || "no attribute changes";
+        const modList = Object.entries(a.mods);
+        const mods = modList.length ? modList.map(([k, v]) => `<span class="mod-chip ${v > 0 ? "up" : "down"}">${k} ${v > 0 ? "+" : ""}${v}</span>`).join("") : esc("no attribute changes");
         const c = el(`<button class="card ${this.s.age === a.key ? "sel" : ""}">
-          <h3>${esc(a.name)}</h3><div class="meta">${a.trainedSkills} trained skills · ${esc(mods)}</div></button>`);
+          <h3>${esc(a.name)}</h3><div class="meta">${a.trainedSkills} trained skills · <span class="mod-chips">${mods}</span></div></button>`);
         c.onclick = () => { this.s.age = a.key; this.render(); };
         grid.appendChild(c);
       });

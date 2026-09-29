@@ -41,6 +41,9 @@ export function init() {
     const screenEl = $("#screen");
     new MutationObserver(() => placeHelp(screenEl, modal)).observe(screenEl, { childList: true });
     Router.init();
+    // Header shrinks to a slim bar once you scroll (hysteresis avoids flicker).
+    { let slim = false, raf = 0;
+      window.addEventListener("scroll", () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; const y = window.scrollY; const next = slim ? y > 16 : y > 64; if (next !== slim) { slim = next; document.documentElement.classList.toggle("hdr-slim", slim); } }); }, { passive: true }); }
     Table.init();
     placeHelp(screenEl, modal);
 

@@ -116,7 +116,7 @@ export const Screens = {
           const conds = (DB.conditions || []).filter((cn) => c.state?.conditions?.[cn.key]);
           const portrait = `<span class="hc-side">${c.identity?.portraitUrl ? `<img class="hc-mono" src="${esc(c.identity.portraitUrl)}" alt="">` : `<span class="hc-mono has-crest" aria-hidden="true">${crest(c.identity?.name, c.identity?.kin, ini)}</span>`}<svg class="hc-ribbon" viewBox="0 0 58 14" aria-hidden="true"><path class="rb" d="M0 3h8l-3 4 3 4H0zM58 3h-8l3 4-3 4h8z" opacity=".7"/><path class="rb" d="M6 1h46v10H6z"/><path class="rb-edge" d="M6 2.5h46M6 9.5h46"/></svg></span>`;
           return `
-            <div class="card hero-card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="Open ${esc(c.identity?.name || "hero")}">
+            <div class="card hero-card${hp <= 0 ? " is-dying" : ""}" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="Open ${esc(c.identity?.name || "hero")}">
               ${portrait}
               <div class="hc-body">
                 <div class="hc-top">
@@ -135,8 +135,13 @@ export const Screens = {
 
         const myCards = myChars.map(renderCard).join("");
 
+        let lastId = null; try { lastId = localStorage.getItem("dragonbane.lastHero"); } catch (_) {}
+        const last = myChars.length > 1 && lastId ? myChars.find((x) => x.id === lastId) : null;
+        let lastHpM = 0; try { if (last) lastHpM = effHpMax(last); } catch (_) {}
+        const resume = last ? `<button type="button" class="resume-card" data-resume="${esc(last.id)}"><span class="rc-play" aria-hidden="true">▶</span><span class="rc-txt"><span class="rc-k">Continue</span><b>${esc(last.identity?.name || "Hero")}</b></span><span class="rc-hp">HP ${last.state?.hp ?? 0}/${lastHpM}</span></button>` : "";
         body = `
           ${sectionTitle("Your heroes")}
+          ${resume}
           <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
           <div class="fleuron-div" aria-hidden="true"></div>
           <div class="home-actions">
@@ -156,6 +161,7 @@ export const Screens = {
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
       root.querySelector("#open-tutorial")?.addEventListener("click", () => Screens.openTutorial());
+      root.querySelector(".resume-card")?.addEventListener("click", (e) => Sheet.open(e.currentTarget.dataset.resume));
       root.querySelectorAll(".card[data-id]").forEach((card) => {
         card.addEventListener("click", (e) => {
           if (e.target.closest(".btn-toggle-party")) return;
@@ -235,6 +241,14 @@ export const Screens = {
       const tog4 = el(`<button class="toggle ${gs ? "on" : ""}" role="switch" aria-checked="${gs}"><span class="knob"></span></button>`);
       tog4.onclick = () => { Settings.set("gmScreen", !GM.enabled()); Router.go("about"); };
       row4.appendChild(tog4); sp.appendChild(row4);
+      // Group the toggles: Content (what's in the rules) vs Play style (how this device plays).
+      {
+        const rows = [...sp.querySelectorAll(":scope > .toggle-row")]; // beginner, book of magic, solo, gm automation, gm screen
+        sp.querySelectorAll(":scope > div:not(.toggle-row)").forEach((d) => d.remove());
+        const [rBeg, rBom, rSolo, rAuto, rGm] = rows;
+        sp.append(rBom, el(`<h3 class="set-h">Play style</h3>`), rBeg, rSolo, rGm, rAuto);
+        rows.forEach((r) => { r.style.marginTop = ""; r.style.borderTop = ""; r.style.paddingTop = ""; const d = r.querySelector(".stat-line"); if (d) { d.classList.add("tr-desc"); d.onclick = () => d.classList.toggle("open"); } });
+      }
 
       const syncPanel = el(`<div class="panel" id="multiplayer-panel"><h3>Multiplayer &amp; Cloud Sync</h3></div>`);
       if (!Sync.enabled) {
