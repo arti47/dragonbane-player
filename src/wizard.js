@@ -216,7 +216,7 @@ export const Wizard = {
         const modList = Object.entries(a.mods);
         const mods = modList.length ? modList.map(([k, v]) => `<span class="mod-chip ${v > 0 ? "up" : "down"}">${k} ${v > 0 ? "+" : ""}${v}</span>`).join("") : esc("no attribute changes");
         const c = el(`<button class="card ${this.s.age === a.key ? "sel" : ""}">
-          <h3>${esc(a.name)}</h3><div class="meta">${a.trainedSkills} trained skills · <span class="mod-chips">${mods}</span></div></button>`);
+          <h3>${esc(a.name)}</h3><div class="meta age-meta ${modList.length ? "has-chips" : ""}">${a.trainedSkills} trained skills<span class="mod-sep"> · </span><span class="mod-chips">${mods}</span></div></button>`);
         c.onclick = () => { this.s.age = a.key; this.render(); };
         grid.appendChild(c);
       });

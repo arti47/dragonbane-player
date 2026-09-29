@@ -327,12 +327,12 @@ export const Sheet = {
 
       const panel = el(`<div class="move-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin:8px 0">
         <div class="move-meter" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:10px">
-          <span>🏃 <b>Movement Pool:</b> <small class="u-muted">(Rating ${baseMove}m)</small></span>
+          <span class="move-title">🏃 <b>Movement Pool:</b> <small class="u-muted move-rating">(Rating ${baseMove}m)</small></span>
           <span class="move-val" style="font-size:var(--fs-xl);font-weight:bold;color:${remMove===0?"var(--bad)":"var(--accent-ink)"}">${remMove}m / ${maxMove}m</span>
         </div>${footTrack(remMove, maxMove)}
 
         <div class="u-col2">
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+          <div class="move-acts" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
             <button type="button" class="move-btn ${c.state.isDashing ? "active" : ""}" title="Action: Dash. Doubles pool for round & uses Action.">⚡ Dash ${c.state.isDashing ? "(2x)" : ""}</button>
             <button type="button" class="move-btn ${c.state.isMounted ? "active" : ""}" title="Mounted speed 20m">🐴 Mount</button>
             <button type="button" class="move-btn ${c.state.prone ? "active" : ""}" title="Free action on own turn">🛌 ${c.state.prone ? "Prone" : "Stand"}</button>
@@ -622,14 +622,18 @@ export const Sheet = {
       const m = modal("Choose a heroic ability" + (times > 1 ? ` (${times} left)` : ""));
       m.body.appendChild(el(`<p class="stat-line">Abilities whose skill requirement you don't meet are locked.</p>`));
       const grid = el(`<div class="card-grid"></div>`);
+      // Available abilities first; locked ones fold into a closed "Locked (n)" section.
+      const lockedWrap = el(`<details class="heroic-locked"><summary>Locked <span class="rl-count"></span></summary></details>`);
+      const lockedGrid = el(`<div class="card-grid"></div>`);
       (DB.heroicAbilities || []).forEach((ab) => {
         if (owned.has(ab.name)) return;
         const met = heroicReqMet(c, ab.req);
         const card = el(`<button class="card ${met ? "" : "locked"}" style="${met ? "" : "opacity:0.5;cursor:not-allowed"}"><h3>${esc(ab.name)} ${met ? "" : "🔒"}<span class="tag">${esc(ab.req || "No req")}</span> <span class="tag">${ab.wp == null ? "No WP" : "WP " + ab.wp}</span></h3><div class="meta">${esc(ab.text)}</div></button>`);
         if (met) card.onclick = () => { this.mutate((ch) => ch.abilities.push({ name: ab.name, source: "heroic", wp: ab.wp, text: ab.text })); m.close(); this.toast("Gained " + ab.name + "."); if (times > 1) this.gainHeroicAbility(times - 1); };
-        grid.appendChild(card);
+        (met ? grid : lockedGrid).appendChild(card);
       });
       m.body.appendChild(grid);
+      if (lockedGrid.children.length) { lockedWrap.querySelector(".rl-count").textContent = lockedGrid.children.length; lockedWrap.appendChild(lockedGrid); m.body.appendChild(lockedWrap); }
     },
     overcomeWeakness() {
       const c = Store.get(this.id);
@@ -789,7 +793,8 @@ export const Sheet = {
         const gems = pips(cur, max, cls);
         const ctrl = el(`<div class="stepper"></div>`);
         const minus = el(`<button class="step" type="button" aria-label="Decrease ${plainLabel}">−</button>`);
-        const val = el(`<span class="vital-val" role="status" aria-live="polite">${cur} / ${max}</span>`);
+        const vv = (v) => `<b class="vv-cur">${v}</b><span class="vv-max"> / ${max}</span>`;
+        const val = el(`<span class="vital-val" role="status" aria-live="polite">${vv(cur)}</span>`);
         const plus = el(`<button class="step" type="button" aria-label="Increase ${plainLabel}">+</button>`);
         const doStep = (d) => {
           const prevHp = c.state.hp;
@@ -804,7 +809,7 @@ export const Sheet = {
             c.state[key] = ch.state[key];
             if (ch.state.deathRolls) c.state.deathRolls = ch.state.deathRolls;
           });
-          val.textContent = `${c.state[key]} / ${max}`;
+          val.innerHTML = vv(c.state[key]);
           w.querySelector(".vbar > i").style.setProperty("--pct", pct(c.state[key]) + "%");
           setPips(w, c.state[key]);
           w.classList.toggle("low", max > 0 && c.state[key] / max <= 0.25);
@@ -993,7 +998,7 @@ export const Sheet = {
       // Skills
       const skPanel = el(`<div class="panel"><h3>Skills</h3><p class="stat-line">Tap a skill to roll it. Tap the ◦ to toggle an advancement mark (ticked on a Dragon/Demon). ⚠ = a condition banes this skill.</p></div>`);
       const markedCount = Object.values(c.skills).filter((v) => v.mark).length;
-      const advRow = el(`<div class="rest-row" style="margin:4px 0 10px"></div>`);
+      const advRow = el(`<div class="rest-row adv-row" style="margin:4px 0 10px"></div>`);
       const advBtn = el(`<button class="btn ghost">End session — advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
       advBtn.onclick = () => this.endSession();
       const teachBtn = el(`<button class="btn ghost" title="train a skill with an NPC teacher (skill 15+); +1 cap per teacher">Train teacher</button>`);
@@ -1037,6 +1042,7 @@ export const Sheet = {
       // Abilities
       const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p><b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`);
       panes.overview.appendChild(abPanel);
+      { const gmp = panes.overview.querySelector(":scope > .gm-auto"); if (gmp) panes.overview.appendChild(gmp); } // closed GM disclosure goes last
 
       // Magic — always shown so a non-caster can still Learn magic (Magic Talent, Dracomancy, …).
       {
@@ -1298,7 +1304,7 @@ export const Sheet = {
       }
       // Overcome Weakness / re-choose after cooldown.
       if (c.identity.weakness) {
-        const owBtn = el(`<button class="btn ghost u-bd-accent">⚡ Overcome Weakness (+2 marks)</button>`);
+        const owBtn = el(`<button class="btn ghost u-bd-accent ow-btn">⚡ Overcome Weakness (+2 marks)</button>`);
         owBtn.onclick = () => this.overcomeWeakness();
         flav.appendChild(owBtn);
       } else if (c.state.weaknessCooldown) {

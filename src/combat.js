@@ -310,7 +310,7 @@ export const Combat = {
       resetTurns.onclick = () => this.guardGm(() => this.mutate((st) => { st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const end = el(`<button class="btn danger-ghost">End combat</button>`);
       end.onclick = () => this.guardGm(async () => { if (await confirmModal("End combat and clear all combatants?", { title: "End combat", okText: "End combat", danger: true })) { this.mutate((st) => { st.round = 0; st.combatants = []; }); if (Table.phase() && Table.phase().key === "combat") Table.setPhase("explore"); } });
-      const fleeBtn = el(`<button class="btn ghost" style="border-style:dashed">🏃 Flee Close Combat</button>`);
+      const fleeBtn = el(`<button class="btn ghost">🏃 Flee Close Combat</button>`);
       fleeBtn.onclick = () => {
         const d = Dice.d(20);
         if (d <= 5) {
@@ -354,7 +354,7 @@ export const Combat = {
             <span class="cb-name" style="font-weight:bold;font-size:var(--fs-xl);color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
             <div class="row-top-actions" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap">
+          <div class="cb-tags" style="display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap">
             <span class="tag">${cb.kind === "hero" ? "Hero" : cb.kind === "monster" ? "Monster" : "NPC"}</span>
             ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:var(--on-accent);border-color:var(--accent)">now</span>' : ""}
             ${isDefeated ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">💀 DEFEATED</span>' : ""}
@@ -362,7 +362,7 @@ export const Combat = {
             <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end"></div>
             <span class="cb-hp${Table.hideFoeHp(cb) ? " cb-band" : ""}" style="font-weight:bold;font-size:var(--fs-lg);color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? (Table.hideFoeHp(cb) ? esc(Table.band(cb)) : `HP ${cb.hp}/${cb.maxHp || cb.hp}`) : ""}</span>
           </div>
-          ${cb.hp != null && !Table.hideFoeHp(cb) ? (() => { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)); return `<div class="hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}" aria-hidden="true"><i style="--pct:${pct}%"></i></div>`; })() : ""}
+          ${cb.hp != null && !Table.hideFoeHp(cb) ? (() => { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)); return `<div class="hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}${isDyingHero ? " dying" : ""}" aria-hidden="true"><i style="--pct:${pct}%"></i></div>`; })() : ""}
         </div>`);
 
         const quickWrap = head.querySelector(".quick-attacks");
@@ -418,20 +418,26 @@ export const Combat = {
           card.classList.toggle("expanded", body.style.display !== "none");
         };
 
+        // Header actions live in .cb-menu: inline on wide screens, behind ⋯ on phones.
         const topActions = head.querySelector(".row-top-actions");
+        const moreT = el(`<button class="step cb-more-btn" type="button" aria-label="More actions" aria-expanded="false">⋯</button>`);
+        const menu = el(`<span class="cb-menu"></span>`);
+        moreT.onclick = (e) => { e.stopPropagation(); const on = topActions.classList.toggle("open"); moreT.setAttribute("aria-expanded", on ? "true" : "false"); };
+        topActions.append(moreT, menu);
         if (cb.init != null && !isDefeated) {
           const swap = el(`<button class="step" title="wait / swap initiative" aria-label="Wait or swap initiative">⇅</button>`);
           swap.onclick = (e) => { e.stopPropagation(); this.swapInit(cb.id); };
-          topActions.appendChild(swap);
+          menu.appendChild(swap);
         }
         if (cb.kind === "hero" && cb.charId) {
           const open = el(`<button class="step" title="open sheet" aria-label="Open character sheet">↗</button>`);
           open.onclick = (e) => { e.stopPropagation(); Sheet.open(cb.charId); };
-          topActions.appendChild(open);
+          menu.appendChild(open);
         }
         const rm = el(`<button class="step rm" aria-label="Remove combatant">✕</button>`);
         rm.onclick = (e) => { e.stopPropagation(); let gone, at = -1; this.mutate((st) => { at = st.combatants.findIndex((c) => c.id === cb.id); if (at >= 0) gone = st.combatants.splice(at, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((st) => { st.combatants.splice(Math.min(at, st.combatants.length), 0, gone); })); };
-        topActions.appendChild(rm);
+        menu.appendChild(rm);
+        if (menu.children.length < 2) topActions.classList.add("solo-act");
 
         // Vitals
         if (cb.hp != null && Table.hideFoeHp(cb)) {

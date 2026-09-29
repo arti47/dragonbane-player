@@ -189,7 +189,8 @@ export function slotSquares(used, limit) {
   let s = "";
   const n = Math.max(used, limit);
   for (let i = 0; i < n; i++) s += `<i class="${i < Math.min(used, limit) ? "on" : ""}${i >= limit ? " over" : ""}"></i>`;
-  return `<div class="enc-slots" aria-hidden="true">${s}</div>`;
+  const lvl = used > limit ? "is-over" : used / limit >= 0.75 ? "is-warn" : "";
+  return `<div class="enc-slots ${lvl}" aria-hidden="true">${s}</div>`;
 }
 
 // ---- Movement: footprint track -------------------------------------------

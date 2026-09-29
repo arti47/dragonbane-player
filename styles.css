@@ -15,8 +15,8 @@
 @font-face { font-family: 'IM Fell English'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/im-fell-english.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: 'IM Fell English SC'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/im-fell-english-sc.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
-@font-face { font-family: 'Fell Digits'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/eb-garamond.woff2) format('woff2'); unicode-range: U+0030-0039; }
-@font-face { font-family: 'Fell Digits'; font-style: italic; font-weight: 400; font-display: swap; src: url(fonts/eb-garamond-italic.woff2) format('woff2'); unicode-range: U+0030-0039; }
+@font-face { font-family: 'Fell Digits'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/eb-garamond.woff2) format('woff2'); unicode-range: U+0030-0039, U+002F; }
+@font-face { font-family: 'Fell Digits'; font-style: italic; font-weight: 400; font-display: swap; src: url(fonts/eb-garamond-italic.woff2) format('woff2'); unicode-range: U+0030-0039, U+002F; }
 
 /* ---- Theme tokens ---------------------------------------------------- */
 /* Illuminated-manuscript palette. Rule: a *-fill token is for backgrounds and
@@ -1908,6 +1908,173 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { cursor: 
   .sheet-aside .sheet-name { white-space: normal; overflow: visible; }
   .sheet-layout ~ .mini-bar, .mini-bar { display: none; }
 }
+
+/* ================= AUDIT #5 LAYER ================= */
+/* 1 — Textareas grow with their text (JS fallback in main.js) */
+textarea { field-sizing: content; max-height: 60vh; width: 100%; box-sizing: border-box; }
+textarea[rows="1"] { min-height: 44px; }
+textarea[rows="2"] { min-height: 64px; }
+textarea[rows="4"] { min-height: 110px; }
+
+/* 3 — Duplicate spell text folded on the resolution card */
+.sa-text { margin: 0 0 8px; }
+.sa-text > summary { font-size: var(--fs-sm); color: var(--ink-soft); min-height: 32px; display: flex; align-items: center; }
+.sa-text > .stat-line { margin: 4px 0 0; }
+.sa-head { gap: 8px; }
+.sa-skip { flex: none; white-space: nowrap; }
+
+/* 4 — Buttons keep their label on one line */
+.round-bar { gap: 8px; padding: 8px 10px; }
+.round-badge { min-width: 44px; }
+.round-actions > .btn { white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+@media (max-width: 420px) { .round-actions > .btn { font-size: var(--fs-sm); padding-left: 6px; padding-right: 6px; } .round-actions { gap: 6px; } }
+.adv-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.adv-row > .btn { flex: 1 1 auto; white-space: nowrap; }
+.home-actions { display: flex; flex-wrap: wrap; }
+.home-actions > .btn { flex: 1 1 auto; white-space: nowrap; width: auto; }
+.home-actions > .btn:first-child { flex-basis: 100%; }
+
+/* 5 — Selects stay on one line with an ellipsis */
+select, .inv-add select { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 6 — Titles that wrap put their ornament under the text */
+.section-title h2, .panel > h3 { text-wrap: balance; }
+.section-title.t-wrap { flex-wrap: wrap; row-gap: 4px; }
+.section-title.t-wrap h2 { flex: 1 1 0; min-width: 0; }
+.section-title.t-wrap .rule { order: 3; flex: 1 0 100%; }
+.panel > h3.t-wrap::after { display: none; }
+.panel > h3.t-wrap { padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); }
+.h3-ic { width: 20px; height: 20px; flex: none; opacity: .85; }
+
+/* 7/8 — Movement: rating on its own line, one layout for the four actions */
+.move-title { display: block; line-height: 1.25; }
+.move-rating { display: block; }
+.move-acts > .move-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.15; padding: 6px 4px; }
+.move-acts > .move-btn .ic { width: 18px; height: 18px; }
+
+/* 9 — Story: breathing room under Overcome Weakness */
+.ow-btn { margin: 6px 0 14px; }
+
+/* 10 — Wizard age: chips on their own row, no dangling separator */
+.age-meta.has-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.age-meta.has-chips .mod-sep { display: none; }
+
+/* 11 — GM reference: rolled result as a card */
+.gm-roll-out { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--gold-leaf) 55%, var(--line)); border-left: 3px solid var(--gold-leaf); border-radius: var(--r-md); background: var(--tint-gold); font-size: var(--fs-md); font-weight: 400; color: var(--ink); }
+.gm-roll-out .gro-die { flex: none; font-family: var(--font-body); font-variant-numeric: lining-nums; padding: 1px 8px; border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent); font-size: var(--fs-sm); }
+.gm-roll-out .gro-text { line-height: 1.45; }
+
+/* 13 — Slot squares follow the encumbrance bar colours */
+.enc-slots.is-warn i.on { background: color-mix(in srgb, var(--gold-leaf) 70%, var(--bg-raised)); border-color: var(--gold-leaf); }
+.enc-slots.is-over i.on { background: color-mix(in srgb, var(--bad-fill) 55%, var(--bg-raised)); border-color: var(--bad-fill); }
+
+/* 14 — Pips: short last row centred under the first */
+.pips { display: flex; flex-wrap: wrap; justify-content: center; max-width: calc(var(--cols, 10) * 14px); margin-left: auto; margin-right: auto; }
+
+/* 15 — Inventory attack button in gilt, not danger red */
+.step.dmg { border-color: var(--gold-leaf); color: var(--accent-ink); background: var(--tint-gold); }
+
+/* 16 — HP/WP: current value large, max smaller */
+.vital-val .vv-cur { font-size: 1.18em; font-weight: 700; }
+.vital-val .vv-max { font-size: .8em; color: var(--ink-soft); font-weight: 500; }
+
+/* 17 — Heroic ability picker: locked ones folded */
+.heroic-locked { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 6px; }
+.heroic-locked > summary { min-height: 40px; display: flex; align-items: center; gap: 8px; font-family: var(--font-heading); color: var(--ink-soft); }
+
+/* 19 — Combat card actions: inline on wide screens, ⋯ menu on phones */
+.row-top-actions { position: relative; }
+.cb-more-btn { display: none !important; }
+.cb-menu { display: contents; }
+@media (max-width: 440px) {
+  .row-top-actions:not(.solo-act) .cb-more-btn { display: inline-flex !important; }
+  .row-top-actions:not(.solo-act) .cb-menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 12; gap: 6px; padding: 6px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: 0 10px 24px var(--shadow-lg); }
+  .row-top-actions.open .cb-menu { display: flex; }
+  .row-top-actions .cb-menu .step { width: 40px; height: 40px; }
+  /* 20 — tag row packs tighter so chips stay on one line */
+  .cb-tags { gap: 4px !important; }
+  .combat-row .cb-name { font-size: var(--fs-lg) !important; }
+  .cb-tags .tag, .cb-tags .quick-chip { padding-left: 7px; padding-right: 7px; }
+}
+
+/* 21 — ⋯ round menu: every item one row, icon on the left */
+.round-menu .btn { border-style: solid; flex-direction: row; gap: 8px; text-align: left; white-space: nowrap; }
+
+/* 22 — Dying hero: red HP track with a slow pulse */
+.hpbar.dying { animation: dyingPulse 1.6s ease-in-out infinite; }
+
+/* 23 — Home hero card */
+.hero-card .meta .card-emb { margin-right: 6px; }
+.hc-bar.down { outline: 1.5px solid var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+
+/* 24 — Solo mode as a switch */
+.solo-ctx-btn.toggle { min-height: 30px; padding: 0; font-size: inherit; }
+.solo-ctx .solo-ctx-row:first-child { flex-wrap: nowrap; }
+.solo-ctx .solo-ctx-row:first-child .solo-ctx-main { flex: 1 1 auto; }
+
+/* 25 — Switch off state reads clearly as off */
+.toggle:not(.on) { background: color-mix(in srgb, var(--ink) 8%, var(--bg-raised)); border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.toggle:not(.on) .knob { background: var(--bg-panel); box-shadow: inset 0 0 0 1.5px var(--ink-soft); }
+
+/* 26 — Roll log: outcome chips, die-face roll, newest row highlighted */
+.tl-roll { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg-raised); font-size: var(--fs-sm); }
+.tl-ok, .tl-bad { display: inline-block; padding: 0 8px; border-radius: var(--r-pill); font-size: var(--fs-sm); }
+.tl-ok { background: color-mix(in srgb, var(--good) 14%, transparent); }
+.tl-bad { color: var(--bad); font-weight: 600; background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.tl-log li:first-child { background: var(--tint-gold); border-radius: var(--r-sm); padding-left: 6px; padding-right: 6px; }
+
+/* 28 — Watermark never paints a bare square */
+#screen::before { -webkit-mask: var(--wm, linear-gradient(transparent, transparent)) center / contain no-repeat; mask: var(--wm, linear-gradient(transparent, transparent)) center / contain no-repeat; }
+#screen[data-route="sheet"] { --wm: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.1' stroke-linejoin='round'><path d='M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z'/><path d='M12 7v10M8 11h8'/></svg>"); }
+
+/* 29 / 33 — Tabs: gilt underline + diamond for the active tab; capped width on desktop */
+.tab { border-radius: 0; position: relative; }
+.tab[aria-selected="true"] { background: transparent; color: var(--accent-ink); border-color: transparent; box-shadow: none; font-weight: 600; }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: 1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--gold-leaf) 22%, var(--gold-leaf) 78%, transparent); }
+.tab[aria-selected="true"]::before { content: ""; position: absolute; left: 50%; bottom: -2px; width: 7px; height: 7px; transform: translateX(-50%) rotate(45deg); background: var(--gold-leaf); box-shadow: 0 0 0 2px var(--bg); }
+.tab:hover:not([aria-selected="true"]) { background: transparent; color: var(--ink); }
+@media (min-width: 1024px) { .tabs { justify-content: center; } .tab { flex: 0 1 170px; } }
+
+/* 30 — Balanced headings, no single-word last lines */
+h1, h2, h3, h4, summary, .btn { text-wrap: balance; }
+p, li, .stat-line, .meta { text-wrap: pretty; }
+
+/* 31 — Dragon / Demon: one sweep of light across the result */
+.roll-stage.dragon::after, .roll-stage.demon::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; transform: translateX(-120%); animation: rollSheen .9s .35s ease-out 1 forwards; }
+.roll-stage.dragon::after { background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--gold-leaf) 45%, transparent) 50%, transparent 65%); }
+.roll-stage.demon::after { background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--bad) 35%, transparent) 50%, transparent 65%); }
+@keyframes rollSheen { to { transform: translateX(120%); } }
+
+/* 32 — Toasts as parchment ribbons with a gilt edge */
+.toast { background: linear-gradient(180deg, color-mix(in srgb, var(--bg-panel) 90%, #fff), var(--bg-panel)); color: var(--ink); border-radius: 3px; padding: 10px 22px; border: 1px solid var(--gold-leaf);
+  box-shadow: inset 0 0 0 3px var(--bg-panel), inset 0 0 0 4px color-mix(in srgb, var(--gold-leaf) 55%, transparent), 0 8px 22px var(--shadow-lg); }
+.toast.toast-undo { border-radius: 3px; }
+.toast.toast-success { background: var(--ok-fill); color: var(--on-fill); }
+.toast.toast-error, .toast.toast-warn { background: var(--bad-fill); color: var(--on-fill); border-radius: 3px; }
+.toast.toast-success, .toast.toast-error, .toast.toast-warn { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold-leaf) 60%, transparent), 0 8px 22px var(--shadow-lg); }
+
+/* 34 — Primary buttons: wax-seal gradient + pressed-in shadow */
+.btn:not(.secondary):not(.ghost):not(.danger):not(.danger-ghost) {
+  background: radial-gradient(130% 160% at 30% 15%, color-mix(in srgb, var(--accent) 88%, #fff) 0%, var(--accent) 48%, color-mix(in srgb, var(--accent) 78%, #000) 100%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 25%, transparent), inset 0 -2px 4px color-mix(in srgb, #000 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--gold-leaf) 45%, transparent), 0 1px 2px var(--shadow); }
+.btn:not(.secondary):not(.ghost):not(.danger):not(.danger-ghost):active:not(:disabled) { box-shadow: inset 0 2px 6px color-mix(in srgb, #000 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--gold-leaf) 45%, transparent); }
+
+/* 35 — Empty-state illustrations sit on a parchment plate */
+.empty .illo, .empty-illo .illo, .search-empty .illo { padding: 12px 18px; box-sizing: border-box; border-radius: 16px; background: radial-gradient(ellipse at center, var(--tint-gold), transparent 75%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent), 0 0 0 4px var(--bg), 0 0 0 5px color-mix(in srgb, var(--gold) 30%, transparent); }
+
+/* 36 — Old-style numerals in long prose only (figures elsewhere stay lining) */
+.rl-text p, .rl-text li, .help-steps li, .welcome-list li { font-variant-numeric: oldstyle-nums proportional-nums; }
+
+/* 37 — Desktop: faint gilt page edges either side of the content column */
+@media (min-width: 1024px) {
+  .app-main { --col: min(1120px, calc(100vw - 96px - 64px)); --edge: color-mix(in srgb, var(--gold) 30%, transparent);
+    background-image: linear-gradient(to right, var(--edge) 0 1px, transparent 1px 4px, var(--edge) 4px 5px), linear-gradient(to right, var(--edge) 0 1px, transparent 1px 4px, var(--edge) 4px 5px);
+    background-size: 5px 100%, 5px 100%; background-repeat: no-repeat;
+    background-position: calc(50% - var(--col) / 2 - 18px) 0, calc(50% + var(--col) / 2 + 18px) 0; }
+  #screen[data-route="home"], #screen[data-route="about"], #screen[data-route="rules"], #screen[data-route="form"] { --col: 760px; }
+}
+@media (prefers-reduced-motion: reduce) { .roll-stage.dragon::after, .roll-stage.demon::after, .hpbar.dying { animation: none; } }
 
 /* ================= PRINT: parchment character sheet ================= */
 @media print {

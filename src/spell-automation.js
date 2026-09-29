@@ -71,9 +71,9 @@ export const SpellAutomation = {
       const char = Store.get(charId) || {};
       const cat = this.categorize(spell);
       const card = el(`<div class="magic-auto-card" style="margin-top:12px;padding:12px;border:1px solid var(--accent);border-radius:var(--r-md);background:var(--tint-soft)"></div>`);
-      const hdr = el(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"></div>`);
+      const hdr = el(`<div class="sa-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"></div>`);
       hdr.innerHTML = `<b style="color:var(--accent-ink)">✨ VTT Spell Resolution: ${esc(spell.name)} (PL ${pl})</b>`;
-      const skipBtn = el(`<button class="skill-chip quick-chip" title="Skip automatic resolution">Skip Auto</button>`);
+      const skipBtn = el(`<button class="skill-chip quick-chip sa-skip" title="Skip automatic resolution">Skip Auto</button>`);
       skipBtn.onclick = () => { card.innerHTML = `<p class="stat-line">Automation skipped. Resolve effects manually.</p>`; };
       hdr.appendChild(skipBtn);
       card.appendChild(hdr);
@@ -96,8 +96,14 @@ export const SpellAutomation = {
 
       // Always show the spell's effect text on the resolution card, so every
       // spell type (not just utility) opens with its description.
+      // When the cast dialog already shows the same text above, fold this copy away.
       if (spell.text || spell.desc) {
-        card.appendChild(el(`<p class="stat-line" style="margin:0 0 8px 0">${esc(spell.text || spell.desc)}</p>`));
+        const txt = String(spell.text || spell.desc);
+        const body = out && out.closest && out.closest(".modal-body");
+        const shown = !!body && body.textContent.includes(txt.slice(0, 60));
+        card.appendChild(shown
+          ? el(`<details class="sa-text"><summary>Spell text</summary><p class="stat-line">${esc(txt)}</p></details>`)
+          : el(`<p class="stat-line" style="margin:0 0 8px 0">${esc(txt)}</p>`));
       }
 
       // ---- Unified target lists: combat tracker + party roster + self ----

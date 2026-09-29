@@ -86,7 +86,7 @@ export const SoloMode = {
             </div>
           </div>
         </div>`);
-      const bBtn = el(`<button class="btn ${sm ? "ghost" : ""} solo-ctx-btn">${sm ? "Disable Solo Mode" : "Enable Solo Mode"}</button>`);
+      const bBtn = el(`<button class="toggle ${sm ? "on" : ""} solo-ctx-btn" role="switch" aria-checked="${sm}" aria-label="${sm ? "Disable Solo Mode" : "Enable Solo Mode"}" title="${sm ? "Disable Solo Mode" : "Enable Solo Mode"}"><span class="knob"></span></button>`);
       bBtn.onclick = () => { Settings.set("soloMode", !sm); Router.go("solo"); };
       banner.querySelector(".solo-ctx-row").appendChild(bBtn);
       root.appendChild(banner);

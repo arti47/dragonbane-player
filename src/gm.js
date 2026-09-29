@@ -212,7 +212,7 @@ export const GM = {
           const r = Dice.d(6);
           const row = (rows || []).find((x) => x.d6 === r) || {};
           out.innerHTML = "";
-          out.appendChild(el(`<p class="outcome gm-roll-out"><b>D6: ${r}</b> — ${esc(row.effect || "")}</p>`));
+          out.appendChild(el(`<div class="outcome gm-roll-out"><b class="gro-die">D6: ${r}</b><span class="gro-text">${esc(row.effect || "")}</span></div>`));
           inner.querySelectorAll(".d6-row").forEach((p) => p.classList.toggle("hit", +p.dataset.d6 === r));
           if (Sync.isGm()) {
             const push = el(`<button class="btn ghost u-bd-accent">📢 Push to players</button>`);
@@ -222,7 +222,7 @@ export const GM = {
         };
         inner.append(rollBtn, out);
         const list = el(`<div class="d6-list"></div>`);
-        (rows || []).forEach((x) => list.appendChild(el(`<p class="stat-line d6-row" data-d6="${x.d6}"><b class="d6-face">${x.d6}</b><span>— ${esc(x.effect)}</span></p>`)));
+        (rows || []).forEach((x) => list.appendChild(el(`<p class="stat-line d6-row" data-d6="${x.d6}"><b class="d6-face">${x.d6}</b><span>${esc(x.effect)}</span></p>`)));
         inner.appendChild(list);
         d.appendChild(inner); return d;
       };

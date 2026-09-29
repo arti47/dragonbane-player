@@ -6,7 +6,7 @@ import { $, el, GLOSSARY, placeHelp } from './core.js';
 import { modal, showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
 import { Router } from './router.js';
-import { startIcons } from './icons.js';
+import { startIcons, icon } from './icons.js';
 
 export function init() {
     if (typeof Sync !== "undefined") Sync.init();
@@ -79,6 +79,43 @@ export function init() {
         const tabs = [...bar.querySelectorAll(".tab")]; const i = tabs.findIndex((b) => b.getAttribute("aria-selected") === "true");
         const next = tabs[i + (dx < 0 ? 1 : -1)]; if (next) next.click();
       }, { passive: true });
+    }
+
+    // Layout polish on every render: textareas fit their text, titles that wrap
+    // move their ornament under the text, and plain panel titles get an icon.
+    {
+      const sized = CSS.supports && CSS.supports("field-sizing", "content");
+      const fit = (t) => { if (sized || !t || t.tagName !== "TEXTAREA" || !t.offsetParent) return; t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; };
+      document.addEventListener("input", (e) => fit(e.target));
+      const H3_ICON = [[/^conditions/i, "swirl"], [/^skills/i, "target"], [/^abilities/i, "bolt"], [/^inventory/i, "pack"], [/^money/i, "scales"], [/^character/i, "person"],
+        [/^party\b/i, "people"], [/^drop into combat/i, "swords"], [/^gm reference/i, "book"], [/^content/i, "book"], [/^play style/i, "dice"], [/^dragonbane player/i, "dragon"],
+        [/^data management/i, "gear"], [/^multiplayer/i, "link"], [/^dying/i, "skull"], [/^familiar/i, "eye"], [/^summons/i, "people"], [/^active spells/i, "timer"], [/^equipped/i, "shield"], [/^gm messages/i, "horn"]];
+      const polish = () => {
+        const root = $("#screen"); if (!root) return;
+        root.querySelectorAll(".panel > h3").forEach((h) => {
+          if (h.dataset.ico || h.querySelector("svg, img")) return;
+          h.dataset.ico = "1";
+          const hit = H3_ICON.find(([re]) => re.test(h.textContent.trim()));
+          if (hit) h.insertAdjacentHTML("afterbegin", icon(hit[1], "ic h3-ic"));
+        });
+        root.querySelectorAll(".section-title, .panel > h3").forEach((t) => {
+          if (!t.offsetParent) return;
+          const h = t.matches("h3") ? t : t.querySelector("h2"); if (!h) return;
+          t.classList.remove("t-wrap");
+          const lh = parseFloat(getComputedStyle(h).lineHeight) || parseFloat(getComputedStyle(h).fontSize) * 1.25;
+          const textH = h.matches("h3") ? [...h.childNodes].reduce((m, n) => { const r = document.createRange(); r.selectNodeContents(n); return Math.max(m, r.getBoundingClientRect().height); }, 0) : h.offsetHeight;
+          if (textH > lh * 1.5) t.classList.add("t-wrap");
+        });
+        root.querySelectorAll("textarea").forEach(fit);
+      };
+      let raf = 0; const soon = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; polish(); }); };
+      new MutationObserver(soon).observe(screenEl, { childList: true, subtree: true });
+      window.addEventListener("resize", soon);
+      document.addEventListener("click", (e) => {
+        if (e.target.closest && e.target.closest(".tab, details > summary")) soon();
+        document.querySelectorAll(".row-top-actions.open").forEach((x) => { if (!x.contains(e.target)) { x.classList.remove("open"); const b = x.querySelector(".cb-more-btn"); if (b) b.setAttribute("aria-expanded", "false"); } });
+      });
+      soon();
     }
 
     // Inline glossary: tap (or Enter/Space on) any .gloss token to show its definition.
