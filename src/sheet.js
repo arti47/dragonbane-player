@@ -2,7 +2,7 @@
    See CLAUDE.md §5 for the module map. */
 import { icon } from './icons.js';
 import { Table } from './table.js';
-import { crest, emblem, footTrack, laurel, pips, setPips, slotSquares } from './graphics.js';
+import { SHIELD_BG, abilityGlyph, coinStack, crest, emblem, footTrack, illo, itemGlyph, laurel, mantling, mottoScroll, pips, rankStars, setPips, slotSquares } from './graphics.js';
 import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
 import { confirmModal, modal, promptModal, showToast, showUndoToast } from './ui.js';
 import { Calc, classifyItem, heroicReqMet, resolveEquippedWeapons } from './rules.js';
@@ -774,7 +774,7 @@ export const Sheet = {
         : `<div class="monogram has-crest" role="img" aria-label="Portrait placeholder" title="Tap to upload portrait">${crest(c.identity.name, c.identity.kin, initials)}</div>`;
 
       const idWrap = el(`<div class="hero-id">
-        <div id="portrait-wrap">${portImg}</div>
+        <div id="portrait-wrap" class="arms">${mantling()}${portImg}${mottoScroll()}</div>
         <div class="hero-id-txt">
           <h2 class="sheet-name" title="${esc(c.identity.name)}">${esc(c.identity.name)}</h2>
           <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
@@ -782,14 +782,14 @@ export const Sheet = {
       </div>`);
       idWrap.querySelector("#portrait-wrap").onclick = () => { if (canEdit) this.uploadPortrait(); };
       top.appendChild(idWrap);
-      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.key}">${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
+      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.key}">${SHIELD_BG}${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
       top.appendChild(attrRow);
       top.appendChild(el(`<div class="derived-row stat-line"><span class="tag">${gloss("movement","Move")} ${c.derived.movement}</span><span class="tag">${gloss("damage bonus","STR dmg")} ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"}</span><span class="tag">${gloss("damage bonus","AGL dmg")} ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"}</span><span class="tag">${gloss("encumbrance","Enc. limit")} ${encLimit(c)}</span></div>`));
       // HP / WP steppers
       const stepper = (label, cur, max, key, cls) => {
         const plainLabel = String(label).replace(/<[^>]+>/g, ""); // aria text without gloss markup
         const pct = (v) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
-        const w = el(`<div class="vital ${cls}${max > 0 && cur / max <= 0.25 ? " low" : ""}"><div class="vital-label">${label}</div><div class="vbar" aria-hidden="true"><i style="--pct:${pct(cur)}%"></i></div></div>`);
+        const w = el(`<div class="vital ${cls}${max > 0 && cur / max <= 0.25 ? " low" : ""}"><span class="vital-emb" aria-hidden="true">${emblem("glyph", cls === "hp" ? "heart" : "flame")}</span><div class="vital-label">${label}</div><div class="vbar" aria-hidden="true"><i style="--pct:${pct(cur)}%"></i></div></div>`);
         const gems = pips(cur, max, cls);
         const ctrl = el(`<div class="stepper"></div>`);
         const minus = el(`<button class="step" type="button" aria-label="Decrease ${plainLabel}">−</button>`);
@@ -1040,7 +1040,7 @@ export const Sheet = {
       skPanel.appendChild(skList); skPanel.appendChild(advMore); panes.skills.appendChild(skPanel);
 
       // Abilities
-      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p><b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`);
+      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p class="ab-row">${x.source === "kin" ? emblem("kin", c.identity.kin, "emb ab-glyph") : abilityGlyph(x)}<b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`);
       panes.overview.appendChild(abPanel);
       { const gmp = panes.overview.querySelector(":scope > .gm-auto"); if (gmp) panes.overview.appendChild(gmp); } // closed GM disclosure goes last
 
@@ -1053,11 +1053,13 @@ export const Sheet = {
         const learnBtn = el(`<button class="btn ghost u-mb2">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
         inner.appendChild(learnBtn);
+        if (!hasMagic) inner.appendChild(el(`<div class="empty-illo">${illo("book")}</div>`));
         if (!hasMagic) inner.appendChild(el(`<p class="stat-line empty-note">No spells known. If your hero can learn magic (e.g. the Magic Talent heroic ability), tap ＋ above.</p>`));
         const spellRow = (x, isTrick) => {
           const isPrep = isTrick || x.prepared !== false;
           const tagStr = isTrick ? "Trick · 1 WP" : `Rank ${x.rank}` + (isPrep ? " · Prepared" : " · Grimoire");
-          const row = el(`<div class="cast-row"><div class="cast-info"><b>${esc(x.name)}</b> <span class="tag" style="${!isPrep ? 'background:var(--ink-soft);color:var(--bg-panel)' : ''}">${tagStr}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></div></div>`);
+          const sch = String(x.school || c.spells.castSchool || c.identity.mageSchool || "general").toLowerCase();
+          const row = el(`<div class="cast-row${isTrick ? " is-trick" : ""}"><span class="cast-sigil" aria-hidden="true">${emblem("school", sch) || emblem("school", "general")}</span><div class="cast-info">${isTrick ? emblem("glyph", "candle", "emb trick-glyph") : ""}<b>${esc(x.name)}</b>${isTrick ? "" : rankStars(x.rank)} <span class="tag" style="${!isPrep ? 'background:var(--ink-soft);color:var(--bg-panel)' : ''}">${tagStr}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></div></div>`);
           const btns = el(`<div class="cast-actions"></div>`);
           const cast = el(`<button class="btn secondary cast-btn">Cast</button>`);
           cast.onclick = () => Roller.cast(this.id, x, isTrick);
@@ -1190,7 +1192,7 @@ export const Sheet = {
       const counts = { armor: 0, helmet: 0, weapon: 0 };
       items.forEach((x) => { if (x.equipped) { const k = classifyItem(x.name); if (counts[k] != null) counts[k]++; } });
       const itemRow = (it, i, isEquipped) => {
-        const line = el(`<div class="inv-row${(classifyItem(it.name) || resolveEquippedWeapons([it]).length || /\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i.test(it.name)) ? " multi" : ""}"><span class="inv-name">${esc(it.name)}</span><span class="inv-ctrl"></span></div>`);
+        const line = el(`<div class="inv-row${(classifyItem(it.name) || resolveEquippedWeapons([it]).length || /\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i.test(it.name)) ? " multi" : ""}"><span class="inv-name">${itemGlyph(it.name, "emb inv-glyph")}${esc(it.name)}</span><span class="inv-ctrl"></span></div>`);
         const row = line.querySelector(".inv-ctrl"); // controls cluster (wraps as one unit)
         const slot = classifyItem(it.name);
         const wpns = resolveEquippedWeapons([it]);
@@ -1255,7 +1257,7 @@ export const Sheet = {
       invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:8px 0 2px"><b>Carried</b> <span class="rl-count">${carriedIdx.length}</span></p>`));
       const itemList = el(`<div></div>`);
       carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
-      if (!carriedIdx.length) itemList.appendChild(el(`<p class="stat-line empty-note">No carried items.</p>`));
+      if (!carriedIdx.length) { itemList.appendChild(el(`<div class="empty-illo">${illo("sack")}</div>`)); itemList.appendChild(el(`<p class="stat-line empty-note">No carried items.</p>`)); }
       invPanel.appendChild(itemList);
       const addRow = el(`<div class="inv-add"></div>`);
       const addName = el(`<input type="text" placeholder="Add an item…">`);
@@ -1267,12 +1269,12 @@ export const Sheet = {
 
       // Tiny items + mementos
       if ((c.inventory.tiny||[]).length) invPanel.appendChild(el(`<p class="stat-line"><b>Tiny items:</b> ${c.inventory.tiny.map((t)=>esc(t.name)).join(", ")}</p>`));
-      if ((c.inventory.mementos||[]).length) invPanel.appendChild(el(`<p class="stat-line"><b>Memento:</b> ${c.inventory.mementos.map(esc).join("; ")}</p>`));
+      if ((c.inventory.mementos||[]).length) invPanel.appendChild(el(`<p class="stat-line mark-line">${emblem("glyph", "locket", "emb mark-glyph")}<span><b>Memento:</b> ${c.inventory.mementos.map(esc).join("; ")}</span></p>`));
 
       // Money
       const money = el(`<div class="money"></div>`);
       ["gold","silver","copper"].forEach((coin) => {
-        const box = el(`<div class="coin"><div class="coin-label"><i class="coin-disc ${coin}" aria-hidden="true"></i>${coin}</div></div>`);
+        const box = el(`<div class="coin">${coinStack(c.inventory.money[coin], coin)}<div class="coin-label"><i class="coin-disc ${coin}" aria-hidden="true"></i>${coin}</div></div>`);
         const ctrl = el(`<div class="stepper"></div>`);
         const m = el(`<button class="step">−</button>`), v = el(`<span class="vital-val">${c.inventory.money[coin]}</span>`), p = el(`<button class="step">+</button>`);
         m.onclick = () => this.mutate((ch) => { ch.inventory.money[coin] = Math.max(0, ch.inventory.money[coin] - 1); });
@@ -1285,7 +1287,7 @@ export const Sheet = {
       // Flavor + notes
       const flav = el(`<div class="panel"><h3>Character</h3>
         ${(!canEdit && c.identity.appearance)?`<p class="stat-line"><b>Appearance:</b> ${esc(c.identity.appearance)}</p>`:""}
-        ${c.identity.weakness?`<p class="stat-line"><b>Weakness:</b> ${esc(c.identity.weakness)}</p>`:""}</div>`);
+        ${c.identity.weakness?`<p class="stat-line mark-line">${emblem("glyph", "chain", "emb mark-glyph")}<span><b>Weakness:</b> ${esc(c.identity.weakness)}</span></p>`:""}</div>`);
       // Editable identity (name / appearance / memento) — the promised "rename & adjust".
       if (canEdit) {
         const idField = (label, key, ph, rows) => {
@@ -1318,7 +1320,7 @@ export const Sheet = {
         wkRow.append(wkIn, wkBtn); flav.appendChild(wkRow);
       }
       const notesField = el(`<div class="form-field"><label>Notes / Journal</label></div>`);
-      const notes = el(`<textarea rows="4" placeholder="Session notes, threads, loot…"></textarea>`);
+      const notes = el(`<textarea rows="4" class="ruled" placeholder="Session notes, threads, loot…"></textarea>`);
       notes.value = c.notes || "";
       notes.oninput = () => { if (canEdit) Store.update(this.id, (ch) => { ch.notes = notes.value; }); }; // save without re-render
       notesField.appendChild(notes); flav.appendChild(notesField); panes.story.appendChild(flav);

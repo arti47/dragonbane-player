@@ -19,6 +19,7 @@ import { Roller } from './roller.js';
 import { Sheet } from './sheet.js';
 import { Router } from './router.js';
 import { resolveEquippedWeapons } from './rules.js';
+import { illo } from './graphics.js';
 
 export const PHASES = [
   { key: "explore", icon: "🧭", label: "Exploring", hint: "Listen to the GM. When your hero tries something risky, tap a skill on your sheet to roll.", btn: "My sheet" },
@@ -114,7 +115,7 @@ export const Table = {
   },
   logList(limit = 20) {
     const items = this.log.slice(-limit).reverse();
-    if (!items.length) return el(`<p class="stat-line empty-note">No rolls yet this session.</p>`);
+    if (!items.length) return el(`<div><div class="empty-illo">${illo("die")}</div><p class="stat-line empty-note">No rolls yet this session.</p></div>`);
     const ul = el(`<ul class="tl-log"></ul>`);
     items.forEach((e) => ul.appendChild(el(`<li><span class="tl-time">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><span>${this.logLine(e)}</span></li>`)));
     return ul;

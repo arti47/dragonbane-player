@@ -1,6 +1,6 @@
 /* wizard.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { emblem } from './graphics.js';
+import { SHIELD_BG, crest, d6Face, emblem, forgedArt } from './graphics.js';
 import { $, CORE_SCHOOLS, DB, Dice, el, esc, mountScreen, sectionTitle, uid } from './core.js';
 import { confirmModal, showToast } from './ui.js';
 import { Calc, buildSkills, findHeroicAbility, parseGear } from './rules.js';
@@ -71,6 +71,7 @@ export const Wizard = {
         <div class="wiz-head">
           <button class="btn ghost wiz-x" id="wiz-cancel">✕</button>
           <div class="wiz-progress">Step ${this.s.step + 1} of ${this.steps().length} — ${this.stepTitle(step)}</div>
+          <span class="wiz-art" aria-hidden="true">${this.stepArt(step)}</span>
         </div>`));
       const nSteps = this.steps().length;
       root.appendChild(el(`<div class="wiz-track" role="progressbar" aria-valuemin="1" aria-valuemax="${nSteps}" aria-valuenow="${this.s.step + 1}" aria-label="Wizard progress"><div class="wiz-bar"><i style="width:${((this.s.step + 1) / nSteps) * 100}%"></i></div><div class="wiz-dots">${this.steps().map((st, i) => `<span class="wiz-dot ${i < this.s.step ? "done" : i === this.s.step ? "cur" : ""}" title="${esc(this.stepTitle(st))}"></span>`).join("")}</div></div>`));
@@ -90,6 +91,14 @@ export const Wizard = {
 
       mountScreen(root);
       root.querySelector("#wiz-cancel").onclick = async () => { if (await confirmModal("Discard this character?", { title: "Discard character", okText: "Discard", danger: true })) Router.go("home"); };
+    },
+    // Small emblem for the current step (decorative).
+    stepArt(step) {
+      const k = this.s.kin, p = this.s.profession;
+      const map = { attributes: ["dice", "d6"], kin: ["kin", k || "human"], profession: ["prof", p || "artisan"], age: ["glyph", "hourglass"], skills: ["glyph", "scroll"],
+        magic: ["school", this.s.school || "general"], heroic: ["glyph", "sword"], gear: ["glyph", "pack"], details: ["prof", "scholar"], review: ["glyph", "shield"] };
+      const [set, key] = map[step] || ["glyph", "star"];
+      return emblem(set, key, "emb wiz-emb") || emblem("glyph", "star", "emb wiz-emb");
     },
     // One-line live summary for the pinned nav: choices so far + computed vitals.
     summaryLine() {
@@ -124,6 +133,7 @@ export const Wizard = {
         const pickRow = el(`<div class="rolled-row">Rolled: ${this.s.rolled.map((v, i) => `<button type="button" class="tag roll-chip ${Object.values(this.s.assign).includes(i) ? "used" : ""} ${this._pick === i ? "picked" : ""}" data-i="${i}" aria-pressed="${this._pick === i ? "true" : "false"}">${v}</button>`).join("")}</div>`);
         pickRow.querySelectorAll(".roll-chip").forEach((b) => { b.onclick = () => { const i = +b.dataset.i; this._pick = this._pick === i ? null : i; renderGrid(); }; });
         grid.appendChild(pickRow);
+        if (this.s.rolledDice && this.s.rolledDice.length === 6) grid.appendChild(el(`<div class="d6-groups" aria-hidden="true">${this.s.rolledDice.map((d, i) => `<span class="d6-group ${Object.values(this.s.assign).includes(i) ? "used" : ""}">${d.map((v, j) => d6Face(v, j === 0)).join("")}</span>`).join("")}</div>`));
         (DB.attributes || []).forEach((at) => {
           const row = el(`<div class="attr-row ${this._pick != null ? "droppable" : ""}"><label>${at.key} <span class="stat-line">${at.name}</span></label></div>`);
           const cur = this.s.assign[at.key];
@@ -152,7 +162,7 @@ export const Wizard = {
         man.onclick = () => { window._wizManual = !grid.classList.contains("manual"); grid.classList.toggle("manual", window._wizManual); renderGrid(); };
         grid.appendChild(man);
       };
-      rollBtn.onclick = () => { this._pick = null; this.s.rolled = [0,0,0,0,0,0].map(() => Dice.attribute()); this.s.assign = { STR:null,CON:null,AGL:null,INT:null,WIL:null,CHA:null }; renderGrid(); };
+      rollBtn.onclick = () => { this._pick = null; this.s.rolledDice = []; this.s.rolled = [0,0,0,0,0,0].map(() => { const v = Dice.attribute(); this.s.rolledDice.push(Dice.lastAttr.slice()); return v; }); this.s.assign = { STR:null,CON:null,AGL:null,INT:null,WIL:null,CHA:null }; renderGrid(); };
       renderGrid();
       wrap.appendChild(rollBtn); wrap.appendChild(grid);
       return wrap;
@@ -475,6 +485,16 @@ export const Wizard = {
       const c = this.build();
       const list = Store.list(); list.push(c); Store.save(list);
       Sheet.open(c.id);
+      this.forged(c);
+    },
+    // One-shot "hero forged" flourish: the new crest in a laurel with sparkles.
+    forged(c) {
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const w = (c.identity.name || "?").trim().split(/\s+/);
+      const ini = (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase();
+      const ov = el(`<div class="forged-ov" aria-hidden="true">${forgedArt(crest(c.identity.name, c.identity.kin, ini))}</div>`);
+      const done = () => ov.remove();
+      ov.onclick = done; document.body.appendChild(ov); setTimeout(done, 1900);
     }
   };
 
@@ -541,7 +561,7 @@ export const Pregens = {
           <h3>${esc(p.name)}</h3>
           <div class="meta">${emblem("prof", prof.key, "emb card-emb")}${esc(kin.name)} · ${esc(prof.name)}${p.mageSchool ? " (" + esc(p.mageSchool) + ")" : ""} · ${esc(age.name)}</div>
           <p class="stat-line" style="margin:6px 0">${esc(p.blurb)}</p>
-          <div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell">${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}</span></div>`).join("")}</div>
+          <div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell">${SHIELD_BG}${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}</span></div>`).join("")}</div>
           <span class="pg-choose" aria-hidden="true">Choose →</span>
         </button>`);
         c.onclick = () => {

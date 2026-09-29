@@ -1,8 +1,7 @@
 /* combat.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { Table } from './table.js';
-import { creatureType, crest, emblem, illo } from './graphics.js';
-import { icon } from './icons.js';
+import { cardPips, creatureType, crest, emblem, hourglass, illo } from './graphics.js';
 import { $, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { resolveEquippedWeapons } from './rules.js';
@@ -298,7 +297,7 @@ export const Combat = {
 
       // Round controls
       const ctrl = el(`<div class="panel round-bar"></div>`);
-      ctrl.appendChild(el(`<div class="round-badge">${icon("hourglass", "ic hg")}<span class="round-lbl">${s.round ? "Round" : "Not started"}</span>${s.round ? `<span class="round-num">${s.round}</span>` : ""}</div>`));
+      ctrl.appendChild(el(`<div class="round-badge">${hourglass(!!s.round)}<span class="round-lbl">${s.round ? "Round" : "Not started"}</span>${s.round ? `<span class="round-num">${s.round}</span>` : ""}</div>`));
       const btns = el(`<div class="round-actions"></div>`);
       const drawBtn = el(`<button class="btn ${s.round ? "ghost" : ""}">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
       drawBtn.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; }));
@@ -349,7 +348,7 @@ export const Combat = {
         
         const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:var(--tint-shade)" : ""}">
           <div style="display:flex;align-items:center;gap:10px;width:100%">
-            <span class="init-card play-card ${cb.done || cb.acted ? "spent" : ""}" style="margin:0;flex-shrink:0" aria-label="Initiative ${cb.init == null ? "none" : cb.init}"><span class="pc-pip" aria-hidden="true" data-n="${cb.init == null ? "" : cb.init}"></span>${cb.init == null ? "–" : cb.init}</span>
+            <span class="init-card play-card ${cb.done || cb.acted ? "spent" : ""}" style="margin:0;flex-shrink:0" aria-label="Initiative ${cb.init == null ? "none" : cb.init}"><span class="pc-pip" aria-hidden="true" data-n="${cb.init == null ? "" : cb.init}"></span>${cb.init != null && !(cb.done || cb.acted) ? cardPips(cb.init) : ""}${cb.init == null ? "–" : cb.init}${cb.init != null ? `<span class="pc-pip pc-pip2" aria-hidden="true" data-n="${cb.init}"></span>` : ""}</span>
             <span class="cb-type t-${cb.kind === "hero" ? "hero" : creatureType(cb.name, cb.kind)}" aria-hidden="true">${cb.kind === "hero" ? crest(cb.name, (Store.get(cb.charId) || {}).identity?.kin, "") : emblem("creature", creatureType(cb.name, cb.kind))}</span>
             <span class="cb-name" style="font-weight:bold;font-size:var(--fs-xl);color:var(--ink);word-break:break-word">${esc(cb.name)}</span>
             <div class="row-top-actions" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
@@ -411,6 +410,7 @@ export const Combat = {
         }
 
         const body = el(`<div class="cb-body" style="padding:12px;border-top:1px dashed var(--border);display:${isCur ? "block" : "none"};background:var(--bg)"></div>`);
+        if (cb.kind !== "hero") body.appendChild(el(`<span class="cb-art" aria-hidden="true">${emblem("creature", creatureType(cb.name, cb.kind), "emb cb-art-emb")}</span>`));
         
         head.onclick = (e) => {
           if (e.target.tagName === "BUTTON") return;

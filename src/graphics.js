@@ -79,7 +79,50 @@ const DICE = {
   d12: '<path d="M12 2l9.5 7-3.6 11H6.1L2.5 9z"/><path d="M12 6l4.8 3.5-1.8 5.5H9l-1.8-5.5z"/><path d="M12 2v4M21.5 9l-4.7.5M17.9 20L15 15M6.1 20L9 15M2.5 9l4.7.5"/>',
   d20: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 7l5 8.5H7z"/><path d="M12 2v5M21 7l-4 8.5M3 7l4 8.5M12 22l-5-6.5M12 22l5-6.5"/>',
 };
-const SETS = { kin: KIN, prof: PROF, school: SCHOOL, cond: COND, attr: ATTR, creature: CREATURE, dice: DICE };
+// Small glyphs: item pictograms, story marks, empty-state & decor icons.
+const GLYPH = {
+  sword: '<path d="M14.5 3h6.5v6.5L10 20.5 7.5 18z"/><path d="M5 15.5l3.5 3.5M3.5 20.5l2.5-2.5M15 6l3 3"/>',
+  axe: '<path d="M5 21L15.5 10.5"/><path d="M13 6c2-2.5 5.5-3 8-1-1 3-.5 6.5-3 9l-5-5z"/>',
+  spear: '<path d="M4 20L16 8"/><path d="M16 8l1.5-5 3.5 3.5-5 1.5z"/><path d="M6 15l3 3"/>',
+  bow: '<path d="M6 3c7 2 11 8 12 15"/><path d="M6 3l12 15"/><path d="M4 13l8-3M10 8l2 2-2 2"/>',
+  crossbow: '<path d="M3 9c3-3 15-3 18 0"/><path d="M3 9l9 3 9-3M12 5v16M9.5 18h5"/>',
+  sling: '<path d="M4 4c4 8 4 12 8 14 4-2 4-6 8-14"/><circle cx="12" cy="16.5" r="2"/>',
+  dagger: '<path d="M16 3l-2 8-3-3z"/><path d="M13.5 9.5l-7 7M5 14l5 5M4 20l2.5-2.5"/>',
+  hammer: '<path d="M10 3h9v6h-9z"/><path d="M13 9l-8 12"/>',
+  staff: '<path d="M7 21L17 5"/><circle cx="18" cy="4.5" r="2"/>',
+  shield: '<path d="M12 3l8 3v5c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M12 3v18M4 11h16"/>',
+  armor: '<path d="M8 3l4 2 4-2 4 3-2 4v10H6V10L4 6z"/><path d="M9 10h6M9 14h6"/>',
+  helmet: '<path d="M5 15a7 7 0 0114 0v4H5z"/><path d="M12 8v11M5 15h14"/>',
+  torch: '<path d="M10 11h4l-1 10h-2z"/><path d="M12 3c2 2.5 3 4 3 5.5a3 3 0 01-6 0C9 7 10 5.5 12 3z"/>',
+  food: '<path d="M4 12c0-4 3.5-7 8-7s8 3 8 7H4z"/><path d="M3 12h18v2a4 4 0 01-4 4H7a4 4 0 01-4-4z"/>',
+  tool: '<path d="M14 6a4 4 0 015 5l-9 9-3-3 9-9"/><path d="M5 17l2 2"/>',
+  bag: '<path d="M8 8V6a4 4 0 018 0v2"/><path d="M5 8h14l-1 13H6z"/>',
+  potion: '<path d="M10 3h4M10.5 3v5L6 16a4 4 0 003.5 5h5A4 4 0 0018 16l-4.5-8V3"/><path d="M8 15h8"/>',
+  lute: '<ellipse cx="9" cy="16" rx="5" ry="5"/><path d="M12.5 12.5L20 5M18.5 3.5l2 2"/><circle cx="9" cy="16" r="1.2"/>',
+  rope: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2"/>',
+  book: '<path d="M4 5h7a2 2 0 012 2v13a2 2 0 00-2-2H4zM20 5h-7a2 2 0 00-2 2v13a2 2 0 012-2h7z"/>',
+  key: '<circle cx="8" cy="8" r="4"/><path d="M11 11l9 9M16 16l2-2M18.5 18.5l2-2"/>',
+  gem: '<path d="M6 4h12l3 5-9 12L3 9z"/><path d="M3 9h18M9 4l3 17 3-17"/>',
+  item: '<rect x="5" y="7" width="14" height="13" rx="2"/><path d="M9 7V5h6v2"/>',
+  chain: '<path d="M9.5 14.5l-2 2a3 3 0 01-4-4l3-3a3 3 0 014 0"/><path d="M14.5 9.5l2-2a3 3 0 014 4l-3 3a3 3 0 01-4 0"/><path d="M12 4v2.5M4 12h2.5M18 17.5V20M17.5 18H20"/>',
+  locket: '<path d="M8 3c0 2 1.8 3 4 3s4-1 4-3"/><path d="M12 6c-4 0-6.5 3-6.5 7.5S8 21 12 21s6.5-3 6.5-7.5S16 6 12 6z"/><path d="M12 11v5M9.5 13.5h5"/>',
+  star: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.3 6L12 16.4 6.6 19.4l1.3-6L3.4 9.3l6-.7z" fill="currentColor"/>',
+  candle: '<path d="M9 10h6v11H9z"/><path d="M12 3c1.6 2 2.2 3 2.2 4.2a2.2 2.2 0 01-4.4 0C9.8 6 10.4 5 12 3z"/>',
+  spool: '<path d="M6 4h12M6 20h12M8 4v16M16 4v16"/><path d="M8 8c3 1 5-1 8 0M8 12c3 1 5-1 8 0M8 16c3 1 5-1 8 0"/>',
+  frame: '<rect x="4" y="3" width="16" height="18" rx="1"/><rect x="7" y="6" width="10" height="12" rx="5"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M12 7l2 5-2 5-2-5z" fill="currentColor"/>',
+  heart: '<path d="M12 20s-8-5-8-11a4.5 4.5 0 018-2.5A4.5 4.5 0 0120 9c0 6-8 11-8 11z"/>',
+  flame: '<path d="M12 2c1 4 6 6 6 12a6 6 0 01-12 0c0-3 2-4 3-6 0 3 1 4 2 4 0-4-1-6 1-10z"/>',
+  bolt: '<path d="M13 2L5 13h6l-1 9 8-11h-6z"/>',
+  skull: '<path d="M12 3a7 7 0 00-4.5 12.4V19h9v-3.6A7 7 0 0012 3z"/><circle cx="9.5" cy="10.5" r="1.5"/><circle cx="14.5" cy="10.5" r="1.5"/><path d="M10.5 19v-2M13.5 19v-2"/>',
+  people: '<circle cx="9" cy="8" r="3"/><path d="M3 19c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M15.5 5.5a3 3 0 010 5.5M17.5 13.5c2 .8 3.5 2.8 3.5 5.5"/>',
+  tent: '<path d="M12 4L3 20h18z"/><path d="M12 4v16M9 20l3-6 3 6"/>',
+  sparkle: '<path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6z"/><path d="M19 16l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  scroll: '<path d="M7 4h11a2 2 0 010 4H7"/><path d="M7 4a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V8"/><path d="M9 12h6M9 15.5h5"/>',
+  hourglass: '<path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/>',
+  pack: '<path d="M8 7V5a4 4 0 018 0v2"/><rect x="5" y="7" width="14" height="14" rx="3"/><path d="M9 13h6"/>',
+};
+const SETS = { kin: KIN, prof: PROF, school: SCHOOL, cond: COND, attr: ATTR, creature: CREATURE, dice: DICE, glyph: GLYPH };
 
 const svg24 = (body, cls) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
 const keyOf = (s) => String(s || "").toLowerCase().trim().replace(/[^a-z]/g, "");
@@ -210,6 +253,10 @@ const ILLO = {
   quill: `<path d="M44 86h72"/><path d="M52 86V70c0-6 6-10 14-10h8c8 0 14 4 14 10v16"/><path d="M60 60v-6h20v6"/><path class="g" d="M136 10C112 14 94 28 82 56l8-4c16-4 32-18 46-42z"/><path d="M82 56l-6 10M100 34l10 4M92 44l10 2"/><path class="g" d="M20 94h40M100 94h40"/><path d="M122 76c6 0 10 4 16 2"/>`,
   book: `<path d="M40 24h68a8 8 0 018 8v50H48a8 8 0 01-8-8z"/><path d="M40 74a8 8 0 018-8h68"/><path class="g" d="M58 36h40M58 44h40"/><path class="g" d="M116 44h10v18h-10"/><circle class="g" cx="126" cy="53" r="3"/><path d="M92 82v12l6-5 6 5V82"/><path class="g" d="M78 48l4 8 8 4-8 4-4 8-4-8-8-4 8-4z"/>`,
   dragon: `<path class="g" d="M4 92l28-20 12 8 22-20 22 20 14-8 26 20 28 0"/><path d="M24 80l8-6 5 4M60 66l6-6 6 6"/><path d="M4 92h152"/><circle class="g" cx="138" cy="20" r="8"/><g transform="translate(-6 -12)"><path class="f" d="M82 43L50 13c4 9 4 16 2 22 6 0 10 4 11 9 5-1 8 1 10 5zM90 40l6-28 4 13 7-10-1 15 7-5-9 13z"/><path d="M58 50c12-5 26-7 38-11 6-2 10-5 14-9"/><path d="M110 30l11-5-4 4 7 1-10 3"/><circle cx="112.5" cy="30.5" r=".9" fill="currentColor"/><path d="M58 50c-10 4-18 3-26 8-4 3-2 8 3 6"/><path d="M82 43L50 13c4 9 4 16 2 22 6 0 10 4 11 9 5-1 8 1 10 5z"/><path d="M90 40l6-28 4 13 7-10-1 15 7-5-9 13"/><path d="M76 47l-3 8M89 43l2 8"/></g><path class="g" d="M20 28l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM150 48l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>`,
+  sack: `<path d="M60 34c-14 10-22 26-20 40 2 12 18 18 40 18s38-6 40-18c2-14-6-30-20-40"/><path class="g" d="M58 34h44M64 26l6 8M96 26l-6 8"/><path d="M66 26c4-6 24-6 28 0"/><path d="M62 60c10 4 26 4 36 0"/><path class="g" d="M20 94h120"/>`,
+  spool: `<path d="M54 18h52M54 82h52"/><path d="M60 18v64M100 18v64"/><path class="g" d="M60 30c14 6 26-6 40 0M60 42c14 6 26-6 40 0M60 54c14 6 26-6 40 0M60 66c14 6 26-6 40 0"/><path d="M100 70c14 6 20 14 30 12"/><path class="g" d="M20 94h120"/>`,
+  frame: `<rect x="50" y="10" width="60" height="76" rx="4"/><rect class="g" x="58" y="18" width="44" height="60" rx="22"/><path d="M80 40a8 8 0 100 .1M68 70c2-8 22-8 24 0"/><path class="g" d="M20 94h120"/>`,
+  die: `<g transform="translate(40 6) scale(.8)"><polygon points="50,3 92,27 92,73 50,97 8,73 8,27"/><polygon class="g" points="50,22 80,68 20,68"/><path d="M50 3V22M92 27L50 22M92 27L80 68M92 73L80 68M50 97L80 68M50 97L20 68M8 73L20 68M8 27L20 68M8 27L50 22"/></g><path class="g" d="M20 94h40M100 94h40"/>`,
   oracle: `<circle cx="80" cy="46" r="26"/><path d="M58 76h44l-6 12H64z"/><path class="g" d="M68 36a14 14 0 0110-8"/><path class="g" d="M80 8v8M44 22l6 6M116 22l-6 6M36 50h8M116 50h8"/>`,
 };
 /** A line-art illustration (currentColor ink + gilt accents on .g strokes). */
@@ -245,3 +292,132 @@ export function laurel(cls = "laurel") {
 
 /** The drake emblem (app brand). */
 export const DRAKE = `<svg class="drake" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="29" class="dk-ring"/><g transform="translate(3 1) scale(.92)"><path class="dk-head" d="M38.5 20c-3-4-7-6.5-12-7.5 3.5 2 5.6 4.3 6.8 7.2z"/><path class="dk-head" d="M22.5 31l-7 .5 5.5 4.5M21 39.5l-7 1.5 6 3.5M19.6 48l-7 2 6.2 3"/><path class="dk-head" d="M56 30L53 26C48 24 44 22 40 21L36 19C28 12 20 9 11 8C18 12 24 17 29 23C25 27 22 32 21 38C20 45 19 51 17 58L35 58C35 50 37 44 41 40L50 38L53.5 36L46 34L56 31Z"/><path class="dk-eye" d="M39 26.5c1.6-1.6 3.6-1.6 5 0-1.4 1.2-3.4 1.2-5 0z"/><circle cx="52" cy="28.4" r=".8" class="dk-eye"/><path class="dk-line" d="M47.5 34.6l1 1.7 1.1-1.9M50.8 33.8l.9 1.5 1-1.7M28 44c3-2 6-2.6 9-2.4M26 51c3-1.6 6-2 9-1.8"/></g></svg>`;
+
+// ---- Item pictograms ------------------------------------------------------
+/** Glyph key for an inventory item name (pure look-up; no text is added). */
+export function itemGlyph(name, cls) {
+  const n = String(name || "").toLowerCase();
+  const rx = [
+    ["crossbow", /crossbow/], ["bow", /\bbow\b|longbow|shortbow|arrow|quiver/], ["sling", /sling/],
+    ["dagger", /dagger|knife|dirk/], ["axe", /axe|hatchet/], ["spear", /spear|lance|trident|pike|halberd|glaive/],
+    ["hammer", /hammer|mace|flail|morning ?star|club|maul/], ["staff", /staff|quarterstaff|wand|rod/],
+    ["sword", /sword|sabre|saber|scimitar|rapier|blade/], ["shield", /shield|buckler/],
+    ["helmet", /helm|helmet/], ["armor", /armor|armour|mail|plate|leather|gambeson/],
+    ["torch", /torch|lantern|lamp|candle|tinder/], ["food", /ration|food|bread|cheese|meat|water|wine|ale/],
+    ["potion", /potion|elixir|tonic|antidote|salve|herb|flask|vial/], ["lute", /lute|flute|harp|lyre|drum|horn|pipe|fiddle|instrument/],
+    ["rope", /rope|chain\b|twine|net/], ["book", /book|tome|spellbook|grimoire|scroll|map|journal|paper/],
+    ["bag", /bag|sack|pack|pouch|purse|backpack|chest|box/], ["key", /key|lockpick|pick\b/], ["gem", /gem|jewel|ring|amulet|necklace|crown/],
+    ["tool", /tool|kit|pick|shovel|crowbar|saw|hammer|tongs|needle|grapnel|hook/],
+  ];
+  for (const [k, r] of rx) if (r.test(n)) return emblem("glyph", k, cls);
+  return emblem("glyph", "item", cls);
+}
+
+// ---- Heraldic mantling + blank motto scroll (hero header) ------------------
+export function mantling(cls = "mantling") {
+  return `<svg class="${cls}" viewBox="0 0 120 70" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    <path d="M44 8C30 4 18 10 14 22c-3 9 2 18 10 20-6-6-5-15 2-19-4 6-1 13 5 14-3-6 0-13 7-15"/>
+    <path d="M44 18c-10 0-18 8-16 18 1 6 6 10 12 10-4-4-4-10 1-13"/>
+    <path d="M76 8c14-4 26 2 30 14 3 9-2 18-10 20 6-6 5-15-2-19 4 6 1 13-5 14 3-6 0-13-7-15"/>
+    <path d="M76 18c10 0 18 8 16 18-1 6-6 10-12 10 4-4 4-10-1-13"/>
+    <path class="g" d="M20 50l2 1.2 2-1.2-.6 2.3 1.8 1.5-2.4.2L22 56l-.8-2-2.4-.2 1.8-1.5zM98 50l2 1.2 2-1.2-.6 2.3 1.8 1.5-2.4.2-.8 2-.8-2-2.4-.2 1.8-1.5z"/>
+  </svg>`;
+}
+export function mottoScroll(cls = "motto") {
+  return `<svg class="${cls}" viewBox="0 0 120 22" aria-hidden="true" focusable="false"><path class="ms-back" d="M8 6h14v12H8l4-6zM112 6H98v12h14l-4-6z"/><path class="ms-front" d="M20 3h80v14H20z"/><path class="ms-fold" d="M20 17l2 3v-3M100 17l-2 3v-3"/></svg>`;
+}
+
+// ---- Damage dice: each die in its real shape with its value -----------------
+/** faces = [[sides, value], …] (from Dice.capture/take). */
+export function dieFaces(faces, cls = "dmg-dice") {
+  if (!faces || !faces.length) return "";
+  return `<div class="${cls}" aria-hidden="true">${faces.map(([s, v]) => `<span class="dface d${s}">${svg24(DICE["d" + s] || DICE.d6, "dface-svg")}<b>${v}</b></span>`).join("")}</div>`;
+}
+
+// ---- 4D6 attribute roll: pip faces, lowest struck -------------------------
+const D6P = { 1: [[12, 12]], 2: [[7.5, 7.5], [16.5, 16.5]], 3: [[7, 7], [12, 12], [17, 17]], 4: [[7.5, 7.5], [16.5, 7.5], [7.5, 16.5], [16.5, 16.5]], 5: [[7, 7], [17, 7], [12, 12], [7, 17], [17, 17]], 6: [[7.5, 6.5], [16.5, 6.5], [7.5, 12], [16.5, 12], [7.5, 17.5], [16.5, 17.5]] };
+export function d6Face(v, struck, cls = "d6f") {
+  const dots = (D6P[v] || []).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.9"/>`).join("");
+  return `<svg class="${cls}${struck ? " struck" : ""}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="20" rx="4" class="d6f-body"/>${dots}${struck ? '<path class="d6f-x" d="M4 20L20 4"/>' : ""}</svg>`;
+}
+
+// ---- Initiative card pips (corner index lives in the card already) --------
+export function cardPips(n) {
+  n = Math.max(0, Math.min(10, n | 0));
+  if (!n) return "";
+  const left = Math.ceil(n / 2), right = n - left;
+  const col = (k, x) => Array.from({ length: k }, (_, i) => { const y = k === 1 ? 50 : 18 + (64 / (k - 1)) * i; return `<path d="M${x} ${y - 4}l3 4-3 4-3-4z"/>`; }).join("");
+  return `<svg class="pc-pips" viewBox="0 0 40 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">${col(left, 6)}${col(right, 34)}</svg>`;
+}
+
+// ---- Hourglass with trickling sand (round badge) --------------------------
+export function hourglass(active, cls = "ic hg hg-sand") {
+  return `<svg class="${cls}${active ? " running" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    <path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/>
+    <path class="sand-top" d="M9 7.5h6L12 11z" fill="currentColor" stroke="none"/>
+    <path class="sand-bot" d="M8.5 19.6h7L12 16z" fill="currentColor" stroke="none"/>
+    <path class="sand-fall" d="M12 11.5v6" stroke-dasharray="1 2"/>
+  </svg>`;
+}
+
+// ---- Oracle answer seal ---------------------------------------------------
+/** kind: "yes" | "no" | "and" (yes-and / no-but) ; extreme adds a lightning mark. */
+export function oracleSeal(kind, extreme) {
+  const mark = kind === "no" ? '<path d="M40 30l20 20M60 30L40 50"/>' : kind === "and" ? '<path d="M50 26l4 9 10 1-7.5 6.5 2.5 10L50 47l-9 5.5 2.5-10L36 36l10-1z"/>' : '<path d="M37 41l9 9 17-18"/>';
+  return `<svg class="oracle-seal seal-${kind}" viewBox="0 0 100 80" aria-hidden="true" focusable="false">
+    <path class="os-wax" d="M50 8c6 0 8 4 13 5s10-1 13 4-1 9 1 14 7 7 5 13-7 5-10 9-2 10-8 12-9-2-14-1-8 5-14 3-5-7-10-9-9 0-11-6 3-9 1-14-7-7-4-12 8-3 13-5 7-13 13-13z"/>
+    <circle class="os-ring" cx="50" cy="40" r="20"/><g class="os-mark">${mark}</g>
+    ${extreme ? '<path class="os-bolt" d="M84 6l-8 14h6l-5 12 12-16h-6z"/>' : ""}
+  </svg>`;
+}
+
+// ---- Time-of-day dial (journey shifts) ------------------------------------
+export function dayDial(index) {
+  const a = [-90, 0, 90, 180][index] ?? -90;
+  return `<svg class="day-dial" viewBox="0 0 80 80" aria-hidden="true" focusable="false">
+    <circle cx="40" cy="40" r="34" class="dd-ring"/><path class="dd-night" d="M40 6a34 34 0 010 68z"/>
+    <g class="dd-marks"><path d="M40 4v6M76 40h-6M40 76v-6M4 40h6"/></g>
+    <g transform="rotate(${a} 40 40)"><path class="dd-hand" d="M40 40L66 40"/><circle class="dd-sun" cx="66" cy="40" r="6"/></g>
+    <circle cx="40" cy="40" r="3" class="dd-hub"/>
+  </svg>`;
+}
+
+// ---- Compass rose (journey panel decoration) ------------------------------
+export function compassRose(cls = "compass-rose") {
+  return `<svg class="${cls}" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="28" class="cr-ring"/><circle cx="32" cy="32" r="22" class="cr-ring"/><path class="cr-pt" d="M32 4l5 23 23 5-23 5-5 23-5-23-23-5 23-5z"/><path class="cr-pt2" d="M32 12l3 17 17 3-17 3-3 17-3-17-17-3 17-3z" transform="rotate(45 32 32)"/><circle cx="32" cy="32" r="2.5" class="cr-hub"/></svg>`;
+}
+
+// ---- Hero forged: crest in a laurel with sparkles (one-shot overlay) -------
+export function forgedArt(crestHtml) {
+  return `<div class="forged-art" aria-hidden="true">${laurel("laurel forged-laurel")}<div class="forged-crest">${crestHtml}</div><svg class="forged-sparks" viewBox="0 0 200 200"><g>${[[30, 40], [170, 36], [18, 120], [182, 128], [60, 176], [140, 180], [100, 10]].map(([x, y]) => `<path d="M${x} ${y - 7}l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>`).join("")}</g></svg></div>`;
+}
+
+// ---- Coin stack (money) — more discs for bigger amounts, a ring when empty --
+export function coinStack(n, metal) {
+  const k = n <= 0 ? 0 : Math.min(5, 1 + Math.floor(Math.log10(n + 1) * 1.6));
+  if (!k) return `<svg class="coin-stack empty" viewBox="0 0 24 28" aria-hidden="true" focusable="false"><ellipse cx="12" cy="22" rx="8" ry="3"/></svg>`;
+  let d = "";
+  for (let i = 0; i < k; i++) { const y = 22 - i * 3.6; d += `<ellipse cx="12" cy="${y + 1.4}" rx="8" ry="3" class="cs-edge"/><ellipse cx="12" cy="${y}" rx="8" ry="3" class="cs-face"/>`; }
+  return `<svg class="coin-stack ${metal}" viewBox="0 0 24 28" aria-hidden="true" focusable="false">${d}</svg>`;
+}
+
+// ---- Spell rank as 1–3 gilt stars ------------------------------------------
+export function rankStars(n) {
+  n = Math.max(0, Math.min(3, n | 0));
+  if (!n) return "";
+  return `<span class="rank-stars" aria-hidden="true">${Array.from({ length: n }, () => svg24(GLYPH.star, "rs")).join("")}</span>`;
+}
+
+/** Category glyph for a heroic ability (combat / magic / social / survival / other). */
+export function abilityGlyph(ab, cls = "emb ab-glyph") {
+  const t = `${ab.name || ""} ${ab.text || ""}`.toLowerCase();
+  const k = /attack|weapon|damage|parry|combat|strike|armor|shield|melee|ranged|initiative/.test(t) ? "sword"
+    : /spell|magic|mage|power level|\bwp\b/.test(t) ? "sparkle"
+    : /persua|bluff|charm|perform|music|barter|song|inspire|friends|ally|allies/.test(t) ? "people"
+    : /bushcraft|hunt|travel|forag|wild|track|stealth|sneak|climb|swim/.test(t) ? "tent"
+    : "shield";
+  return emblem("glyph", k, cls);
+}
+
+/** Heater-shield backdrop for an attribute cell (stretched to the cell). */
+export const SHIELD_BG = `<svg class="shield-bg" viewBox="0 0 40 50" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M2 2h36v25c0 11-8.5 17.5-18 21C10.5 44.5 2 38 2 27z" vector-effect="non-scaling-stroke"/><path class="sb-in" d="M5 5h30v22c0 9-7 14.5-15 17.5C12 41.5 5 36 5 27z" vector-effect="non-scaling-stroke"/></svg>`;

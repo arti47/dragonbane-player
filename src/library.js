@@ -5,7 +5,7 @@
 import { CORE_SCHOOLS, DB, MAGICX, el, esc, helpBox, sectionTitle } from './core.js';
 import { Magic } from './settings.js';
 import { icon } from './icons.js';
-import { emblem, illo } from './graphics.js';
+import { emblem, illo, itemGlyph } from './graphics.js';
 
 // ---- Small builders --------------------------------------------------------
 const tag = (t) => `<span class="tag">${t}</span>`;
@@ -179,9 +179,9 @@ function spells() {
 }
 
 function equipment() {
-  const wRow = (x) => `<tr class="rl-row"><th scope="row"><b>${esc(x.name)}</b><small>${esc(x.skill || x.type)}${x.grip ? " · " + esc(x.grip) : ""}${(x.features || []).length ? " · " + x.features.map(esc).join(", ") : ""}</small></th><td>${esc(x.damage || "—")}</td><td>${x.str || "—"}</td><td>${x.range ? x.range + "m" : "—"}</td><td>${esc(x.cost || "—")}</td></tr>`;
+  const wRow = (x) => `<tr class="rl-row"><th scope="row"><b>${itemGlyph(x.name, "emb rl-glyph")}${esc(x.name)}</b><small>${esc(x.skill || x.type)}${x.grip ? " · " + esc(x.grip) : ""}${(x.features || []).length ? " · " + x.features.map(esc).join(", ") : ""}</small></th><td>${esc(x.damage || "—")}</td><td>${x.str || "—"}</td><td>${x.range ? x.range + "m" : "—"}</td><td>${esc(x.cost || "—")}</td></tr>`;
   const wTable = (list) => `<div class="rl-table-wrap"><table class="rl-table"><thead><tr><th scope="col">Weapon</th><th scope="col">Dmg</th><th scope="col">STR</th><th scope="col">Range</th><th scope="col">Cost</th></tr></thead><tbody>${list.map(wRow).join("")}</tbody></table></div>`;
-  const aRow = (x, plus) => `<tr class="rl-row"><th scope="row"><b>${esc(x.name)}</b>${x.effect ? `<small>${esc(x.effect)}</small>` : ""}</th><td>${plus ? "+" : ""}${x.rating}</td><td>${x.metal ? "Yes" : "No"}</td><td>${esc(x.cost || "—")}</td></tr>`;
+  const aRow = (x, plus) => `<tr class="rl-row"><th scope="row"><b>${emblem("glyph", plus ? "helmet" : "armor", "emb rl-glyph")}${esc(x.name)}</b>${x.effect ? `<small>${esc(x.effect)}</small>` : ""}</th><td>${plus ? "+" : ""}${x.rating}</td><td>${x.metal ? "Yes" : "No"}</td><td>${esc(x.cost || "—")}</td></tr>`;
   const aTable = (list, head, plus) => `<div class="rl-table-wrap"><table class="rl-table"><thead><tr><th scope="col">${head}</th><th scope="col">Rating</th><th scope="col">Metal</th><th scope="col">Cost</th></tr></thead><tbody>${list.map((x) => aRow(x, plus)).join("")}</tbody></table></div>`;
   const ws = DB.weapons || [];
   return block("Melee weapons", wTable(ws.filter((x) => x.type === "melee"))) +

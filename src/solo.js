@@ -1,6 +1,6 @@
 /* solo.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
-import { illo } from './graphics.js';
+import { compassRose, dayDial, emblem, illo, oracleSeal } from './graphics.js';
 import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
@@ -163,14 +163,14 @@ export const SoloMode = {
       sceneIn.value = this.loadJournal().scene || "";
       sceneIn.oninput = () => { const j = this.loadJournal(); j.scene = sceneIn.value; this.saveJournal(j); };
       sceneWrap.appendChild(sceneIn); journalPanel.appendChild(sceneWrap);
-      const logList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>`);
+      const logList = el(`<div class="j-log" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>`);
       const renderLog = () => {
         const j = this.loadJournal(); logList.innerHTML = "";
         if (!j.entries.length) { logList.appendChild(el(`<div class="empty-illo">${illo("quill")}</div>`)); logList.appendChild(el(`<p class="stat-line empty-note">No log yet — tap <b>＋ Log</b> on any roll result, or add a note below.</p>`)); return; }
         j.entries.slice().reverse().forEach((e, ri) => {
           const idx = j.entries.length - 1 - ri;
           const when = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-          const row = el(`<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"><span class="stat-line" style="min-width:46px">${esc(when)}</span><span class="u-f1">${esc(e.text)}</span></div>`);
+          const row = el(`<div class="j-entry" style="display:flex;gap:6px;align-items:flex-start;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"><span class="stat-line" style="min-width:46px">${esc(when)}</span><span class="u-f1">${esc(e.text)}</span></div>`);
           const x = el(`<button class="step rm" aria-label="Delete entry">✕</button>`);
           x.onclick = () => { const jj = this.loadJournal(); const gone = jj.entries.splice(idx, 1)[0]; this.saveJournal(jj); renderLog(); if (gone) showUndoToast("Removed log entry", () => { const j2 = this.loadJournal(); j2.entries.splice(idx, 0, gone); this.saveJournal(j2); renderLog(); }); };
           row.appendChild(x); logList.appendChild(row);
@@ -192,7 +192,7 @@ export const SoloMode = {
       const threadsList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>`);
       const renderThreads = () => {
         const j = this.loadJournal(); threadsList.innerHTML = "";
-        if (!j.threads.length) { threadsList.appendChild(el(`<p class="stat-line empty-note">No open threads.</p>`)); return; }
+        if (!j.threads.length) { threadsList.appendChild(el(`<div class="empty-illo">${illo("spool")}</div>`)); threadsList.appendChild(el(`<p class="stat-line empty-note">No open threads.</p>`)); return; }
         j.threads.forEach((th) => {
           const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"></div>`);
           const tog = el(`<button class="skill-chip ${th.done ? "picked" : ""}" title="toggle resolved" aria-pressed="${th.done}">${th.done ? "✓" : "○"}</button>`);
@@ -219,7 +219,7 @@ export const SoloMode = {
       const npcsList = el(`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>`);
       const renderNpcs = () => {
         const j = this.loadJournal(); npcsList.innerHTML = "";
-        if (!j.npcs.length) { npcsList.appendChild(el(`<p class="stat-line empty-note">No NPCs recorded.</p>`)); return; }
+        if (!j.npcs.length) { npcsList.appendChild(el(`<div class="empty-illo">${illo("frame")}</div>`)); npcsList.appendChild(el(`<p class="stat-line empty-note">No NPCs recorded.</p>`)); return; }
         j.npcs.forEach((n) => {
           const row = el(`<div style="display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--bg);border-radius:var(--r-sm)"><span class="u-f1"><b>${esc(n.name)}</b>${n.note ? ` — ${esc(n.note)}` : ""}</span></div>`);
           const rm = el(`<button class="step rm" aria-label="Delete NPC">✕</button>`);
@@ -303,7 +303,8 @@ export const SoloMode = {
         const twist = used === 1 || used === 6;
 
         fPanel.querySelector("#solo-f-out").innerHTML = `
-          <div class="fortune deal" style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
+          <div class="fortune deal has-seal" style="padding:10px;background:var(--bg);border-radius:var(--r-sm);border-left:4px solid ${twist ? "var(--accent)" : "var(--ok)"}">
+            ${(() => { const a = String(ans).toLowerCase(); const k = /\b(and|but)\b/.test(a) && /^(yes|no)/.test(a) ? "and" : /^no\b/.test(a) ? "no" : /^yes\b/.test(a) ? "yes" : ""; return k ? oracleSeal(k, twist) : ""; })()}
             <p class="stat-line u-mb1only">Rolled ${rollText}</p>
             <p style="font-size:var(--fs-xl);font-weight:bold;margin:0;color:${twist ? "var(--accent-ink)" : "var(--ok)"}">${esc(ans)}</p>
             ${twist ? `<p class="stat-line" style="margin:4px 0 0 0;color:var(--accent-ink)">★ Extreme result / twist!</p>` : ""}
@@ -334,7 +335,7 @@ export const SoloMode = {
         const row3 = insp.find(x => x.d20 === r3) || insp[0];
 
         let res = "";
-        if (mode === "all") res = `<b>${row1.action}</b> · <b>${row2.attribute}</b> · <b>${row3.thing}</b> <small style="font-weight:normal;color:var(--muted)">(${r1}, ${r2}, ${r3})</small>`;
+        if (mode === "all") res = `<span class="tarot-row"><span class="tarot" style="--i:0">${emblem("glyph", "bolt", "emb tarot-emb")}<b>${row1.action}</b></span><span class="tarot-sep"> · </span><span class="tarot" style="--i:1">${emblem("glyph", "sparkle", "emb tarot-emb")}<b>${row2.attribute}</b></span><span class="tarot-sep"> · </span><span class="tarot" style="--i:2">${emblem("glyph", "key", "emb tarot-emb")}<b>${row3.thing}</b></span></span> <small style="font-weight:normal;color:var(--muted)">(${r1}, ${r2}, ${r3})</small>`;
         else if (mode === "act") res = `Action (${r1}): <b>${row1.action}</b>`;
         else if (mode === "att") res = `Attribute (${r2}): <b>${row2.attribute}</b>`;
         else if (mode === "thg") res = `Thing (${r3}): <b>${row3.thing}</b>`;
@@ -383,7 +384,8 @@ export const SoloMode = {
       const npcs = solo.npcTemplates || [];
       const nat = solo.npcAttackTable || { roles: [], rows: [] };
       const nPanel = el(`
-        <div class="panel">
+        <div class="panel foe-gen">
+          <span class="foe-art" aria-hidden="true">${emblem("creature", "humanoid", "emb")}</span>
           <h3>⚔ Solo NPC &amp; Foe Generator</h3>
           <p class="stat-line">Quickly instantiate simple foes or roll their AI attacks.</p>
           <div class="field-row" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
@@ -535,7 +537,7 @@ export const SoloMode = {
         return box;
       };
 
-      const jPanel = el(`<div class="panel" style="margin-top:12px;border-left:4px solid var(--ok)">
+      const jPanel = el(`<div class="panel has-rose" style="margin-top:12px;border-left:4px solid var(--ok)">
         <h3>🌲 Wilderness Journeys &amp; Travel Tools</h3>
       </div>`);
 
@@ -543,8 +545,9 @@ export const SoloMode = {
       const shiftSec = el(`<div class="u-mb25"><p class="stat-line u-m0"><b>⏱️ Shifts:</b> Morning, Day, Evening, Night (~6h each). Travel speed: 1 node/hex per shift.</p></div>`);
       const shiftBtn = el(`<button class="btn ghost u-mt15">🎲 Random shift (D4)</button>`);
       const shiftOut = el(`<div></div>`);
-      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `<p class="stat-line u-mb1only">Rolled ${r}</p><p style="font-size:var(--fs-xl);font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(resultBtns(`Shift: ${shifts[r - 1]}`)); };
+      shiftBtn.onclick = () => { const r = Dice.d(4); shiftOut.innerHTML = outBox("var(--accent)", `${dayDial(r - 1)}<p class="stat-line u-mb1only">Rolled ${r}</p><p style="font-size:var(--fs-xl);font-weight:bold;margin:0">${esc(shifts[r - 1])}</p>`); shiftOut.appendChild(resultBtns(`Shift: ${shifts[r - 1]}`)); };
       shiftSec.append(shiftBtn, shiftOut);
+      jPanel.appendChild(el(`<span class="rose-art" aria-hidden="true">${compassRose()}</span>`));
       jPanel.appendChild(shiftSec);
 
       // ⛺ Camp & Rest — Bushcraft roll; failure rolls the mishap table.

@@ -58,7 +58,11 @@ export const placeHelp = (root, openModal) => {
    * ================================================================= */
 
 export const Dice = {
-    d(sides) { return Math.floor(Math.random() * sides) + 1; },
+    _log: null,
+    d(sides) { const v = Math.floor(Math.random() * sides) + 1; if (this._log) this._log.push([sides, v]); return v; },
+    // Record every die rolled between capture() and take() (for dice-face visuals).
+    capture() { this._log = []; },
+    take() { const l = this._log || []; this._log = null; return l; },
     // Parse and roll a spec like "D6", "2D8", "4D6".
     roll(spec) {
       const str = String(spec).replace(/\s+/g, "");
@@ -74,6 +78,7 @@ export const Dice = {
     // 4D6, drop the lowest die → 3-18.
     attribute() {
       const r = [this.d(6), this.d(6), this.d(6), this.d(6)].sort((a, b) => a - b);
+      this.lastAttr = r; // kept for the wizard's 4D6 face display
       return r[1] + r[2] + r[3];
     }
   };

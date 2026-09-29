@@ -15,6 +15,7 @@ import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
 import { Table, PHASES } from './table.js';
 import { Pregens } from './wizard.js';
+import { crest } from './graphics.js';
 
 export const GM = {
     // Show the GM surface based on the user's explicit toggle when they've set one;
@@ -130,7 +131,7 @@ export const GM = {
         const dying = (c.state && c.state.hp <= 0);
         const row = el(`<div class="gm-row"></div>`);
         row.appendChild(el(`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <b>${esc(c.identity.name)}</b>
+          <b class="gm-name">${(() => { const w = (c.identity.name || "?").trim().split(/\s+/); return crest(c.identity.name, c.identity.kin, (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase(), "crest gm-crest"); })()}${esc(c.identity.name)}</b>
           <span class="stat-line">${esc(c.identity.kin || "")} ${esc(c.identity.profession || "")}</span>
         </div>`));
         row.appendChild(el(`<div class="stat-line u-my1">
