@@ -241,6 +241,7 @@ export const Screens = {
       const tog4 = el(`<button class="toggle ${gs ? "on" : ""}" role="switch" aria-checked="${gs}"><span class="knob"></span></button>`);
       tog4.onclick = () => { Settings.set("gmScreen", !GM.enabled()); Router.go("about"); };
       row4.appendChild(tog4); sp.appendChild(row4);
+      if (!(Sync.enabled && Sync.campaign)) row4.appendChild(el(`<p class="tr-need">🔗 Party features — live party panel, messages, roll requests, party actions and handing out pre-gens — need a synced campaign (<b>Multiplayer</b> below). Without one, the GM tab runs on this device only.</p>`));
       // Group the toggles: Content (what's in the rules) vs Play style (how this device plays).
       {
         const rows = [...sp.querySelectorAll(":scope > .toggle-row")]; // beginner, book of magic, solo, gm automation, gm screen

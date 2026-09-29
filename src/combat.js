@@ -368,7 +368,7 @@ export const Combat = {
         const quickWrap = head.querySelector(".quick-attacks");
         if (!isDefeated) {
           if (cb.kind === "monster" && cb.attacks && cb.attacks.length) {
-            const d6Quick = el(`<button class="skill-chip quick-chip" style="background:var(--ok-fill);color:var(--on-fill);border:none" title="Roll monster attack${(cb.ferocity || 1) > 1 ? ` (Ferocity ${cb.ferocity})` : ""}">🎲 Atk${(cb.ferocity || 1) > 1 ? ` ×${cb.ferocity}` : ""}</button>`);
+            const d6Quick = el(`<button class="skill-chip quick-chip atk-quick" title="Roll monster attack${(cb.ferocity || 1) > 1 ? ` (Ferocity ${cb.ferocity})` : ""}">🎲 Atk${(cb.ferocity || 1) > 1 ? ` ×${cb.ferocity}` : ""}</button>`);
             d6Quick.onclick = (e) => { e.stopPropagation(); Roller.monsterTableRoll(cb); };
             quickWrap.appendChild(d6Quick);
           } else if (isDyingHero) {

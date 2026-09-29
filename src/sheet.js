@@ -885,7 +885,7 @@ export const Sheet = {
         this.tab = k; try { localStorage.setItem("dragonbane.sheetTab", k); } catch (_) {}
         tabBar.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.tab === k; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
         Object.entries(panes).forEach(([pk, pn]) => { pn.hidden = pk !== k; });
-        top.classList.toggle("compact", k !== "overview");
+        top.classList.toggle("compact", k !== "overview" && !matchMedia("(min-width: 1024px)").matches); // desktop keeps the full header pinned beside the tabs
         if (focus !== undefined || selectTab._ready) { panes[k].classList.remove("pane-in"); void panes[k].offsetWidth; panes[k].classList.add("pane-in"); }
         selectTab._ready = true;
       };
@@ -908,6 +908,11 @@ export const Sheet = {
       };
       root.appendChild(tabBar);
       TABS.forEach(([k]) => root.appendChild(panes[k]));
+      // Desktop: the hero header pins in a left column beside the tabs (CSS decides; mobile stays stacked).
+      const layout = el(`<div class="sheet-layout"><aside class="sheet-aside" aria-label="Hero summary"></aside><div class="sheet-main"></div></div>`);
+      top.before(layout);
+      layout.firstChild.appendChild(top);
+      layout.lastChild.append(dyingSlot, tabBar, ...TABS.map(([k]) => panes[k]));
       panes.overview.classList.add("two-col");
       selectTab(this.tab);
 

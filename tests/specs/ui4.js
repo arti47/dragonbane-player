@@ -86,6 +86,19 @@ module.exports = {
     t.ok("header: slims after scrolling", await page.evaluate(() => document.documentElement.classList.contains("hdr-slim")));
     t.ok("fonts: display stack starts with the lining-digit face", await page.evaluate(() => /Fell Digits/.test(getComputedStyle(document.querySelector(".section-title h2")).fontFamily)));
 
+    // Follow-ups: accent quick-attack chip, campaign hint in Settings, desktop sheet aside.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    t.ok("settings: party features flagged as needing a campaign", await page.evaluate(() => /synced campaign/.test(document.querySelector(".tr-need")?.textContent || "")));
+    await nav("party");
+    t.ok("combat: quick monster attack chip uses the accent style", await page.evaluate(() => { const q = document.querySelector(".atk-quick"); return !!q && !/ok-fill/.test(q.getAttribute("style") || ""); }));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await nav("home");
+    await page.evaluate(() => document.querySelectorAll(".card[data-id]")[1].click()); await page.waitForTimeout(250);
+    await page.evaluate(() => document.querySelector(".tab[data-tab='skills']").click()); await page.waitForTimeout(80);
+    const dk = await page.evaluate(() => ({ aside: !!document.querySelector(".sheet-aside .hero-top"), pos: getComputedStyle(document.querySelector(".sheet-aside")).position, compact: document.querySelector(".hero-top").classList.contains("compact"), cols: getComputedStyle(document.querySelector(".sheet-layout")).gridTemplateColumns.split(" ").length }));
+    t.ok(`desktop: hero header pinned beside the tabs (${dk.pos}, ${dk.cols} cols)`, dk.aside && dk.pos === "sticky" && dk.cols === 2);
+    t.ok("desktop: header stays full on other tabs", !dk.compact);
+
     t.ok(`no JS page errors (${page._errors.length})`, page._errors.length === 0);
     page._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
     await page.close();

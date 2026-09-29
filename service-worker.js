@@ -9,7 +9,7 @@
  * own offline persistence handles party sync when reconnecting.
  */
 
-const CACHE_VERSION = "dragonbane-v83";
+const CACHE_VERSION = "dragonbane-v84";
 const APP_SHELL = [
   "./",
   "./index.html",
