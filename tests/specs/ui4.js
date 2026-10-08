@@ -51,7 +51,8 @@ module.exports = {
 
     // Themed checkbox in the stretch-rest dialog.
     await page.evaluate(() => document.querySelector(".tab[data-tab='overview']").click());
-    await page.evaluate(() => [...document.querySelectorAll(".rest-btn")].find((b) => /Stretch/.test(b.textContent)).click()); await page.waitForTimeout(120);
+    await page.evaluate(() => document.querySelector(".rest-one").click()); await page.waitForTimeout(120);
+    await page.evaluate(() => [...document.querySelectorAll(".rp-btn")].find((b) => /Stretch/.test(b.textContent)).click()); await page.waitForTimeout(150);
     t.ok("checkbox: themed (no native appearance)", await page.evaluate(() => { const c = document.querySelector(".modal-card input[type=checkbox]"); return !c || getComputedStyle(c).appearance === "none"; }));
     await page.evaluate(() => document.querySelector(".modal-x")?.click());
 

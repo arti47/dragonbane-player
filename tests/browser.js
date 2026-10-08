@@ -41,6 +41,9 @@ async function newPage(browser, settings, viewport) {
   await page.addInitScript(() => { try { localStorage.setItem("dragonbane.welcomed", "1"); } catch (_) {} });
   // Navigate like the app does internally (Router listens for db:go) — tabs are grouped now.
   await page.addInitScript(() => { window.__go = (r) => document.dispatchEvent(new CustomEvent("db:go", { detail: r })); });
+  // The sheet opens in its Edit layer for the legacy specs (every setup control
+  // visible); redesign.js and spillage.js also cover the Play layer explicitly.
+  await page.addInitScript(() => { try { if (localStorage.getItem("dragonbane.editMode") == null) localStorage.setItem("dragonbane.editMode", "1"); } catch (_) {} });
   if (settings) await page.addInitScript((s) => localStorage.setItem("dragonbane.settings", JSON.stringify(s)), settings);
   page._errors = errors;
   return page;

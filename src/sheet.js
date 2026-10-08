@@ -2,10 +2,10 @@
    See CLAUDE.md §5 for the module map. */
 import { icon } from './icons.js';
 import { Table } from './table.js';
-import { SHIELD_BG, abilityGlyph, coinStack, crest, emblem, footTrack, illo, itemGlyph, laurel, mantling, mottoScroll, pips, rankStars, setPips, slotSquares } from './graphics.js';
-import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, helpBox, uid } from './core.js';
+import { DOLL, SHIELD_BG, abilityGlyph, coinStack, crest, emblem, footTrack, illo, itemGlyph, laurel, mantling, mottoScroll, rankStars, setRing, slotSquares, vitalRings } from './graphics.js';
+import { $, CORE_SCHOOLS, DB, Dice, MAGICX, el, esc, gloss, glossHtml, helpBox, uid } from './core.js';
 import { confirmModal, modal, promptModal, showToast, showUndoToast } from './ui.js';
-import { Calc, classifyItem, heroicReqMet, resolveEquippedWeapons } from './rules.js';
+import { Calc, classifyItem, heroicReqMet, normName, resolveArmorItem, resolveEquippedWeapons, resolveHelmetItem } from './rules.js';
 import { applyInvoluntaryConditionTo, effHpMax, effWpMax, encLimit, encUsed, isConcentration, isSummonSpell, isTrackableSpell, lightDieFor, normalizeInventory } from './derived.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
@@ -731,8 +731,16 @@ export const Sheet = {
       const condByAttr = {}; (DB.conditions || []).forEach((cn) => { if (c.state.conditions[cn.key]) condByAttr[cn.attribute] = true; });
       const root = el(`<div></div>`);
 
-      // Header
-      root.appendChild(el(`<div class="wiz-head"><button class="btn ghost" id="sheet-back">← Heroes</button></div>`));
+      // Header: back, a strip of your other heroes, and the Play / Edit switch.
+      let edit = false; try { edit = canEdit && localStorage.getItem("dragonbane.editMode") === "1"; } catch (_) {}
+      root.classList.add("sheet-root"); root.classList.toggle("is-edit", edit);
+      const others = Store.list().filter((h) => h.id !== c.id && (!inPartyCamp || !h.owner || h.owner === Sync.uid)).slice(0, 4);
+      const ini = (n) => { const w = (n || "?").trim().split(/\s+/); return (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase(); };
+      const head = el(`<div class="wiz-head sheet-head"><button class="btn ghost" id="sheet-back" aria-label="All heroes">← Heroes</button><div class="hero-switch">${others.map((h) => `<button type="button" class="hs-chip" data-id="${esc(h.id)}" aria-label="Open ${esc(h.identity.name)}" title="${esc(h.identity.name)}">${crest(h.identity.name, h.identity.kin, ini(h.identity.name), "crest hs-crest")}</button>`).join("")}</div>${canEdit ? `<button type="button" class="btn ghost edit-tog" id="sheet-edit" aria-pressed="${edit}">${edit ? "✓ Done" : "✎ Edit"}</button>` : ""}</div>`);
+      head.querySelectorAll(".hs-chip").forEach((b) => { b.onclick = () => this.open(b.dataset.id); });
+      const editBtn = head.querySelector("#sheet-edit");
+      if (editBtn) editBtn.onclick = () => { try { localStorage.setItem("dragonbane.editMode", edit ? "0" : "1"); } catch (_) {} this.render(); };
+      root.appendChild(head);
       // Tabs: Overview · Skills · Magic · Gear · Story (last tab remembered).
       const TABS = [["overview", "Overview"], ["skills", "Skills"], ["magic", "Magic"], ["gear", "Gear"], ["story", "Story"]];
       if (!this.tab) { try { this.tab = localStorage.getItem("dragonbane.sheetTab") || "overview"; } catch (_) { this.tab = "overview"; } }
@@ -740,17 +748,14 @@ export const Sheet = {
       const panes = {};
       TABS.forEach(([k]) => { panes[k] = el(`<div class="tab-panel" role="tabpanel" id="sheet-pane-${k}" aria-labelledby="sheet-tab-${k}" data-tab="${k}"></div>`); });
       root.appendChild(helpBox("Character sheet", [
-        "Step <b>HP / WP</b> with the −/+ buttons; at 0 HP a death-roll panel appears.",
-        "Tap a <b>skill</b> to roll it (D20 ≤ level); toggle its <b>◦/●</b> to set an advancement mark.",
-        "Toggle <b>conditions</b> — each puts a bane on rolls using its attribute.",
-        "Tap a <b>spell</b> to cast; add/equip <b>inventory</b> below (equipped gear is encumbrance-free).",
-        "Use <b>Rest</b> buttons to recover, and <b>End session — advancement</b> to improve marked skills."
+        "<b>−/+</b> beside the crest change HP (left, hearts) and WP (right, flames). At 0 HP a death-roll panel appears.",
+        "Tap a <b>condition seal</b> to set it — it puts a bane on rolls with its attribute.",
+        "Tap a <b>skill tile</b> to roll it (D20 ≤ level); the ◆ on a tile is its advancement mark.",
+        "Tap a <b>spell card</b> to read it, then <b>Cast</b>. Tap gear in the backpack for its actions.",
+        "<b>✎ Edit</b> shows the setup controls (add/remove items, rename, learn magic, delete)."
       ]));
       if (!canEdit) {
-        root.appendChild(el(`<div class="panel" style="border-color:var(--bad);background:var(--tint-bad);padding:10px 14px;margin-bottom:12px">
-          <b class="u-bad">🔒 Read-Only View</b><br>
-          <span class="stat-line" style="font-size:var(--fs-sm)">You are viewing another player's hero. Rolling dice and editing stats are disabled.</span>
-        </div>`));
+        root.appendChild(el(`<div class="panel ro-note"><b class="u-bad">🔒 Read-only</b> <span class="stat-line">Another player's hero.</span></div>`));
       }
 
       // GM messages feed (only in a synced campaign) — pushed by the GM.
@@ -766,33 +771,29 @@ export const Sheet = {
         Router.markMessagesRead();
       }
 
-      // Identity + derived + HP/WP
+      // ---- Hero card: name · [HP | crest in its rings | WP] · condition seals · shields · derived · Rest ----
       const top = el(`<div class="panel hero-top${c.state.hp <= 0 ? " is-dying" : ""}"></div>`);
       const portUrl = c.identity.portraitUrl;
-      const nameWords = (c.identity.name || "?").trim().split(/\s+/);
-      const initials = (nameWords.length > 1 ? nameWords[0][0] + nameWords[nameWords.length - 1][0] : nameWords[0].slice(0, 2)).toUpperCase();
+      const initials = ini(c.identity.name);
       const portImg = portUrl
         ? `<img src="${portUrl}" alt="Portrait" class="portrait" title="Tap to change portrait">`
         : `<div class="monogram has-crest" role="img" aria-label="Portrait placeholder" title="Tap to upload portrait">${crest(c.identity.name, c.identity.kin, initials)}</div>`;
-
       const idWrap = el(`<div class="hero-id">
-        <div id="portrait-wrap" class="arms">${mantling()}${portImg}${mottoScroll()}</div>
         <div class="hero-id-txt">
           <h2 class="sheet-name" title="${esc(c.identity.name)}">${esc(c.identity.name)}</h2>
-          <p class="meta">${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
+          <p class="meta">${emblem("kin", c.identity.kin, "emb meta-emb")}${esc(c.identity.kin)} · ${esc(c.identity.profession)}${c.identity.mageSchool ? " (" + esc(c.identity.mageSchool) + ")" : ""} · ${esc(c.identity.age)}</p>
         </div>
       </div>`);
-      idWrap.querySelector("#portrait-wrap").onclick = () => { if (canEdit) this.uploadPortrait(); };
       top.appendChild(idWrap);
-      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.key}">${SHIELD_BG}${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
-      top.appendChild(attrRow);
-      top.appendChild(el(`<div class="derived-row stat-line"><span class="tag">${gloss("movement","Move")} ${c.derived.movement}</span><span class="tag">${gloss("damage bonus","STR dmg")} ${c.derived.dmgBonusSTR?"+"+c.derived.dmgBonusSTR:"—"}</span><span class="tag">${gloss("damage bonus","AGL dmg")} ${c.derived.dmgBonusAGL?"+"+c.derived.dmgBonusAGL:"—"}</span><span class="tag">${gloss("encumbrance","Enc. limit")} ${encLimit(c)}</span></div>`));
-      // HP / WP steppers
+      // HP / WP steppers — now flanking the crest; the rings mirror them.
+      const hpMax0 = effHpMax(c), wpMax0 = effWpMax(c);
+      const core = el(`<div class="hc-core"><div class="hc-arms">${vitalRings(c.state.hp, hpMax0, c.state.wp, wpMax0)}<div id="portrait-wrap" class="arms">${mantling()}${portImg}${mottoScroll()}</div></div></div>`);
+      core.querySelector("#portrait-wrap").onclick = () => { if (canEdit && edit) this.uploadPortrait(); else if (canEdit) this.toast("Tap ✎ Edit to change the portrait."); };
+      const rings = core.querySelector(".vital-rings");
       const stepper = (label, cur, max, key, cls) => {
         const plainLabel = String(label).replace(/<[^>]+>/g, ""); // aria text without gloss markup
         const pct = (v) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
         const w = el(`<div class="vital ${cls}${max > 0 && cur / max <= 0.25 ? " low" : ""}"><span class="vital-emb" aria-hidden="true">${emblem("glyph", cls === "hp" ? "heart" : "flame")}</span><div class="vital-label">${label}</div><div class="vbar" aria-hidden="true"><i style="--pct:${pct(cur)}%"></i></div></div>`);
-        const gems = pips(cur, max, cls);
         const ctrl = el(`<div class="stepper"></div>`);
         const minus = el(`<button class="step" type="button" aria-label="Decrease ${plainLabel}">−</button>`);
         const vv = (v) => `<b class="vv-cur">${v}</b><span class="vv-max"> / ${max}</span>`;
@@ -813,10 +814,11 @@ export const Sheet = {
           });
           val.innerHTML = vv(c.state[key]);
           w.querySelector(".vbar > i").style.setProperty("--pct", pct(c.state[key]) + "%");
-          setPips(w, c.state[key]);
+          setRing(rings, key, c.state[key], max);
           w.classList.toggle("low", max > 0 && c.state[key] / max <= 0.25);
           val.classList.remove("pulse"); void val.offsetWidth; val.classList.add("pulse");
           w.classList.remove("hit", "heal"); void w.offsetWidth; w.classList.add(d < 0 ? "hit" : "heal");
+          core.classList.remove("hit", "heal"); void core.offsetWidth; core.classList.add(d < 0 ? "hit" : "heal");
           if (this._miniSync) this._miniSync();
           // Concentration interruption: taking HP damage prompts a WIL roll.
           if (key === "hp" && d < 0 && c.state.hp < prevHp) this.concentrationCheck();
@@ -828,36 +830,52 @@ export const Sheet = {
         minus.onclick = (e) => { e.preventDefault(); doStep(-1); };
         plus.onclick = (e) => { e.preventDefault(); doStep(1); };
         ctrl.append(minus, val, plus); w.appendChild(ctrl);
-        if (gems) w.appendChild(el(gems));
         return w;
       };
-      const vitals = el(`<div class="vitals"></div>`);
-      const hpV = stepper(gloss("hp", "Hit Points"), c.state.hp, effHpMax(c), "hp", "hp");
-      const wpV = stepper(gloss("wp", "Willpower"), c.state.wp, effWpMax(c), "wp", "wp");
-      vitals.append(hpV, wpV);
-      top.appendChild(vitals);
+      const hpV = stepper(gloss("hp", "HP"), c.state.hp, hpMax0, "hp", "hp");
+      const wpV = stepper(gloss("wp", "WP"), c.state.wp, wpMax0, "wp", "wp");
+      core.insertBefore(hpV, core.firstChild); core.appendChild(wpV);
+      core.classList.add("vitals");
+      top.appendChild(core);
+      // Condition seals: the six conditions as wax seals — tap to set or clear.
+      const seals = el(`<div class="cond-seals" role="group" aria-label="Conditions"></div>`);
+      (DB.conditions || []).forEach((cn) => {
+        const on = !!c.state.conditions[cn.key];
+        const b = el(`<button type="button" class="cond-seal${on ? " on" : ""}" aria-pressed="${on}" title="${esc(cn.name)}: bane on ${cn.attribute} rolls" data-rule="cond:${cn.key}"><span class="cs-wax">${emblem("cond", cn.key)}</span><span class="cs-name">${esc(cn.name)}</span></button>`);
+        b.onclick = () => this.mutate((ch) => { ch.state.conditions[cn.key] = !ch.state.conditions[cn.key]; });
+        seals.appendChild(b);
+      });
+      top.appendChild(seals);
+      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.name}">${SHIELD_BG}${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
+      top.appendChild(attrRow);
+      const dmgB = (v) => v ? "+" + v : "—";
+      top.appendChild(el(`<div class="derived-row stat-line"><span class="tag dv" aria-label="Movement ${c.derived.movement}">${glossHtml("movement", icon("run", "ic dv-ic") + c.derived.movement)}</span><span class="tag dv" aria-label="STR damage bonus ${dmgB(c.derived.dmgBonusSTR)}">${glossHtml("damage bonus", icon("swords", "ic dv-ic") + dmgB(c.derived.dmgBonusSTR))}</span><span class="tag dv" aria-label="AGL damage bonus ${dmgB(c.derived.dmgBonusAGL)}">${glossHtml("damage bonus", icon("bow", "ic dv-ic") + dmgB(c.derived.dmgBonusAGL))}</span><span class="tag dv" aria-label="Carrying limit ${encLimit(c)}">${glossHtml("encumbrance", icon("pack", "ic dv-ic") + encLimit(c))}</span></div>`));
 
-      // Movement Tracker
-      panes.overview.appendChild(this.buildMovementDOM(c, () => this.render()));
-
-      // Permanent WP loss (rituals / corruption)
+      // Permanent WP loss (rituals / corruption) — setup control, Magic tab, Edit only.
       if (c.state.wpPenalty || (c.spells.tricks || []).length || (c.spells.known || []).length) {
-        const pen = el(`<div class="wp-pen adv-only"><span class="stat-line">Permanent WP loss (rituals/corruption): <b>${c.state.wpPenalty || 0}</b> · max WP ${effWpMax(c)}/${c.derived.wpMax}</span></div>`);
+        const pen = el(`<div class="wp-pen adv-only edit-only"><span class="stat-line">Permanent WP loss (rituals/corruption): <b>${c.state.wpPenalty || 0}</b> · max WP ${effWpMax(c)}/${c.derived.wpMax}</span></div>`);
         const minus = el(`<button class="step" title="restore (e.g. Focused)">−</button>`);
         const plus = el(`<button class="step" title="lose 1 permanent max WP">+</button>`);
         minus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = Math.max(0, (ch.state.wpPenalty || 0) - 1); ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
         plus.onclick = () => this.mutate((ch) => { ch.state.wpPenalty = (ch.state.wpPenalty || 0) + 1; ch.state.wp = Math.min(ch.state.wp, effWpMax(ch)); });
         pen.append(minus, plus); this._penEl = pen;
       }
-      // Rest buttons
-      const restRow = el(`<div class="rest-row grid-3 u-mt25"></div>`);
-      [["Round rest","round","+D6 WP"],["Stretch rest","stretch","+D6 HP/WP, heal 1 condition"],["Shift rest","shift","full HP/WP, all conditions"]].forEach(([label,kind,hint]) => {
-        const b = el(`<button class="btn ghost rest-btn" title="${hint}">${label}</button>`);
-        b.onclick = () => this.rest(kind);
-        restRow.appendChild(b);
-      });
+      // One Rest button → Round / Stretch / Shift.
+      const restRow = el(`<div class="rest-row u-mt25"></div>`);
+      const restBtn = el(`<button class="btn ghost rest-btn rest-one" type="button">${icon("tent", "ic")} Rest${c.state.roundRestUsed || c.state.stretchRestUsed ? ` <span class="rest-used">${[c.state.roundRestUsed ? "round" : "", c.state.stretchRestUsed ? "stretch" : ""].filter(Boolean).join(" · ")} used</span>` : ""}</button>`);
+      restBtn.onclick = () => Action.restPicker(c);
+      restRow.appendChild(restBtn);
       top.appendChild(restRow);
       root.appendChild(top);
+
+      // Movement — folded away out of combat; opens by itself while a fight is running.
+      {
+        const cs = Combat.load(); const inFight = !!(cs.round && cs.combatants.some((x) => x.charId === c.id));
+        const mv = el(`<details class="panel move-wrap"${inFight || this._moveOpen ? " open" : ""}><summary><h3>${icon("run", "ic h3-ic")}Movement <span class="tag">${c.derived.movement} m</span></h3></summary></details>`);
+        mv.addEventListener("toggle", () => { this._moveOpen = mv.open; });
+        mv.appendChild(this.buildMovementDOM(c, () => this.render()));
+        panes.overview.appendChild(mv);
+      }
 
       // Sticky mini-bar: once the hero header scrolls away, a slim bar pins under
       // the app header with the monogram, name and HP/WP (−/+ still work).
@@ -986,19 +1004,9 @@ export const Sheet = {
         dyingSlot.appendChild(dyingPanel);
       }
 
-      // Conditions
-      const condPanel = el(`<div class="panel"><h3>Conditions</h3><p class="stat-line">Each imposes a bane on rolls using its attribute. Gained by pushing a roll.</p></div>`);
-      const cw = el(`<div class="cond-grid"></div>`);
-      (DB.conditions || []).forEach((cn) => {
-        const on = !!c.state.conditions[cn.key];
-        const chip = el(`<button class="skill-chip ${on?"cond-on":""}" aria-pressed="${on?"true":"false"}">${emblem("cond", cn.key)}${esc(cn.name)} <span class="stat-line">${cn.attribute}</span></button>`);
-        chip.onclick = () => this.mutate((ch) => { ch.state.conditions[cn.key] = !ch.state.conditions[cn.key]; });
-        cw.appendChild(chip);
-      });
-      condPanel.appendChild(cw); panes.overview.insertBefore(condPanel, panes.overview.firstChild);
 
       // Skills
-      const skPanel = el(`<div class="panel"><h3>Skills</h3><p class="stat-line">Tap a skill to roll it. Tap the ◦ to toggle an advancement mark (ticked on a Dragon/Demon). ⚠ = a condition banes this skill.</p></div>`);
+      const skPanel = el(`<div class="panel"><h3>Skills</h3></div>`);
       const markedCount = Object.values(c.skills).filter((v) => v.mark).length;
       const advRow = el(`<div class="rest-row adv-row" style="margin:4px 0 10px"></div>`);
       const advBtn = el(`<button class="btn ghost">End session — advancement${markedCount?` (${markedCount} marked)`:""}</button>`);
@@ -1017,7 +1025,7 @@ export const Sheet = {
         missionBtn.onclick = () => this.soloMissionMarks();
         advRow.appendChild(missionBtn);
       }
-      const advMore = el(`<details class="adv-menu adv-only"><summary>Train teacher · Study library · Gain ability · Catch up</summary></details>`);
+      const advMore = el(`<details class="adv-menu adv-only edit-only"><summary>Train teacher · Study library · Gain ability · Catch up</summary></details>`);
       const advMoreRow = el(`<div class="rest-row" style="margin:6px 0 4px"></div>`);
       advMoreRow.append(teachBtn, studyBtn, gainBtn, catchupBtn); advMore.appendChild(advMoreRow);
       skPanel.appendChild(advRow);
@@ -1025,16 +1033,23 @@ export const Sheet = {
       let trainedOnly = false; try { trainedOnly = localStorage.getItem("dragonbane.skillFilter") === "trained"; } catch (_) {}
       const seg = el(`<div class="seg" role="group" aria-label="Skill filter"><button type="button" data-f="all">All</button><button type="button" data-f="trained">Trained</button></div>`);
       skPanel.appendChild(seg);
-      const skList = el(`<div class="skill-list"></div>`);
-      Object.entries(c.skills).sort((x,y)=>x[0].localeCompare(y[0])).forEach(([n,v]) => {
-        const baned = condByAttr[v.attribute];
-        const row = el(`<div class="skill-row ${v.trained?"trained":""}">
-          <button class="mark ${v.mark?"marked":""}" title="advancement mark" aria-label="${v.mark?"Remove":"Add"} advancement mark for ${esc(n)}" aria-pressed="${v.mark?"true":"false"}">${v.mark?"●":"◦"}</button>
-          <button class="sk-name rollable" aria-label="Roll ${esc(n)} (${v.attribute}), skill ${v.level}">${esc(n)} <span class="stat-line">${v.attribute}${baned?" ⚠":""}</span><span class="sk-bar" aria-hidden="true" style="--pct:${Math.min(100, v.level * 5)}%"></span></button>
-          <b class="sk-lvl">${v.level}</b></div>`);
-        row.querySelector(".mark").onclick = () => this.mutate((ch) => { ch.skills[n].mark = !ch.skills[n].mark; });
-        row.querySelector(".sk-name").onclick = () => Roller.skill(this.id, n);
-        skList.appendChild(row);
+      // The dice board: a tile per skill, grouped under the attribute it grows from.
+      const skList = el(`<div class="skill-list skill-board"></div>`);
+      const groups = {}; Object.entries(c.skills).forEach(([n, v]) => { (groups[v.attribute] = groups[v.attribute] || []).push([n, v]); });
+      (DB.attributes || []).forEach((at) => {
+        const g = groups[at.key]; if (!g) return;
+        const sec = el(`<div class="sk-group${condByAttr[at.key] ? " baned" : ""}" data-attr="${at.key}"><div class="sk-ghead">${emblem("attr", at.key)}<b>${at.key}</b><span class="sk-gval">${a[at.key]}</span>${condByAttr[at.key] ? `<span class="sk-gbane">${icon("warn", "ic")} bane</span>` : ""}</div><div class="sk-tiles"></div></div>`);
+        const tiles = sec.querySelector(".sk-tiles");
+        g.sort((x, y) => x[0].localeCompare(y[0])).forEach(([n, v]) => {
+          const baned = condByAttr[v.attribute];
+          const row = el(`<div class="skill-row sk-tile ${v.trained ? "trained" : ""}${baned ? " baned" : ""}">
+            <button class="sk-name rollable" aria-label="Roll ${esc(n)} (${v.attribute}), skill ${v.level}"><b class="sk-lvl">${v.level}</b><span class="sk-label">${esc(n)}</span><span class="sk-bar" aria-hidden="true" style="--pct:${Math.min(100, v.level * 5)}%"></span></button>
+            <button class="mark ${v.mark ? "marked" : ""}" title="advancement mark" aria-label="${v.mark ? "Remove" : "Add"} advancement mark for ${esc(n)}" aria-pressed="${v.mark ? "true" : "false"}">${v.mark ? "●" : "◦"}</button></div>`);
+          row.querySelector(".mark").onclick = () => this.mutate((ch) => { ch.skills[n].mark = !ch.skills[n].mark; });
+          row.querySelector(".sk-name").onclick = () => Roller.skill(this.id, n);
+          tiles.appendChild(row);
+        });
+        skList.appendChild(sec);
       });
       const applyFilter = () => { skList.classList.toggle("trained-only", trainedOnly); seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", (b.dataset.f === "trained") === trainedOnly ? "true" : "false")); };
       seg.querySelectorAll("button").forEach((b) => { b.onclick = () => { trainedOnly = b.dataset.f === "trained"; try { localStorage.setItem("dragonbane.skillFilter", trainedOnly ? "trained" : "all"); } catch (_) {} applyFilter(); }; });
@@ -1042,7 +1057,7 @@ export const Sheet = {
       skPanel.appendChild(skList); skPanel.appendChild(advMore); panes.skills.appendChild(skPanel);
 
       // Abilities
-      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x)=>`<p class="ab-row">${x.source === "kin" ? emblem("kin", c.identity.kin, "emb ab-glyph") : abilityGlyph(x)}<b>${esc(x.name)}</b> <span class="tag">${x.source==="kin"?"Kin":"Heroic"}</span> <span class="tag">${x.wp==null?"No WP":"WP "+x.wp}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></p>`).join("") || '<p class="stat-line">—</p>'}</div>`);
+      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x) => `<details class="ab-row"><summary>${x.source === "kin" ? emblem("kin", c.identity.kin, "emb ab-glyph") : abilityGlyph(x)}<b>${esc(x.name)}</b><span class="tag">${x.source === "kin" ? "Kin" : "Heroic"}</span>${x.wp == null ? "" : `<span class="wp-gem" title="Costs ${x.wp} WP">${x.wp}</span>`}</summary><p class="stat-line">${esc(x.text || "")}</p></details>`).join("") || '<p class="stat-line">—</p>'}</div>`);
       panes.overview.appendChild(abPanel);
       { const gmp = panes.overview.querySelector(":scope > .gm-auto"); if (gmp) panes.overview.appendChild(gmp); } // closed GM disclosure goes last
 
@@ -1052,37 +1067,47 @@ export const Sheet = {
         const magicPanel = el(`<div class="panel"><h3 style="display:flex;justify-content:space-between;align-items:center"><span>✨ Magic & Tricks</span><span class="tag">${(c.spells.tricks||[]).length + (c.spells.known||[]).length}</span></h3><div></div></div>`);
         const inner = magicPanel.querySelector("div");
         if (this._penEl) { magicPanel.appendChild(this._penEl); this._penEl = null; }
-        const learnBtn = el(`<button class="btn ghost u-mb2">＋ Learn a spell or school</button>`);
+        const learnBtn = el(`<button class="btn ghost u-mb2 edit-only">＋ Learn a spell or school</button>`);
         learnBtn.onclick = () => this.learnMagic();
         inner.appendChild(learnBtn);
         if (!hasMagic) inner.appendChild(el(`<div class="empty-illo">${illo("book")}</div>`));
-        if (!hasMagic) inner.appendChild(el(`<p class="stat-line empty-note">No spells known. If your hero can learn magic (e.g. the Magic Talent heroic ability), tap ＋ above.</p>`));
-        const spellRow = (x, isTrick) => {
+        if (!hasMagic) inner.appendChild(el(`<p class="stat-line empty-note">No magic yet.<span class="edit-only"> If your hero can learn it (e.g. Magic Talent), tap ＋ above.</span></p>`));
+        const perLevel = (x) => (String(x.school || "").toLowerCase() === "dracomancy" ? 6 : 2);
+        // A spell is a card: sigil, name, rank stars, WP cost, Cast. Tap the card for its full text and extras.
+        const spellCard = (x, isTrick) => {
           const isPrep = isTrick || x.prepared !== false;
-          const tagStr = isTrick ? "Trick · 1 WP" : `Rank ${x.rank}` + (isPrep ? " · Prepared" : " · Grimoire");
           const sch = String(x.school || c.spells.castSchool || c.identity.mageSchool || "general").toLowerCase();
-          const row = el(`<div class="cast-row${isTrick ? " is-trick" : ""}"><span class="cast-sigil" aria-hidden="true">${emblem("school", sch) || emblem("school", "general")}</span><div class="cast-info">${isTrick ? emblem("glyph", "candle", "emb trick-glyph") : ""}<b>${esc(x.name)}</b>${isTrick ? "" : rankStars(x.rank)} <span class="tag" style="${!isPrep ? 'background:var(--ink-soft);color:var(--bg-panel)' : ''}">${tagStr}</span><br><span class="stat-line clampable">${esc(x.text||"")}</span></div></div>`);
-          const btns = el(`<div class="cast-actions"></div>`);
+          const card = el(`<div class="cast-row spell-card${isTrick ? " is-trick" : ""}${isPrep ? "" : " grimoire"}" data-rule="spell:${esc(x.name)}">
+            <button type="button" class="sc-open" aria-label="Read ${esc(x.name)}"><span class="cast-sigil" aria-hidden="true">${emblem("school", sch) || emblem("school", "general")}</span>${isTrick ? emblem("glyph", "candle", "emb trick-glyph") : rankStars(x.rank)}<b class="sc-name">${esc(x.name)}</b><span class="sc-cost" title="${isTrick ? "1 WP" : perLevel(x) + " WP per power level"}"><i class="wp-gem">${isTrick ? 1 : perLevel(x)}</i>${isTrick ? "" : "<small>/PL</small>"}</span>${isPrep ? "" : '<span class="sc-grim">Grimoire</span>'}</button>
+            <div class="cast-actions"></div></div>`);
           const cast = el(`<button class="btn secondary cast-btn">Cast</button>`);
           cast.onclick = () => Roller.cast(this.id, x, isTrick);
-          btns.appendChild(cast);
-          if (isSummonSpell(x)) { const b = el(`<button class="btn ghost cast-btn" title="add to your summons/companions">+ Summon</button>`); b.onclick = () => this.addCompanion(x.name, 0, x.text); btns.appendChild(b); }
-          if (x.school === "enchanting") { const b = el(`<button class="btn ghost cast-btn" title="bind to a new item in your inventory">+ Craft</button>`); b.onclick = () => { this.mutate((ch) => ch.inventory.items.push({ name: "Enchanted item — " + x.name, weight: 1 })); this.toast(`Crafted: ${x.name}.`); }; btns.appendChild(b); }
-          else if (x.school === "alchemy") { const b = el(`<button class="btn ghost cast-btn" title="add a brewed dose to your inventory">+ Brew</button>`); b.onclick = () => { this.mutate((ch) => ch.inventory.items.push({ name: x.name + " (dose)", weight: 1 })); this.toast(`Brewed: ${x.name}.`); }; btns.appendChild(b); }
-          else if (!isTrick && isTrackableSpell(x) && !isSummonSpell(x)) { const b = el(`<button class="btn ghost cast-btn" title="track as an ongoing effect">+ Track</button>`); b.onclick = () => this.addEffect(x.name, isConcentration(x), x.duration); btns.appendChild(b); }
-          row.appendChild(btns);
-          return row;
+          card.querySelector(".cast-actions").appendChild(cast);
+          const extras = [];
+          if (isSummonSpell(x)) { const b = el(`<button class="btn ghost cast-btn" title="add to your summons/companions">+ Summon</button>`); b.onclick = () => this.addCompanion(x.name, 0, x.text); extras.push(b); }
+          if (x.school === "enchanting") { const b = el(`<button class="btn ghost cast-btn" title="bind to a new item in your inventory">+ Craft</button>`); b.onclick = () => { this.mutate((ch) => ch.inventory.items.push({ name: "Enchanted item — " + x.name, weight: 1 })); this.toast(`Crafted: ${x.name}.`); }; extras.push(b); }
+          else if (x.school === "alchemy") { const b = el(`<button class="btn ghost cast-btn" title="add a brewed dose to your inventory">+ Brew</button>`); b.onclick = () => { this.mutate((ch) => ch.inventory.items.push({ name: x.name + " (dose)", weight: 1 })); this.toast(`Brewed: ${x.name}.`); }; extras.push(b); }
+          else if (!isTrick && isTrackableSpell(x) && !isSummonSpell(x)) { const b = el(`<button class="btn ghost cast-btn" title="track as an ongoing effect">+ Track</button>`); b.onclick = () => this.addEffect(x.name, isConcentration(x), x.duration); extras.push(b); }
+          card.querySelector(".sc-open").onclick = () => {
+            const m = modal(x.name);
+            m.body.appendChild(el(`<div class="spell-sheet"><span class="ss-sigil" aria-hidden="true">${emblem("school", sch) || emblem("school", "general")}</span><p class="ss-tags"><span class="tag">${isTrick ? "Trick · 1 WP" : `Rank ${x.rank} · ${perLevel(x)} WP per power level`}</span>${isPrep ? "" : ' <span class="tag">Grimoire (unprepared)</span>'}</p><p class="ss-text">${esc(x.text || "")}</p></div>`));
+            const row = el(`<div class="modal-actions"></div>`);
+            const go = el(`<button class="btn block">Cast</button>`); go.onclick = () => { m.close(); Roller.cast(this.id, x, isTrick); };
+            extras.forEach((b) => { const f = b.onclick; b.onclick = () => { m.close(); f(); }; row.appendChild(b); });
+            row.appendChild(go); m.body.appendChild(row);
+          };
+          return card;
         };
         if ((c.spells.tricks||[]).length) {
-          const tDet = el(`<div><h4 class="magic-sub">🎩 Magic Tricks (${c.spells.tricks.length})</h4><div style="display:flex;flex-direction:column"></div></div>`);
-          const tDiv = tDet.querySelector("div");
-          c.spells.tricks.forEach((x) => tDiv.appendChild(spellRow(x, true)));
+          const tDet = el(`<div><h4 class="magic-sub">🎩 Magic Tricks (${c.spells.tricks.length})</h4><div class="spell-deck"></div></div>`);
+          const tDiv = tDet.querySelector(".spell-deck");
+          c.spells.tricks.forEach((x) => tDiv.appendChild(spellCard(x, true)));
           inner.appendChild(tDet);
         }
         if ((c.spells.known||[]).length) {
-          const sDet = el(`<div><h4 class="magic-sub">📜 Known Spells (${c.spells.known.length})</h4><div style="display:flex;flex-direction:column"></div></div>`);
-          const sDiv = sDet.querySelector("div");
-          c.spells.known.forEach((x) => sDiv.appendChild(spellRow(x, false)));
+          const sDet = el(`<div><h4 class="magic-sub">📜 Known Spells (${c.spells.known.length})</h4><div class="spell-deck"></div></div>`);
+          const sDiv = sDet.querySelector(".spell-deck");
+          c.spells.known.forEach((x) => sDiv.appendChild(spellCard(x, false)));
           inner.appendChild(sDet);
         }
         panes.magic.insertBefore(magicPanel, panes.magic.firstChild);
@@ -1091,14 +1116,14 @@ export const Sheet = {
       // Active spells & effects (Phase 4B) — always shown so any hero can track a
       // buff/effect (e.g. an ally-cast spell), not just casters.
       {
-        const fxPanel = el(`<div class="panel"><h3>Active Spells &amp; Effects</h3></div>`);
+        const fxPanel = el(`<div class="panel${(c.effects || []).length ? "" : " edit-only"}"><h3>Active Spells &amp; Effects</h3></div>`);
         if (!(c.effects || []).length) fxPanel.appendChild(el(`<p class="stat-line empty-note">Nothing active. Use “+ Track” on a lasting spell, or add one below.</p>`));
         (c.effects || []).forEach((fx, i) => {
           const row = el(`<div class="comp-row"><div class="comp-info"><b>${esc(fx.name)}</b> ${fx.concentration ? '<span class="tag">Concentration</span>' : fx.notes ? `<span class="tag">${esc(fx.notes)}</span>` : ""}</div></div>`);
           const rm = el(`<button class="step rm" title="end effect" aria-label="End effect">✕</button>`); rm.onclick = () => { let gone; this.mutate((ch) => { gone = ch.effects.splice(i, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((ch) => { ch.effects.splice(i, 0, gone); })); };
           row.appendChild(rm); fxPanel.appendChild(row);
         });
-        const addFx = el(`<div class="inv-add"></div>`);
+        const addFx = el(`<div class="inv-add edit-only"></div>`);
         const fxName = el(`<input type="text" placeholder="Track an effect / rune / illusion…">`);
         const fxBtn = el(`<button class="btn secondary">Add</button>`);
         const doAddFx = () => { const n = fxName.value.trim(); if (!n) return; this.addEffect(n, false, ""); };
@@ -1112,7 +1137,7 @@ export const Sheet = {
       const isCaster = Object.values(c.skills).some((v) => v.kind === "magic") || (c.spells && c.spells.castSkill);
       if (isCaster) {
         const cap = Math.floor(effWpMax(c) / 2);
-        const famPanel = el(`<div class="panel adv-only"><h3>Familiar</h3><p class="stat-line">Assign up to half your max WP (${cap}) to a familiar; the pools are tracked separately.</p></div>`);
+        const famPanel = el(`<div class="panel adv-only${c.state.familiar ? "" : " edit-only"}"><h3>Familiar</h3><p class="stat-line">Up to half your max WP (${cap}) can go to a familiar.</p></div>`);
         if (!c.state.familiar) {
           const addRow = el(`<div class="inv-add"></div>`);
           const fIn = el(`<input type="text" placeholder="Name your familiar…">`);
@@ -1144,7 +1169,7 @@ export const Sheet = {
       }
 
       // Summons & Companions (Phase 4B)
-      const compPanel = el(`<div class="panel"><h3>Summons &amp; Companions</h3><p class="stat-line">Track raised undead, summoned creatures, familiars, and animal companions — each with its own HP.</p></div>`);
+      const compPanel = el(`<div class="panel${(c.companions || []).length ? "" : " edit-only"}"><h3>Summons &amp; Companions</h3></div>`);
       (c.companions || []).forEach((cp, i) => {
         const row = el(`<div class="comp-row"><div class="comp-info"><b>${esc(cp.name)}</b>${cp.notes ? `<br><span class="stat-line">${esc(cp.notes.length > 90 ? cp.notes.slice(0, 90) + "…" : cp.notes)}</span>` : ""}</div></div>`);
         if (cp.hpMax > 0) {
@@ -1154,13 +1179,13 @@ export const Sheet = {
           p.onclick = () => this.mutate((ch) => { ch.companions[i].hp = Math.min(ch.companions[i].hpMax, ch.companions[i].hp + 1); });
           ctrl.append(m, v, p); row.appendChild(ctrl);
         }
-        const sethp = el(`<button class="step" title="set max HP">HP</button>`);
+        const sethp = el(`<button class="step edit-only" title="set max HP">HP</button>`);
         sethp.onclick = async () => { const raw = await promptModal(`Max HP for ${cp.name}?`, { title: "Set max HP", inputType: "number", defaultValue: cp.hpMax || "", okText: "Set" }); if (raw == null) return; const n = parseInt(raw, 10); if (!isNaN(n)) this.mutate((ch) => { ch.companions[i].hpMax = Math.max(0, n); ch.companions[i].hp = Math.max(0, n); }); };
         const rm = el(`<button class="step rm" aria-label="Remove companion">✕</button>`); rm.onclick = () => { let gone; this.mutate((ch) => { gone = ch.companions.splice(i, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((ch) => { ch.companions.splice(i, 0, gone); })); };
         row.append(sethp, rm);
         compPanel.appendChild(row);
       });
-      const addComp = el(`<div class="inv-add"></div>`);
+      const addComp = el(`<div class="inv-add edit-only"></div>`);
       const compName = el(`<input type="text" placeholder="Add a summon / companion…">`);
       const compHp = el(`<input type="number" class="wt" min="0" step="1" value="0" title="max HP">`);
       const compBtn = el(`<button class="btn secondary">Add</button>`);
@@ -1193,6 +1218,43 @@ export const Sheet = {
       // Equip caps: 1 armor + 1 helmet + up to 3 weapons-at-hand (shields count).
       const counts = { armor: 0, helmet: 0, weapon: 0 };
       items.forEach((x) => { if (x.equipped) { const k = classifyItem(x.name); if (counts[k] != null) counts[k]++; } });
+      // Equip caps (rules): 1 armor, 1 helmet, up to 3 weapons/shields at hand — all slot-exempt.
+      const equipItem = (i, slot) => {
+        if (slot === "armor" && counts.armor >= 1) { showToast("You're already wearing armor. Unequip it first.", "error"); return false; }
+        if (slot === "helmet" && counts.helmet >= 1) { showToast("You're already wearing a helmet.", "error"); return false; }
+        if (slot === "weapon" && counts.weapon >= 3) { showToast("You can keep at most 3 weapons at hand.", "error"); return false; }
+        this.mutate((ch) => { const x = ch.inventory.items[i]; x.equipped = true; if (slot === "weapon") { const w = resolveEquippedWeapons([x.name])[0]; if (w && w.durability != null && x.durability == null) x.durability = w.durability; } });
+        return true;
+      };
+      const isPotion = (n) => /\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i.test(n);
+      // Item sheet (play layer): everything you can do with one item, in one place.
+      const openItem = (i) => {
+        const cur = Store.get(this.id); const it = cur && cur.inventory.items[i]; if (!it) return;
+        const slot = classifyItem(it.name), wpns = resolveEquippedWeapons([it]);
+        const g = (DB.gear || []).find((x) => normName(x.name) === normName(it.name));
+        const arm = slot === "armor" ? resolveArmorItem(it.name) : slot === "helmet" ? resolveHelmetItem(it.name) : null;
+        const facts = [];
+        wpns.forEach((w) => facts.push(`${esc(w.name)}: ${esc(w.skill || "")} · ${esc(w.damage || "")}${w.str ? ` · STR ${w.str}` : ""}${w.durability != null ? ` · durability ${w.durability}` : ""}`));
+        if (arm) facts.push(`Rating ${arm.rating}${arm.effect ? " · " + esc(arm.effect) : ""}`);
+        if (g && g.effect) facts.push(esc(g.effect));
+        const m = modal(it.name);
+        m.body.appendChild(el(`<div class="item-sheet"><span class="is-glyph" aria-hidden="true">${itemGlyph(it.name, "emb is-emb")}</span><p class="ss-tags">${slot ? `<span class="tag">${slot}</span>` : ""}<span class="tag">${it.equipped ? "worn / at hand" : `weight ${it.weight}`}</span></p>${facts.map((f) => `<p class="stat-line is-fact">${f}</p>`).join("")}</div>`));
+        const acts = el(`<div class="is-acts"></div>`);
+        const act = (label, fn, cls = "btn") => { const b = el(`<button type="button" class="${cls}">${label}</button>`); b.onclick = () => { if (fn() !== false) m.close(); }; acts.appendChild(b); };
+        wpns.forEach((w) => act(`⚔ Attack — ${esc(w.name)}`, () => { m.close(); Roller.damage(this.id, w); }));
+        if (isPotion(it.name)) act("🧪 Use", () => { m.close(); SpellAutomation.usePotion(this.id, it, i); });
+        if (slot) it.equipped ? act("Unequip", () => this.mutate((ch) => { ch.inventory.items[i].equipped = false; }), "btn ghost") : act(slot === "weapon" ? "Take in hand" : "Wear", () => equipItem(i, slot), "btn secondary");
+        if (it.equipped && slot === "weapon" && wpns[0] && wpns[0].durability != null) {
+          const max = wpns[0].durability, curD = it.durability == null ? max : it.durability;
+          const d = el(`<div class="stepper is-dur"><span class="stat-line">Durability</span></div>`);
+          const dm = el(`<button class="step" aria-label="Lower durability">−</button>`), dv = el(`<span class="vital-val">${curD}/${max}${curD <= 0 ? " 💥" : ""}</span>`), dp = el(`<button class="step" aria-label="Raise durability">+</button>`);
+          const setD = (n) => { this.mutate((ch) => { ch.inventory.items[i].durability = Math.max(0, Math.min(max, n)); }); const nv = Store.get(this.id).inventory.items[i].durability; dv.textContent = `${nv}/${max}${nv <= 0 ? " 💥" : ""}`; };
+          dm.onclick = () => setD((Store.get(this.id).inventory.items[i].durability ?? max) - 1); dp.onclick = () => setD((Store.get(this.id).inventory.items[i].durability ?? max) + 1);
+          d.append(dm, dv, dp); m.body.appendChild(d);
+        }
+        act("Remove", () => { let gone; this.mutate((ch) => { gone = ch.inventory.items.splice(i, 1)[0]; }); if (gone) showUndoToast(`Removed ${gone.name}`, () => this.mutate((ch) => { ch.inventory.items.splice(i, 0, gone); })); }, "btn danger-ghost");
+        m.body.appendChild(acts);
+      };
       const itemRow = (it, i, isEquipped) => {
         const line = el(`<div class="inv-row${(classifyItem(it.name) || resolveEquippedWeapons([it]).length || /\(dose\)|elixir|oil|draught|potion|poison|acid|brew/i.test(it.name)) ? " multi" : ""}"><span class="inv-name">${itemGlyph(it.name, "emb inv-glyph")}${esc(it.name)}</span><span class="inv-ctrl"></span></div>`);
         const row = line.querySelector(".inv-ctrl"); // controls cluster (wraps as one unit)
@@ -1222,12 +1284,7 @@ export const Sheet = {
             row.append(el(`<span class="tag">${slot}</span>`), un);
           } else {
             const eq = el(`<button class="step" style="width:auto;padding:0 8px" title="equip (exempt from encumbrance)">Equip</button>`);
-            eq.onclick = () => {
-              if (slot === "armor" && counts.armor >= 1) { showToast("You're already wearing armor. Unequip it first.", "error"); return; }
-              if (slot === "helmet" && counts.helmet >= 1) { showToast("You're already wearing a helmet.", "error"); return; }
-              if (slot === "weapon" && counts.weapon >= 3) { showToast("You can keep at most 3 weapons at hand.", "error"); return; }
-              this.mutate((ch) => { const x = ch.inventory.items[i]; x.equipped = true; if (slot === "weapon") { const w = resolveEquippedWeapons([x.name])[0]; if (w && w.durability != null && x.durability == null) x.durability = w.durability; } });
-            };
+            eq.onclick = () => equipItem(i, slot);
             row.append(el(`<span class="tag" style="opacity:0.55">${slot}</span>`), eq);
           }
         }
@@ -1252,22 +1309,52 @@ export const Sheet = {
 
       const equippedIdx = items.map((it, i) => ({ it, i })).filter((x) => x.it.equipped);
       const carriedIdx = items.map((it, i) => ({ it, i })).filter((x) => !x.it.equipped);
-      if (equippedIdx.length) {
-        invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:6px 0 2px"><b>Equipped</b> <span class="rl-count">${equippedIdx.length}</span> <span class="stat-line">(armor · helmet · up to 3 weapons-at-hand — no encumbrance)</span></p>`));
-        equippedIdx.forEach(({ it, i }) => invPanel.appendChild(itemRow(it, i, true)));
+      if (edit) {
+        if (equippedIdx.length) {
+          invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:6px 0 2px"><b>Equipped</b> <span class="rl-count">${equippedIdx.length}</span> <span class="stat-line">(armor · helmet · up to 3 weapons-at-hand — no encumbrance)</span></p>`));
+          equippedIdx.forEach(({ it, i }) => invPanel.appendChild(itemRow(it, i, true)));
+        }
+        invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:8px 0 2px"><b>Carried</b> <span class="rl-count">${carriedIdx.length}</span></p>`));
+        const itemList = el(`<div></div>`);
+        carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
+        if (!carriedIdx.length) { itemList.appendChild(el(`<div class="empty-illo">${illo("sack")}</div>`)); itemList.appendChild(el(`<p class="stat-line empty-note">No carried items.</p>`)); }
+        invPanel.appendChild(itemList);
+        const addRow = el(`<div class="inv-add"></div>`);
+        const addName = el(`<input type="text" placeholder="Add an item…">`);
+        const addWt = el(`<input type="number" class="wt" min="0" step="1" value="1" title="weight">`);
+        const addBtn = el(`<button class="btn secondary">Add</button>`);
+        const doAdd = () => { const name = addName.value.trim(); if (!name) return; this.mutate((ch) => ch.inventory.items.push({ name, weight: Math.max(0, Number(addWt.value)||0), equipped: false })); };
+        addBtn.onclick = doAdd; addName.onkeydown = (e) => { if (e.key === "Enter") doAdd(); };
+        addRow.append(addName, addWt, addBtn); invPanel.appendChild(addRow);
+      } else {
+        // Paper doll: what you wear and hold (slot-exempt), then the backpack.
+        const of = (k) => equippedIdx.filter((x) => classifyItem(x.it.name) === k);
+        const slotBtn = (x, label, kind) => x
+          ? `<button type="button" class="doll-slot filled" data-i="${x.i}">${itemGlyph(x.it.name, "emb ds-emb")}<b>${esc(x.it.name)}</b><small>${label}</small></button>`
+          : `<button type="button" class="doll-slot empty" data-kind="${kind}"><span class="ds-plus" aria-hidden="true">+</span><small>${label}</small></button>`;
+        const hands = of("weapon");
+        const doll = el(`<div class="doll"><div class="doll-col">${slotBtn(of("helmet")[0], "Head", "helmet")}${slotBtn(of("armor")[0], "Body", "armor")}</div><div class="doll-mid">${DOLL}</div><div class="doll-col">${[0, 1, 2].map((k) => slotBtn(hands[k], "Hand", "weapon")).join("")}</div></div>`);
+        doll.querySelectorAll(".doll-slot.filled").forEach((b) => { b.onclick = () => openItem(+b.dataset.i); });
+        doll.querySelectorAll(".doll-slot.empty").forEach((b) => { b.onclick = () => {
+          const kind = b.dataset.kind; const opts = carriedIdx.filter((x) => classifyItem(x.it.name) === kind);
+          if (!opts.length) { showToast(kind === "weapon" ? "No weapon or shield in your pack." : `No ${kind} in your pack.`); return; }
+          if (opts.length === 1) { equipItem(opts[0].i, kind); return; }
+          const m = modal(kind === "weapon" ? "Take in hand" : "Wear"); const l = el(`<div class="bp-grid"></div>`);
+          opts.forEach((x) => { const t = el(`<button type="button" class="bp-tile">${itemGlyph(x.it.name, "emb bp-emb")}<span class="bp-name">${esc(x.it.name)}</span></button>`); t.onclick = () => { if (equipItem(x.i, kind)) m.close(); }; l.appendChild(t); });
+          m.body.appendChild(l);
+        }; });
+        invPanel.appendChild(doll);
+        invPanel.appendChild(el(`<p class="inv-sub bp-head"><b>Backpack</b> <span class="rl-count">${carriedIdx.length}</span></p>`));
+        const grid = el(`<div class="bp-grid"></div>`);
+        carriedIdx.forEach(({ it, i }) => {
+          const w = Math.ceil(Number(it.weight) || 0);
+          const t = el(`<button type="button" class="bp-tile inv-name${w === 0 ? " tiny" : ""}" aria-label="${esc(it.name)}, weight ${it.weight}">${itemGlyph(it.name, "emb inv-glyph bp-emb")}<span class="bp-name">${esc(it.name)}</span><span class="bp-wt" aria-hidden="true">${w > 4 ? `<i></i>×${w}` : "<i></i>".repeat(w)}</span></button>`);
+          t.onclick = () => openItem(i);
+          grid.appendChild(t);
+        });
+        if (!carriedIdx.length) grid.appendChild(el(`<div class="empty-illo">${illo("sack")}</div>`));
+        invPanel.appendChild(grid);
       }
-      invPanel.appendChild(el(`<p class="stat-line inv-sub" style="margin:8px 0 2px"><b>Carried</b> <span class="rl-count">${carriedIdx.length}</span></p>`));
-      const itemList = el(`<div></div>`);
-      carriedIdx.forEach(({ it, i }) => itemList.appendChild(itemRow(it, i, false)));
-      if (!carriedIdx.length) { itemList.appendChild(el(`<div class="empty-illo">${illo("sack")}</div>`)); itemList.appendChild(el(`<p class="stat-line empty-note">No carried items.</p>`)); }
-      invPanel.appendChild(itemList);
-      const addRow = el(`<div class="inv-add"></div>`);
-      const addName = el(`<input type="text" placeholder="Add an item…">`);
-      const addWt = el(`<input type="number" class="wt" min="0" step="1" value="1" title="weight">`);
-      const addBtn = el(`<button class="btn secondary">Add</button>`);
-      const doAdd = () => { const name = addName.value.trim(); if (!name) return; this.mutate((ch) => ch.inventory.items.push({ name, weight: Math.max(0, Number(addWt.value)||0), equipped: false })); };
-      addBtn.onclick = doAdd; addName.onkeydown = (e) => { if (e.key === "Enter") doAdd(); };
-      addRow.append(addName, addWt, addBtn); invPanel.appendChild(addRow);
 
       // Tiny items + mementos
       if ((c.inventory.tiny||[]).length) invPanel.appendChild(el(`<p class="stat-line"><b>Tiny items:</b> ${c.inventory.tiny.map((t)=>esc(t.name)).join(", ")}</p>`));
@@ -1288,10 +1375,10 @@ export const Sheet = {
 
       // Flavor + notes
       const flav = el(`<div class="panel"><h3>Character</h3>
-        ${(!canEdit && c.identity.appearance)?`<p class="stat-line"><b>Appearance:</b> ${esc(c.identity.appearance)}</p>`:""}
+        ${(!edit && c.identity.appearance)?`<p class="stat-line mark-line">${emblem("glyph", "frame", "emb mark-glyph")}<span><b>Appearance:</b> ${esc(c.identity.appearance)}</span></p>`:""}
         ${c.identity.weakness?`<p class="stat-line mark-line">${emblem("glyph", "chain", "emb mark-glyph")}<span><b>Weakness:</b> ${esc(c.identity.weakness)}</span></p>`:""}</div>`);
       // Editable identity (name / appearance / memento) — the promised "rename & adjust".
-      if (canEdit) {
+      if (edit) {
         const idField = (label, key, ph, rows) => {
           // Textareas (even single-row) respect their CSS width; <input> reports an
           // unshrinkable scrollWidth on narrow screens, so use textarea throughout.
@@ -1313,7 +1400,7 @@ export const Sheet = {
         flav.appendChild(owBtn);
       } else if (c.state.weaknessCooldown) {
         flav.appendChild(el(`<p class="stat-line"><i>Weakness overcome — a new weakness can be chosen next session.</i></p>`));
-      } else {
+      } else if (edit) {
         const wkRow = el(`<div class="inv-add"></div>`);
         const wkIn = el(`<input type="text" placeholder="Choose a new weakness…">`);
         const wkBtn = el(`<button class="btn secondary">Set</button>`);
@@ -1327,7 +1414,7 @@ export const Sheet = {
       notes.oninput = () => { if (canEdit) Store.update(this.id, (ch) => { ch.notes = notes.value; }); }; // save without re-render
       notesField.appendChild(notes); flav.appendChild(notesField); panes.story.appendChild(flav);
 
-      if (canEdit) {
+      if (canEdit && edit) {
         if (inPartyCamp) {
           const inParty = c.campaignId === Sync.campaign.id;
           const partyBtn = el(`<button class="btn secondary block u-mt35">${inParty ? "🛡️ Remove from Party Campaign" : "⚡ Add to Party Campaign"}</button>`);
@@ -1341,7 +1428,7 @@ export const Sheet = {
         const del = el(`<button class="btn danger-ghost block u-mt15">Delete hero</button>`);
         del.onclick = async () => { if (await confirmModal("Delete " + c.identity.name + "? This cannot be undone.", { title: "Delete hero", okText: "Delete", danger: true })) { window.activeCharacterId = null; Store.remove(this.id); Router.go("home"); } };
         panes.story.appendChild(del);
-      } else {
+      } else if (!canEdit) {
         notes.readOnly = true;
         root.querySelectorAll("input").forEach(inp => inp.disabled = true);
         root.addEventListener("click", (e) => {

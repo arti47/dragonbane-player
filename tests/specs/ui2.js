@@ -45,6 +45,7 @@ module.exports = {
     await page.evaluate(() => document.querySelectorAll(".card-grid .card")[0].click());
     await page.waitForTimeout(300);
     t.ok("sheet: mini-bar hidden at top", await page.evaluate(() => !document.querySelector(".mini-bar").classList.contains("show")));
+    await page.evaluate(() => document.querySelector(".tab[data-tab='skills']").click()); await page.waitForTimeout(100);
     await page.evaluate(() => window.scrollTo(0, 1200)); await page.waitForTimeout(300);
     t.ok("sheet: mini-bar pins after scrolling", await page.evaluate(() => document.querySelector(".mini-bar").classList.contains("show")));
     const hp0 = await page.evaluate(() => JSON.parse(localStorage.getItem("dragonbane.characters")).slice(-1)[0].state.hp);

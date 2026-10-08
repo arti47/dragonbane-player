@@ -102,5 +102,70 @@ module.exports = {
     t.ok(`R2: no JS page errors (${p2._errors.length})`, p2._errors.length === 0);
     p2._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
     await p2.close();
+    // ---- R3 the hero sheet: play / edit layers ----
+    const p3 = await newPage({}, { width: 390, height: 844 });
+    await p3.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
+    await p3.waitForTimeout(200);
+    const e3 = (f, a) => p3.evaluate(f, a);
+    await e3(() => localStorage.setItem("dragonbane.editMode", "0"));
+    await p3.click("#use-pregen"); await p3.waitForTimeout(150);
+    await e3(() => document.querySelectorAll(".card-grid .card")[2].click()); await p3.waitForTimeout(300); // the knight
+    const k = await e3(() => JSON.parse(localStorage.getItem("dragonbane.characters"))[0]);
+    const vis = (sel) => e3((q) => { const n = document.querySelector(q); return !!n && n.getClientRects().length > 0; }, sel);
+    t.ok("R3: play layer by default (✎ Edit off)", await e3(() => document.querySelector("#sheet-edit").getAttribute("aria-pressed") === "false" && !document.querySelector(".sheet-root").classList.contains("is-edit")));
+    t.eq("R3: HP ring has one segment per max HP", await e3(() => document.querySelectorAll(".vital-rings .vr-seg.hp").length), k.attributes.CON);
+    t.eq("R3: WP ring has one segment per max WP", await e3(() => document.querySelectorAll(".vital-rings .vr-seg.wp").length), k.attributes.WIL);
+    await e3(() => document.querySelector(".vital.hp .step").click()); await p3.waitForTimeout(80);
+    t.eq("R3: HP − dims one ring segment and saves", await e3(() => [document.querySelectorAll(".vr-seg.hp.on").length, JSON.parse(localStorage.getItem("dragonbane.characters"))[0].state.hp].join("/")), `${k.state.hp - 1}/${k.state.hp - 1}`);
+    t.eq("R3: six condition seals on the hero card", await e3(() => document.querySelectorAll(".hero-top .cond-seal").length), 6);
+    await e3(() => document.querySelector(".cond-seal").click()); await p3.waitForTimeout(150);
+    t.ok("R3: tapping a seal sets that condition", await e3(() => { const c = JSON.parse(localStorage.getItem("dragonbane.characters"))[0]; return Object.values(c.state.conditions).filter(Boolean).length === 1 && document.querySelector(".cond-seal").classList.contains("on"); }));
+    await e3(() => document.querySelector(".rest-one").click()); await p3.waitForTimeout(150);
+    t.eq("R3: one Rest button → Round / Stretch / Shift", await e3(() => document.querySelectorAll(".modal-card .rp-btn").length), 3);
+    await e3(() => document.querySelector(".modal-x").click()); await p3.waitForTimeout(80);
+    // Skills: tiles grouped by attribute
+    await e3(() => document.querySelector(".tab[data-tab='skills']").click()); await p3.waitForTimeout(100);
+    t.eq("R3: skills grouped under the attribute they use", await e3(() => document.querySelectorAll(".skill-board .sk-group").length), new Set(Object.values(k.skills).map((v) => v.attribute)).size);
+    t.eq("R3: one tile per skill", await e3(() => document.querySelectorAll(".skill-board .sk-tile").length), Object.keys(k.skills).length);
+    t.ok("R3: advancement setup tools hidden in play", !(await vis(".adv-menu")));
+    // Gear: paper doll + backpack + item sheet
+    await e3(() => document.querySelector(".tab[data-tab='gear']").click()); await p3.waitForTimeout(100);
+    t.eq("R3: paper doll has 5 worn slots (head, body, 3 hands)", await e3(() => document.querySelectorAll(".doll .doll-slot").length), 5);
+    t.ok("R3: add-item row hidden in play", !(await vis("#sheet-pane-gear .inv-add")));
+    await e3(() => document.querySelector(".doll-slot.empty[data-kind='armor']").click()); await p3.waitForTimeout(200);
+    t.ok("R3: tapping the empty Body slot wears the armor from the pack", await e3(() => { const c = JSON.parse(localStorage.getItem("dragonbane.characters"))[0]; return c.inventory.items.some((i) => i.equipped && /plate|mail|leather/i.test(i.name)) && !!document.querySelector(".doll-slot.filled"); }));
+    await e3(() => document.querySelector(".doll-slot.filled").click()); await p3.waitForTimeout(150);
+    t.ok("R3: a worn item opens its sheet with Unequip + rules facts", await e3(() => /Unequip/.test(document.querySelector(".modal-card").textContent) && /Rating \d/.test(document.querySelector(".modal-card").textContent)));
+    await e3(() => document.querySelector(".modal-x").click()); await p3.waitForTimeout(80);
+    const nTiles = await e3(() => document.querySelectorAll(".bp-grid .bp-tile").length);
+    t.ok(`R3: backpack shows each carried item as a tile (${nTiles})`, nTiles === k.inventory.items.length - 1);
+    // Equip caps still enforced from the doll: 3 weapons at hand max
+    const cap = await e3(async () => {
+      const { Store } = await import("/src/store.js"); const { Sheet } = await import("/src/sheet.js");
+      const id = JSON.parse(localStorage.getItem("dragonbane.characters"))[0].id;
+      Store.update(id, (c) => { ["Dagger", "Short sword", "Handaxe", "Spear"].forEach((n) => c.inventory.items.push({ name: n, weight: 1 })); c.inventory.items.forEach((i) => { if (/Dagger|Short sword|Handaxe/.test(i.name)) i.equipped = true; }); });
+      Sheet.render(); await new Promise((r) => setTimeout(r, 100));
+      return { empty: document.querySelectorAll(".doll-slot.empty[data-kind='weapon']").length, hands: document.querySelectorAll(".doll-col:last-child .doll-slot.filled").length };
+    });
+    t.ok(`R3: three hands full → no empty hand slot (${cap.hands} held)`, cap.empty === 0 && cap.hands === 3);
+    // Magic + story on a mage
+    await e3(() => window.__go("home")); await p3.waitForTimeout(100);
+    await p3.click("#use-pregen"); await p3.waitForTimeout(150);
+    await e3(() => document.querySelectorAll(".card-grid .card")[0].click()); await p3.waitForTimeout(300);
+    await e3(() => document.querySelector(".tab[data-tab='magic']").click()); await p3.waitForTimeout(100);
+    const mage = await e3(() => JSON.parse(localStorage.getItem("dragonbane.characters")).slice(-1)[0]);
+    t.eq("R3: a card per trick and spell", await e3(() => document.querySelectorAll(".spell-deck .spell-card").length), mage.spells.tricks.length + mage.spells.known.length);
+    await e3(() => document.querySelectorAll(".spell-deck")[1].querySelector(".sc-open").click()); await p3.waitForTimeout(150);
+    t.ok("R3: a spell card opens its full text, cost and Cast", await e3(() => { const m = document.querySelector(".modal-card"); return !!m && /WP per power level/.test(m.textContent) && /Cast/.test(m.textContent) && m.querySelector(".ss-text").textContent.length > 20; }));
+    await e3(() => [...document.querySelectorAll(".modal-card .btn")].find((b) => b.textContent.trim() === "Cast").click()); await p3.waitForTimeout(200);
+    t.ok("R3: Cast from the card opens the real cast roll", await e3(() => /Power level|WP/.test(document.querySelector(".modal-card").textContent) && /Cast:/.test(document.querySelector(".modal-card").textContent)));
+    await e3(() => document.querySelector(".modal-x").click()); await p3.waitForTimeout(80);
+    await e3(() => document.querySelector(".tab[data-tab='story']").click()); await p3.waitForTimeout(100);
+    t.ok("R3: story in play shows the weakness, no rename field", await e3(() => /Weakness/.test(document.querySelector("#sheet-pane-story").textContent) && ![...document.querySelectorAll("#sheet-pane-story label")].some((l) => l.textContent === "Name")));
+    await e3(() => document.querySelector("#sheet-edit").click()); await p3.waitForTimeout(200);
+    t.ok("R3: ✎ Edit reveals rename + delete", await e3(() => document.querySelector(".sheet-root").classList.contains("is-edit") && [...document.querySelectorAll("#sheet-pane-story label")].some((l) => l.textContent === "Name") && /Delete hero/.test(document.querySelector("#sheet-pane-story").textContent)));
+    t.ok(`R3: no JS page errors (${p3._errors.length})`, p3._errors.length === 0);
+    p3._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
+    await p3.close();
   },
 };

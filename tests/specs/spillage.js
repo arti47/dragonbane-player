@@ -57,6 +57,13 @@ module.exports = {
         await page.evaluate((k) => document.querySelector(`.tab[data-tab='${k}']`)?.click(), tab); await page.waitForTimeout(120);
         await check(`sheet(mage:${tab})`);
       }
+      // …and the Play layer (cards, tiles, paper doll) — the default for real users.
+      await page.evaluate(async () => { localStorage.setItem("dragonbane.editMode", "0"); (await import("/src/sheet.js")).Sheet.render(); }); await page.waitForTimeout(150);
+      for (const tab of ["overview", "skills", "magic", "gear", "story"]) {
+        await page.evaluate((k) => document.querySelector(`.tab[data-tab='${k}']`)?.click(), tab); await page.waitForTimeout(120);
+        await check(`sheet-play(mage:${tab})`);
+      }
+      await page.evaluate(() => localStorage.setItem("dragonbane.editMode", "1"));
       await page.evaluate(() => document.querySelector(".tab[data-tab='overview']")?.click());
       await page.evaluate(() => window.__go('home')); await page.waitForTimeout(100);
       await page.click("#use-pregen"); await page.waitForTimeout(100);

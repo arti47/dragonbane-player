@@ -104,6 +104,8 @@ export const GLOSSARY = {
   };
 
 export const gloss = (term, label) => `<span class="gloss" data-gloss="${esc(term)}" title="${esc(GLOSSARY[term] || "")}" role="button" tabindex="0">${esc(label != null ? label : term)}</span>`;
+// Same, with trusted markup inside (e.g. an icon + a number).
+export const glossHtml = (term, html) => `<span class="gloss" data-gloss="${esc(term)}" title="${esc(GLOSSARY[term] || "")}" role="button" tabindex="0">${html}</span>`;
 
 export const MAGICX = window.DRAGONBANE_MAGIC || {};
 

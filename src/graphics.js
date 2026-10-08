@@ -226,6 +226,36 @@ export function setPips(wrap, cur) {
   [...p.children].forEach((g, i) => g.classList.toggle("on", i < cur));
 }
 
+// ---- Vital rings: HP on the left half, WP on the right, around the crest ----
+// One segment per point (up to 40, then proportional); filled from the bottom up.
+const RING_R = 92;
+const ringPt = (deg) => { const a = (deg * Math.PI) / 180; return [100 + RING_R * Math.sin(a), 100 - RING_R * Math.cos(a)]; };
+function ringSide(cur, max, from, to, cls) {
+  if (!(max > 0)) return "";
+  const n = Math.min(max, 40), span = to - from, step = span / n;
+  const gap = n > 1 ? Math.min(3.2, (Math.abs(step) * 0.28)) * Math.sign(span) : 0;
+  const on = max > 40 ? Math.round((cur / max) * n) : cur;
+  let out = "";
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = ringPt(from + step * i + gap / 2), [x1, y1] = ringPt(from + step * (i + 1) - gap / 2);
+    out += `<path class="vr-seg ${cls}${i < on ? " on" : ""}" d="M${x0.toFixed(1)} ${y0.toFixed(1)}A${RING_R} ${RING_R} 0 0 ${span > 0 ? 1 : 0} ${x1.toFixed(1)} ${y1.toFixed(1)}"/>`;
+  }
+  return out;
+}
+export function vitalRings(hp, hpMax, wp, wpMax) {
+  return `<svg class="vital-rings" viewBox="0 0 200 200" aria-hidden="true" focusable="false"><circle class="vr-track" cx="100" cy="100" r="${RING_R}"/>${ringSide(hp, hpMax, 196, 344, "hp")}${ringSide(wp, wpMax, 164, 16, "wp")}</svg>`;
+}
+export function setRing(svg, kind, cur, max) {
+  if (!svg) return;
+  const segs = [...svg.querySelectorAll(`.vr-seg.${kind}`)];
+  const on = max > 40 ? Math.round((cur / max) * segs.length) : cur;
+  segs.forEach((g, i) => g.classList.toggle("on", i < on));
+}
+
+// ---- Paper doll: a figure outline for the Gear tab's worn slots ------------
+export const DOLL = `<svg class="doll-fig" viewBox="0 0 120 200" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="60" cy="28" r="16"/><path d="M42 56c6-6 30-6 36 0l10 46-12 4-6-30v44l6 72H62l-2-56-2 56H44l6-72V76l-6 30-12-4z"/></g></svg>`;
+
 // ---- Encumbrance: backpack slot squares ----------------------------------
 export function slotSquares(used, limit) {
   if (!(limit > 0) || Math.max(used, limit) > 24) return "";

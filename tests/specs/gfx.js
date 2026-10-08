@@ -46,20 +46,20 @@ module.exports = {
     const sh = await page.evaluate(() => ({
       crest: !!document.querySelector(".monogram.has-crest svg.crest"),
       attr: document.querySelectorAll(".hero-top .stat-cell .emb-attr").length,
-      cond: document.querySelectorAll(".cond-grid .emb-cond").length,
-      hpPips: document.querySelectorAll(".vital.hp .pips i").length,
-      hpOn: document.querySelectorAll(".vital.hp .pips i.on").length,
+      cond: document.querySelectorAll(".cond-seals .emb-cond").length,
+      hpPips: document.querySelectorAll(".vital-rings .vr-seg.hp").length,
+      hpOn: document.querySelectorAll(".vital-rings .vr-seg.hp.on").length,
       name: document.querySelector(".sheet-name").textContent,
     }));
     const c0 = await page.evaluate(() => JSON.parse(localStorage.getItem("dragonbane.characters")).slice(-1)[0]);
     t.ok("sheet: crest replaces the monogram", sh.crest);
     t.eq("sheet: 6 attribute glyphs in the stat block", sh.attr, 6);
-    t.eq("sheet: 6 condition glyphs", sh.cond, 6);
-    t.eq("sheet: one HP gem per max HP", sh.hpPips, c0.attributes.CON);
-    t.eq("sheet: lit gems = current HP", sh.hpOn, c0.state.hp);
+    t.eq("sheet: 6 condition seals", sh.cond, 6);
+    t.eq("sheet: one HP ring segment per max HP", sh.hpPips, c0.attributes.CON);
+    t.eq("sheet: lit segments = current HP", sh.hpOn, c0.state.hp);
     t.eq("sheet: hero name text unchanged", sh.name, c0.identity.name);
     await page.evaluate(() => document.querySelector(".vital.hp .step").click()); await page.waitForTimeout(80);
-    t.eq("sheet: HP − dims one gem", await page.evaluate(() => document.querySelectorAll(".vital.hp .pips i.on").length), c0.state.hp - 1);
+    t.eq("sheet: HP − dims one ring segment", await page.evaluate(() => document.querySelectorAll(".vital-rings .vr-seg.hp.on").length), c0.state.hp - 1);
     await page.evaluate(() => document.querySelector(".tab[data-tab='gear']").click());
     t.ok("sheet: encumbrance drawn as backpack slots", await page.evaluate(() => document.querySelectorAll(".enc-slots i").length > 0));
 
