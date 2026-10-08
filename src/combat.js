@@ -3,6 +3,7 @@
 import { Table } from './table.js';
 import { cardPips, creatureType, crest, emblem, hourglass, illo } from './graphics.js';
 import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
+import { icon } from './icons.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { resolveEquippedWeapons } from './rules.js';
 import { damageHero, effHpMax, effWpMax, heroArmor } from './derived.js';
@@ -58,6 +59,7 @@ export const Combat = {
       this.rerender();
     },
     advanceTurn(combatantId) {
+      window._cbFocus = null;
       this.mutate(st => {
         if (combatantId) {
           const ref = st.combatants.find(c => c.id === combatantId);
@@ -105,12 +107,44 @@ export const Combat = {
       });
       s.combatants.push(...extras);
     },
-    nextTurn() { this.guardGm(() => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } })); },
+    // End one combatant's turn: a player may end their own hero's turn; anything else is the GM's call.
+    endTurn(id) {
+      const s0 = this.load(); const cb = s0.combatants.find((c) => c.id === id); if (!cb) return;
+      const mine = cb.kind === "hero" && cb.charId && Table.myHeroes().some((h) => h.id === cb.charId);
+      const run = () => { window._cbFocus = null; this.mutate((st) => { const r = st.combatants.find((c) => c.id === id); if (r) { r.done = true; r.acted = true; } }); };
+      if (mine) run(); else this.guardGm(run);
+    },
+    nextTurn() { window._cbFocus = null; this.guardGm(() => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } })); },
     // Bring a combatant's card into view, expanded (used by the "Your turn" context button).
     focusTurn(id) {
+      window._cbFocus = id;
+      if (document.querySelector("#screen .combat-list")) this.rerender();
       const card = document.querySelector(`#screen .cb-card[data-cb="${id}"]`); if (!card) return;
       const body = card.querySelector(".cb-body"); if (body) { body.style.display = "block"; card.classList.add("expanded"); }
       card.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    // A list of big choices in a dialog: [title, subtitle, fn].
+    pick(title, items) {
+      if (!items.length) return;
+      const m = modal(title);
+      const l = el(`<div class="pick-list"></div>`);
+      items.forEach(([t, sub, fn]) => { const b = el(`<button type="button" class="pick-row"><b>${esc(t)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</button>`); b.onclick = () => { m.close(); fn(); }; l.appendChild(b); });
+      m.body.appendChild(l);
+    },
+    // "Other" on a hero's turn: everything that isn't attack / cast / move.
+    otherMenu(cb, h) {
+      const has = (n) => (h.abilities || []).some((a) => a.name === n);
+      const items = [
+        ["💨 Dash", "Your action: double movement this turn", () => { Store.update(h.id, (ch) => { ch.state.isDashing = true; }); this.mutate((st) => { const r = st.combatants.find((c) => c.id === cb.id); if (r) r.acted = true; }); showToast("Dash: movement doubled this turn.", "success"); }],
+        ["🛡 Parry", "Reaction — uses your next action", () => this.reaction(cb.id, "parry")],
+        ["🤸 Dodge", "Reaction — uses your next action", () => this.reaction(cb.id, "dodge")],
+        ["🤝 Help / Rally", "PERSUASION to rally a fallen friend", () => (h.skills.Persuasion ? Roller.skill(h.id, "Persuasion") : showToast("Tell the GM how you help."))],
+      ];
+      if (has("Veteran") && cb.init != null) items.push(["♻ Veteran · 1 WP", "Keep last round's card", () => this.useVeteran(cb.id)]);
+      if (has("Lightning Fast") && cb.init != null) items.push(["⚡ Lightning Fast · 2 WP", "Draw a second card, keep one", () => this.useLightningFast(cb.id)]);
+      if (cb.init != null) items.push(["⇅ Wait / swap", "Trade initiative cards", () => this.swapInit(cb.id)]);
+      items.push(["↗ Open sheet", "", () => Sheet.open(h.id)]);
+      this.pick(`${h.identity.name} — other actions`, items);
     },
     ordered(s) { return [...s.combatants].sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init)); },
     // Voluntarily wait / swap turn order: exchange initiative cards with another
@@ -205,16 +239,16 @@ export const Combat = {
       if (typeof renderPartyBanner === "function") { const pb = renderPartyBanner(); if (pb) root.appendChild(pb); }
       root.appendChild(el(sectionTitle("Combat tracker")));
       root.appendChild(helpBox("Combat tracker", [
-        "Add fighters: pick a <b>hero</b>, <b>Bestiary monster</b>, <b>rulebook NPC</b>, or type a custom NPC → <b>Add</b>.",
-        "Adding a fighter <b>draws initiative automatically</b> (cards 1–10; lower acts first); tap <b>Re-draw</b> to reshuffle.",
-        "Use the row's <b>⚔️/🎲</b> to quick-roll the main attack; the damage applier subtracts armor and updates HP.",
-        "Expand a row for all weapons, spells, movement pool, and parry/dodge reactions.",
-        "<b>Next turn / Next round</b> advance play (GM-locked in a synced campaign)."
+        "<b>＋ Add combatants</b> (the drawer at the bottom): heroes, Bestiary monsters, rulebook NPCs or a custom foe. Adding a fighter draws initiative automatically (cards 1–10; low acts first).",
+        "The <b>card strip</b> shows the turn order — tap a card to look at that fighter.",
+        "On a hero's card: <b>Attack · Cast · Move · Other</b>, then <b>✓ End turn</b>. Monsters roll their D6 attack table.",
+        "<b>Next turn</b> (or the seal in the nav) moves play on; ⋯ holds Re-draw, Next round, Reset, Flee and End combat (GM-locked in a synced campaign).",
+        "<b>List</b> shows every fighter at once; <b>Focus</b> shows one."
       ]));
 
-      // Add controls panel — collapsible once a fight is under way (choice remembered).
+      // Add controls — a pull-up drawer at the bottom (open while the fight is empty; choice remembered).
       const addOpen = window._combatAddOpen != null ? window._combatAddOpen : s.combatants.length < 2;
-      const addPanel = el(`<details class="panel add-panel"${addOpen ? " open" : ""}><summary>＋ Add combatants</summary></details>`);
+      const addPanel = el(`<details class="panel add-panel gm-drawer"${addOpen ? " open" : ""}><summary>＋ Add combatants</summary></details>`);
       addPanel.addEventListener("toggle", () => { window._combatAddOpen = addPanel.open; });
       window._combatAddSelections = window._combatAddSelections || {};
       const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
@@ -334,25 +368,43 @@ export const Combat = {
       // Primary actions stay visible; the rest live in a ⋯ menu.
       const more = el(`<details class="round-more"><summary class="btn ghost" aria-label="More combat actions">⋯</summary><div class="round-menu"></div></details>`);
       const menu = more.querySelector(".round-menu");
-      if (s.round) { btns.append(nextTurn, nextRound); menu.append(drawBtn, resetTurns, fleeBtn, end); }
-      else { btns.append(drawBtn, nextTurn); menu.append(nextRound, resetTurns, fleeBtn, end); }
+      // Focus (one fighter at a time, the default) or List (every card).
+      const listView = (() => { try { return localStorage.getItem("dragonbane.combatView") === "list"; } catch (_) { return false; } })();
+      const viewBtn = el(`<button type="button" class="btn ghost view-tog" aria-pressed="${listView}" title="${listView ? "Show one fighter" : "Show every fighter"}">${listView ? "Focus" : "List"}</button>`);
+      viewBtn.onclick = () => { try { localStorage.setItem("dragonbane.combatView", listView ? "focus" : "list"); } catch (_) {} this.rerender(); };
+      if (s.round) { btns.append(nextTurn, viewBtn); menu.append(nextRound, drawBtn, resetTurns, fleeBtn, end); }
+      else { btns.append(drawBtn, viewBtn); menu.append(nextTurn, nextRound, resetTurns, fleeBtn, end); }
       menu.querySelectorAll(".btn").forEach((b) => b.addEventListener("click", () => { more.open = false; }));
       if (!Combat._menuCloser) { Combat._menuCloser = true; document.addEventListener("click", (e) => document.querySelectorAll("details.round-more[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; })); }
       btns.appendChild(more);
       ctrl.appendChild(btns);
       side.insertBefore(ctrl, addPanel);
 
-      // Combatant list (ordered accordions)
-      const list = el(`<div class="combat-list u-col2"></div>`);
+      // Combatant list (ordered). Focus view shows one card — the fighter whose turn it is,
+      // or the one tapped in the strip; List view shows them all.
       const ord = this.ordered(s);
       const currentId = (ord.find((c) => c.init != null && !c.done) || {}).id;
+      const focusId = (window._cbFocus && ord.some((c) => c.id === window._cbFocus)) ? window._cbFocus : (currentId || (ord[0] || {}).id);
+      const list = el(`<div class="combat-list u-col2${listView ? "" : " focus-mode"}"></div>`);
+      // The initiative strip: every fighter as a little card in turn order.
+      const strip = el(`<div class="init-strip" role="list" aria-label="Turn order"></div>`);
+      ord.forEach((cb) => {
+        const dead = cb.defeated || (cb.hp != null && cb.hp <= 0 && cb.kind !== "hero");
+        const pct = cb.hp != null ? Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || cb.hp || 1)) * 100)) : null;
+        const face = cb.kind === "hero" ? crest(cb.name, (Store.get(cb.charId) || {}).identity?.kin, "") : emblem("creature", creatureType(cb.name, cb.kind));
+        const it = el(`<button type="button" role="listitem" class="is-item${cb.id === currentId ? " cur" : ""}${cb.done || cb.acted ? " done" : ""}${dead ? " slain" : ""}${cb.id === focusId && !listView ? " sel" : ""}" data-id="${esc(cb.id)}" aria-label="${esc(cb.name)}, initiative ${cb.init == null ? "none" : cb.init}${cb.id === currentId ? ", acting now" : ""}"><span class="is-card">${cb.init == null ? "–" : cb.init}</span><span class="is-face t-${cb.kind === "hero" ? "hero" : creatureType(cb.name, cb.kind)}" aria-hidden="true">${face}</span><span class="is-name">${esc(cb.name)}</span>${pct != null && !Table.hideFoeHp(cb) ? `<span class="is-hp${pct <= 25 ? " low" : ""}"><i style="width:${pct}%"></i></span>` : ""}</button>`);
+        it.onclick = () => { window._cbFocus = cb.id; if (listView) { try { localStorage.setItem("dragonbane.combatView", "focus"); } catch (_) {} } this.rerender(); };
+        strip.appendChild(it);
+      });
+      main.appendChild(strip);
       ord.forEach((cb) => {
         const isCur = cb.id === currentId;
         const isDyingHero = cb.kind === "hero" && cb.hp != null && cb.hp <= 0 && !cb.defeated;
         const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0 && !isDyingHero);
         const heroC = cb.kind === "hero" && cb.charId ? Store.get(cb.charId) : null;
         const condChips = heroC ? (DB.conditions || []).filter((k) => heroC.state && heroC.state.conditions && heroC.state.conditions[k.key]).map((k) => `<span class="tag cb-cond" title="${esc(k.name)}: bane on ${esc(k.attribute)} rolls">${emblem("cond", k.key, "emb cb-cond-emb")}${esc(k.name)}</span>`).join("") : "";
-        const card = el(`<div data-cb="${esc(cb.id)}" class="panel cb-card ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""} ${isDefeated ? "defeated" : ""}" style="margin:0;padding:0;overflow:hidden"></div>`);
+        const isFocus = cb.id === focusId;
+        const card = el(`<div data-cb="${esc(cb.id)}" class="panel cb-card ${isFocus ? "is-focus" : ""} ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""} ${isDefeated ? "defeated" : ""}" style="margin:0;padding:0;overflow:hidden"></div>`);
         
         const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:var(--tint-shade)" : ""}">
           <div style="display:flex;align-items:center;gap:10px;width:100%">
@@ -418,7 +470,7 @@ export const Combat = {
           quickWrap.appendChild(actedBadge);
         }
 
-        const body = el(`<div class="cb-body" style="padding:12px;border-top:1px dashed var(--border);display:${isCur ? "block" : "none"};background:var(--bg)"></div>`);
+        const body = el(`<div class="cb-body" style="padding:12px;border-top:1px dashed var(--border);display:${isCur || (isFocus && !listView) ? "block" : "none"};background:var(--bg)"></div>`);
         if (cb.kind !== "hero") body.appendChild(el(`<span class="cb-art" aria-hidden="true">${emblem("creature", creatureType(cb.name, cb.kind), "emb cb-art-emb")}</span>`));
         
         head.onclick = (e) => {
@@ -511,7 +563,23 @@ export const Combat = {
               drBox.appendChild(bigRoll);
               hDiv.appendChild(drBox);
             }
+            // The four big turn actions; the full lists live under "More".
             const hWeapons = resolveEquippedWeapons(h.inventory && h.inventory.items);
+            const allSp = [...((h.spells && h.spells.tricks) || []).map((x) => [x, true]), ...((h.spells && h.spells.known) || []).map((x) => [x, false])];
+            const acts = el(`<div class="turn-acts" role="group" aria-label="Turn actions"></div>`);
+            const act = (ic, label, fn, dis) => { const b = el(`<button type="button" class="ta-btn"${dis ? " disabled" : ""}>${icon(ic, "ic ta-ic")}<b>${label}</b></button>`); b.onclick = fn; acts.appendChild(b); };
+            // Weapons in hand first (equipped); otherwise anything in the pack.
+            const held = resolveEquippedWeapons((h.inventory && h.inventory.items || []).filter((i) => i && i.equipped));
+            const atkList = held.length ? held : hWeapons;
+            act("swords", "Attack", () => {
+              if (!atkList.length) { showToast("No weapon — add one on the Gear tab."); return; }
+              if (atkList.length === 1) Roller.heroWeaponAttack(cb.charId, atkList[0], cb.id);
+              else this.pick("Attack with…", atkList.map((w) => [w.name, `${w.skill} · ${w.damage}`, () => Roller.heroWeaponAttack(cb.charId, w, cb.id)]));
+            });
+            act("sparkle", "Cast", () => this.pick("Cast…", allSp.map(([sp, isT]) => [sp.name, isT ? "Trick · 1 WP" : `Rank ${sp.rank || 1}`, () => Roller.cast(cb.charId, sp, isT)])), !allSp.length);
+            act("run", "Move", () => Sheet.movementModal(cb.charId));
+            act("hand", "Other", () => this.otherMenu(cb, h));
+            if (!isDyingHero) body.appendChild(acts);
             if (hWeapons.length) {
               hDiv.appendChild(el(`<p class="stat-line u-m0"><b>Equipped Weapons:</b></p>`));
               const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);
@@ -563,7 +631,10 @@ export const Combat = {
             dodgeB.onclick = () => this.reaction(cb.id, "dodge");
             reactRow.append(parryB, dodgeB);
             hDiv.appendChild(reactRow);
-            if (hDiv.children.length) body.appendChild(hDiv);
+            const drBox = hDiv.querySelector(":scope > div[style*='dashed var(--bad)']");
+            if (drBox) body.appendChild(drBox);
+            const more = el(`<details class="cb-more-acts"><summary>More — weapons, spells, reactions</summary></details>`);
+            more.appendChild(hDiv); body.appendChild(more);
           }
         } else if (cb.kind === "npc") {
           const npcDiv = el(`<div class="u-col15"></div>`);
@@ -597,6 +668,11 @@ export const Combat = {
           body.appendChild(npcDiv);
         }
 
+        if (isCur && !isDefeated) {
+          const et = el(`<button type="button" class="btn block end-turn">✓ End turn</button>`);
+          et.onclick = () => this.endTurn(cb.id);
+          body.appendChild(et);
+        }
         if (body.style.display !== "none") card.classList.add("expanded");
         card.append(head, body);
         list.appendChild(card);

@@ -68,7 +68,7 @@ module.exports = {
     await page.evaluate(() => { const s = document.querySelectorAll(".inv-add select")[1]; s.selectedIndex = 1; s.dispatchEvent(new Event("change")); document.querySelectorAll(".inv-add .btn.secondary")[1].click(); });
     await page.waitForTimeout(150);
     const cm = await page.evaluate(() => ({ primary: [...document.querySelectorAll(".round-actions > .btn")].map((b) => b.textContent.trim()), menu: [...document.querySelectorAll(".round-menu .btn")].map((b) => b.textContent.trim()), card: !!document.querySelector(".play-card") }));
-    t.ok(`combat: primary actions visible (${cm.primary.join(", ")})`, cm.primary.length === 2);
+    t.ok(`combat: primary actions visible (${cm.primary.join(", ")})`, cm.primary.length === 2 && /Next turn/.test(cm.primary[0]));
     t.ok("combat: End combat lives in the ⋯ menu", cm.menu.some((x) => /End combat/.test(x)));
     t.ok("combat: initiative shown as a playing card", cm.card);
 

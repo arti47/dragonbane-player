@@ -192,5 +192,37 @@ module.exports = {
     t.ok(`R4: no JS page errors (${p4._errors.length})`, p4._errors.length === 0);
     p4._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
     await p4.close();
+    // ---- R5 the fight ----
+    const p5 = await newPage({}, { width: 390, height: 844 });
+    await p5.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
+    await p5.waitForTimeout(200);
+    const e5 = (f, a) => p5.evaluate(f, a);
+    await p5.click("#use-pregen"); await p5.waitForTimeout(150);
+    await e5(() => document.querySelectorAll(".card-grid .card")[2].click()); await p5.waitForTimeout(300);
+    await e5(async () => { const { Store } = await import("/src/store.js"); const id = JSON.parse(localStorage.getItem("dragonbane.characters"))[0].id; const { classifyItem } = await import("/src/rules.js"); Store.update(id, (c) => { let w = 0; c.inventory.items.forEach((i) => { if (classifyItem(i.name) === "weapon" && w < 1) { i.equipped = true; w++; } }); }); });
+    await e5(() => window.__go("party")); await p5.waitForTimeout(200);
+    t.ok("R5: empty fight → the add drawer is open", await e5(() => document.querySelector(".add-panel.gm-drawer").open));
+    await e5(() => { const s = document.querySelectorAll(".inv-add select"); s[0].selectedIndex = 1; s[0].dispatchEvent(new Event("change")); document.querySelectorAll(".inv-add .btn.secondary")[0].click(); }); await p5.waitForTimeout(150);
+    await e5(() => { const s = document.querySelectorAll(".inv-add select"); s[2].value = "goblin_scout"; s[2].dispatchEvent(new Event("change")); document.querySelectorAll(".inv-add .btn.secondary")[2].click(); }); await p5.waitForTimeout(200);
+    t.eq("R5: initiative strip has a card per fighter", await e5(() => document.querySelectorAll(".init-strip .is-item").length), 2);
+    t.eq("R5: focus view shows one card", await e5(() => [...document.querySelectorAll(".combat-list .cb-card")].filter((c) => c.getClientRects().length).length), 1);
+    t.ok("R5: the strip marks who acts now", await e5(() => !!document.querySelector(".init-strip .is-item.cur")));
+    await e5(() => [...document.querySelectorAll(".init-strip .is-item")].find((b) => /Makander/.test(b.textContent)).click()); await p5.waitForTimeout(150);
+    t.ok("R5: tapping a strip card focuses that fighter", await e5(() => /Makander/.test(document.querySelector(".cb-card.is-focus .cb-name").textContent)));
+    t.eq("R5: a hero's card leads with Attack · Cast · Move · Other", await e5(() => [...document.querySelectorAll(".cb-card.is-focus .ta-btn b")].map((b) => b.textContent).join(",")), "Attack,Cast,Move,Other");
+    await e5(() => document.querySelector(".cb-card.is-focus .ta-btn").click()); await p5.waitForTimeout(150);
+    t.ok("R5: Attack with one weapon opens the attack roll", await e5(() => !!document.querySelector(".modal-card.dice-modal") && /Roll Attack/.test(document.querySelector(".modal-card").textContent)));
+    await e5(() => document.querySelector(".modal-x").click());
+    await e5(() => [...document.querySelectorAll(".cb-card.is-focus .ta-btn")].pop().click()); await p5.waitForTimeout(150);
+    t.ok("R5: Other lists Dash, Parry, Dodge, Help", await e5(() => { const t = document.querySelector(".modal-card .pick-list").textContent; return /Dash/.test(t) && /Parry/.test(t) && /Dodge/.test(t) && /Help/.test(t); }));
+    await e5(() => document.querySelector(".modal-x").click());
+    const before = await e5(async () => { const { Combat } = await import("/src/combat.js"); const st = Combat.load(); return Combat.ordered(st).filter((c) => c.init != null).find((c) => !c.done).id; });
+    await e5(() => document.querySelector(".cb-card.current .end-turn").click()); await p5.waitForTimeout(200);
+    t.ok("R5: ✓ End turn marks the current fighter done", await e5(async (id) => { const { Combat } = await import("/src/combat.js"); return Combat.load().combatants.find((c) => c.id === id).done === true; }, before));
+    await e5(() => document.querySelector(".view-tog").click()); await p5.waitForTimeout(150);
+    t.eq("R5: List view shows every card", await e5(() => [...document.querySelectorAll(".combat-list .cb-card")].filter((c) => c.getClientRects().length).length), 2);
+    t.ok(`R5: no JS page errors (${p5._errors.length})`, p5._errors.length === 0);
+    p5._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
+    await p5.close();
   },
 };
