@@ -46,7 +46,8 @@ export const Action = {
     if (h && ph && ph.key === "rest") return { key: "rest", ic: "tent", label: "Rest", run: () => this.restPicker(h) };
     if (h && ph && ph.key === "end") return { key: "adv", ic: "medal", label: "Advance", run: () => { Sheet.open(h.id); Sheet.endSession(); } };
     if (route === "sheet" && h) return { key: "roll", ic: "dice", label: "Roll", run: () => this.rollPicker(h) };
-    if (route === "solo") return { key: "ask", ic: "question", label: "Ask", run: () => { const b = $("#solo-f-roll"); if (b) { b.scrollIntoView({ behavior: "smooth", block: "center" }); b.click(); } } };
+    if (route === "solo") return { key: "ask", ic: "question", label: "Ask", run: () => { const b = $('#screen .sb-btn[data-tool="ask"]'); if (b) b.click(); } };
+    if (route === "gm") return { key: "askroll", ic: "dice", label: "Ask roll", run: () => { const b = $("#screen .gm-tile"); if (b) b.click(); } };
     if (route === "party") return { key: "add", ic: "people", label: "Add", run: () => { const d = $("#screen .add-panel"); if (d) { d.open = true; window._combatAddOpen = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); } } };
     if (!h) return { key: "new", ic: "sparkle", label: "New hero", run: () => Wizard.start() };
     return { key: "play", ic: "person", label: "Play", run: () => Sheet.open(h.id) };

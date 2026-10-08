@@ -76,7 +76,7 @@ module.exports = {
 
     // Solo compact chip; settings grouped.
     await nav("solo");
-    t.ok("solo: mode note hidden when active", await page.evaluate(() => { const n = document.querySelector(".solo-ctx.is-on .solo-ctx-note"); return !!n && getComputedStyle(n).display === "none"; }));
+    t.ok("solo: five tools on the action bar", await page.evaluate(() => document.querySelectorAll(".solo-bar .sb-btn").length === 5));
     await nav("about");
     const st = await page.evaluate(() => ({ groups: [...document.querySelectorAll("#settings-panel h3")].map((h) => h.textContent.trim()), clamped: [...document.querySelectorAll(".toggle-row .tr-desc")].every((d) => getComputedStyle(d).webkitLineClamp === "2") }));
     t.ok(`settings: Content + Play style groups (${st.groups.join(" / ")})`, st.groups.includes("Content") && st.groups.includes("Play style"));

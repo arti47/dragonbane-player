@@ -67,19 +67,16 @@ module.exports = {
     t.ok("combat: slain seal on a defeated foe", await ev(() => { const r = document.querySelector(".cb-card.defeated > .combat-row"); return !!r && getComputedStyle(r, "::after").content !== "none"; }));
 
     // Solo: oracle seal, tarot, day dial, compass, foe card, journal empties
-    await nav("solo"); await tab("play");
+    await nav("solo");
     let seal = false;
     for (let i = 0; i < 12 && !seal; i++) { await ev(() => document.querySelector("#solo-f-roll").click()); seal = await ev(() => !!document.querySelector("#solo-f-out .oracle-seal")); }
     t.ok("solo: oracle answer gets a seal", seal);
     t.ok("solo: empty threads/NPCs get illustrations", await ev(() => document.querySelectorAll(".empty-illo .illo-spool, .empty-illo .illo-frame").length === 2));
-    await tab("prompts");
-    await ev(() => [...document.querySelectorAll("#screen button")].find((b) => /Roll Phrase/.test(b.textContent)).click()); await page.waitForTimeout(100);
+    await ev(() => document.querySelector("#solo-i-all").click()); await page.waitForTimeout(100);
     const tr = await ev(() => ({ n: document.querySelectorAll(".tarot").length, text: document.querySelector("#solo-i-out .fortune").textContent.replace(/\s+/g, " ").trim() }));
     t.ok(`solo: inspiration as three tarot cards, text intact (${tr.text.slice(0, 40)})`, tr.n === 3 && /· .+ · /.test(tr.text));
-    await tab("journey");
     await ev(() => [...document.querySelectorAll("#screen button")].find((b) => /Random shift/.test(b.textContent)).click()); await page.waitForTimeout(100);
     t.ok("solo: day dial + compass rose", await ev(() => !!document.querySelector(".day-dial") && !!document.querySelector(".rose-art .compass-rose")));
-    await tab("foes");
     t.ok("solo: foe generator as a bestiary card", await ev(() => !!document.querySelector(".foe-gen .foe-art svg")));
 
     // Rules: weapon pictograms; GM: crests + empty roll-log art

@@ -73,7 +73,8 @@ module.exports = {
     t.ok("broadcast shows campaign hint when not synced", /campaign/i.test(broadcast || ""));
 
     // Hand out a condition and confirm it persists to the character
-    await page.evaluate(() => [...document.querySelectorAll(".gm-row button")].find((b) => /Condition/.test(b.textContent))?.click());
+    await page.evaluate(() => document.querySelector(".gm-row").click()); await page.waitForTimeout(150);
+    await page.evaluate(() => [...document.querySelectorAll(".modal-card .pick-row")].find((b) => /Condition/.test(b.textContent))?.click());
     await page.waitForTimeout(150);
     await page.evaluate(() => [...document.querySelectorAll(".modal-card .skill-chip")][0]?.click());
     await page.waitForTimeout(200);

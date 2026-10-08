@@ -93,9 +93,12 @@ module.exports = {
 
       // Solo + About
       await page.evaluate(() => window.__go('solo')); await page.waitForTimeout(150);
-      for (const tab of ["play", "prompts", "journey", "foes"]) {
-        await page.evaluate((k) => document.querySelector(`.tab[data-tab='${k}']`)?.click(), tab); await page.waitForTimeout(100);
-        await check(`solo(${tab})`);
+      await check("solo(timeline)");
+      // Each tool opens as a dialog from the action bar.
+      for (const tool of ["ask", "inspire", "twist", "foe", "travel"]) {
+        await page.evaluate((k) => document.querySelector(`.sb-btn[data-tool='${k}']`)?.click(), tool); await page.waitForTimeout(120);
+        await check(`solo(${tool})`);
+        await page.evaluate(() => document.querySelector(".modal-x")?.click()); await page.waitForTimeout(60);
       }
       await page.evaluate(() => window.__go('about')); await page.waitForTimeout(150);
       await check("about");

@@ -15,7 +15,8 @@ import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
 import { Table, PHASES } from './table.js';
 import { Pregens } from './wizard.js';
-import { crest } from './graphics.js';
+import { crest, vitalRings } from './graphics.js';
+import { icon } from './icons.js';
 
 export const GM = {
     // Show the GM surface based on the user's explicit toggle when they've set one;
@@ -44,15 +45,16 @@ export const GM = {
       const wrap = el(`<div class="gm-table"></div>`);
       const party = this.party();
       // Phase
-      const ph = el(`<div class="panel"><h3>🎬 Game phase</h3><p class="stat-line">Shown on every player's phone with the right tools (and a plain-words hint in beginner mode).</p></div>`);
-      const seg = el(`<div class="phase-seg" role="group" aria-label="Game phase"></div>`);
+      // Phase wheel: six phases around a hub that names the current one (tap the hub to clear).
+      const ph = el(`<div class="panel gm-wheel-panel"><h3>🎬 Game phase</h3></div>`);
       const cur = Table.phase();
-      PHASES.forEach((p) => { const b = el(`<button type="button" class="phase-btn" aria-pressed="${cur && cur.key === p.key ? "true" : "false"}">${p.icon} ${esc(p.label)}</button>`); b.onclick = () => Table.setPhase(p.key); seg.appendChild(b); });
-      const off = el(`<button type="button" class="phase-btn" aria-pressed="${cur ? "false" : "true"}">— None</button>`); off.onclick = () => Table.setPhase(null); seg.appendChild(off);
-      ph.appendChild(seg); wrap.appendChild(ph);
+      const wheel = el(`<div class="phase-wheel phase-seg" role="group" aria-label="Game phase"></div>`);
+      PHASES.forEach((p, i) => { const b = el(`<button type="button" class="phase-btn" style="--a:${i * 60 - 90}deg" aria-pressed="${cur && cur.key === p.key ? "true" : "false"}"><span class="pw-ic" aria-hidden="true">${p.icon}</span><span class="pw-l">${esc(p.label)}</span></button>`); b.onclick = () => Table.setPhase(p.key); wheel.appendChild(b); });
+      const off = el(`<button type="button" class="phase-btn pw-hub" aria-pressed="${cur ? "false" : "true"}" aria-label="${cur ? "Clear the phase (now " + esc(cur.label) + ")" : "No phase set"}"><b>${cur ? esc(cur.label) : "— None"}</b><small>${cur ? "tap to clear" : "pick a phase"}</small></button>`); off.onclick = () => Table.setPhase(null); wheel.appendChild(off);
+      ph.appendChild(wheel); wrap.appendChild(ph);
 
       // Ask for a roll
-      const rq = el(`<div class="panel"><h3>🎲 Ask for a roll</h3></div>`);
+      const rq = el(`<div class="panel gm-ask"><h3>🎲 Ask for a roll</h3></div>`);
       const skills = (DB.skills || []).map((x) => x.name).sort();
       const row = el(`<div class="inv-add"></div>`);
       const sel = el(`<select aria-label="Skill to roll">${skills.map((n) => `<option${n === (this._lastSkill || "Awareness") ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`);
@@ -80,19 +82,19 @@ export const GM = {
       wrap.appendChild(rq);
 
       // Party actions
-      const pa = el(`<div class="panel"><h3>⛺ Party actions</h3><p class="stat-line">Each player's phone gets a prompt to take it with their own hero.</p></div>`);
+      const pa = el(`<div class="panel gm-actions"><h3>⛺ Party actions</h3><p class="stat-line">Each player's phone gets a prompt to take it with their own hero.</p></div>`);
       const grid = el(`<div class="grid-2"></div>`);
       [["round", "Round rest"], ["stretch", "Stretch rest"], ["shift", "Shift rest"], ["endSession", "🏅 End session"]].forEach(([k, l]) => { const b = el(`<button class="btn ghost">${l}</button>`); b.onclick = () => Table.partyAction(k); grid.appendChild(b); });
       pa.appendChild(grid); wrap.appendChild(pa);
 
       // Roll log
-      const lg = el(`<div class="panel"><h3>📜 Party roll log</h3></div>`);
+      const lg = el(`<div class="panel gm-log"><h3>📜 Party roll log</h3></div>`);
       lg.appendChild(Table.logList(10));
       const all = el(`<button class="btn ghost u-mt15">Open full log</button>`); all.onclick = () => Table.openLog();
       lg.appendChild(all); wrap.appendChild(lg);
 
       // Hand out pre-gens
-      const pg = el(`<div class="panel"><h3>🎁 Hand out a pre-generated hero</h3></div>`);
+      const pg = el(`<div class="panel gm-pregen"><h3>🎁 Hand out a pre-generated hero</h3></div>`);
       const pregens = window.DRAGONBANE_PREGENS || [];
       const players = Table.players();
       if (!Table.synced()) pg.appendChild(el(`<p class="stat-line">Needs a synced campaign (About → Create campaign). On one device, use <b>Heroes → Use a pre-generated hero</b>.</p>`));
@@ -113,51 +115,48 @@ export const GM = {
       const root = el(`<div class="screen-gm"></div>`);
       root.appendChild(el(sectionTitle("GM Screen")));
       root.appendChild(helpBox("GM Screen", [
-        "<b>Party</b>: glance at each hero's HP/WP/conditions; use <b>Open sheet</b>, <b>− Damage</b>, <b>+ Condition</b>, <b>😱 Fear</b>.",
-        "<b>Drop into combat</b>: add a Bestiary monster or rulebook NPC straight to the shared tracker.",
-        "<b>Message players</b>: broadcast a note to everyone (synced campaign GM).",
-        "<b>GM reference</b>: roll fumble / fear / leaving-site tables privately, then <b>📢 Push</b> to reveal.",
-        "Turn this tab off anytime with the <b>GM Screen</b> toggle in About."
+        "<b>Phase wheel</b>: tap a phase — every player's phone shows it with the right tools; tap the hub to clear.",
+        "<b>Party</b>: each crest shows HP (left ring) and WP (right ring). Tap one to open the sheet, deal damage, set a condition, run a fear attack or ask that hero to roll.",
+        "<b>Tiles</b>: Ask a roll · Rests &amp; end · Roll log · Add to fight · Message · Hand pre-gen · GM tables (roll privately, <b>📢 Push</b> to reveal).",
+        "Turn this screen off with the <b>GM Screen</b> switch in Settings."
       ]));
 
-      // ---- Party panel -------------------------------------------------
+      // ---- Party: a row of crests with HP/WP rings; tap one for its actions ----
       const party = this.party();
-      const pPanel = el(`<div class="panel"><h3>Party</h3></div>`);
+      const pPanel = el(`<div class="panel gm-party"><h3>Party</h3></div>`);
       if (!party.length) {
         pPanel.appendChild(el(`<p class="stat-line">No characters yet. Create heroes (or join a campaign) and they'll appear here.</p>`));
       }
+      const crests = el(`<div class="gm-crests"></div>`);
       party.forEach((c) => {
         const conds = this.heldConditions(c);
         const dying = (c.state && c.state.hp <= 0);
-        const row = el(`<div class="gm-row"></div>`);
-        row.appendChild(el(`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <b class="gm-name">${(() => { const w = (c.identity.name || "?").trim().split(/\s+/); return crest(c.identity.name, c.identity.kin, (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase(), "crest gm-crest"); })()}${esc(c.identity.name)}</b>
-          <span class="stat-line">${esc(c.identity.kin || "")} ${esc(c.identity.profession || "")}</span>
-        </div>`));
-        row.appendChild(el(`<div class="stat-line u-my1">
-          HP <b style="color:${dying ? "var(--bad)" : "inherit"}">${c.state ? c.state.hp : "?"}</b>/${effHpMax(c)}
-          · WP <b>${c.state ? c.state.wp : "?"}</b>/${effWpMax(c)}
-          ${dying ? ' · <b class="u-bad">🩸 DYING</b>' : ""}
-          ${conds.length ? ` · <span class="u-bad">${conds.map(esc).join(", ")}</span>` : ""}
-        </div>`));
-        const actions = el(`<div class="gm-tools"></div>`);
-        const open = el(`<button class="btn ghost">Open sheet ↗</button>`);
-        open.onclick = () => Sheet.open(c.id);
-        const dmg = el(`<button class="btn ghost">− Damage</button>`);
-        dmg.onclick = () => this.handDamage(c.id);
-        const cond = el(`<button class="btn ghost">+ Condition</button>`);
-        cond.onclick = () => this.handCondition(c.id);
-        const fear = el(`<button class="btn ghost gm-fear">😱 Fear</button>`);
-        fear.onclick = () => this.handFear(c.id);
-        actions.append(open, dmg, cond, fear);
-        row.appendChild(actions);
-        pPanel.appendChild(row);
+        const w = (c.identity.name || "?").trim().split(/\s+/); const ini = (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase();
+        const row = el(`<button type="button" class="gm-row${dying ? " dying" : ""}" aria-label="${esc(c.identity.name)}: HP ${c.state ? c.state.hp : "?"} of ${effHpMax(c)}, WP ${c.state ? c.state.wp : "?"} of ${effWpMax(c)}${conds.length ? ", " + esc(conds.join(", ")) : ""}">
+          <span class="gc-arms">${vitalRings(c.state ? c.state.hp : 0, effHpMax(c), c.state ? c.state.wp : 0, effWpMax(c))}<b class="gm-name">${crest(c.identity.name, c.identity.kin, ini, "crest gm-crest")}</b></span>
+          <span class="gc-name">${esc(c.identity.name)}</span>
+          <span class="gc-vit">HP <b>${c.state ? c.state.hp : "?"}</b>/${effHpMax(c)} · WP <b>${c.state ? c.state.wp : "?"}</b>/${effWpMax(c)}</span>
+          ${dying ? '<span class="gc-flag">🩸 DYING</span>' : conds.length ? `<span class="gc-flag">${conds.length} condition${conds.length > 1 ? "s" : ""}</span>` : ""}
+        </button>`);
+        row.onclick = () => this.heroActions(c.id);
+        crests.appendChild(row);
       });
+      pPanel.appendChild(crests);
       root.appendChild(pPanel);
-      root.appendChild(this.tablePanel());
+      // Everything else lives on a shelf and opens from the tool tiles.
+      const shelf = el(`<div class="gm-shelf" hidden></div>`);
+      const tbl = this.tablePanel();
+      const phasePanel = tbl.querySelector(".gm-wheel-panel");
+      root.appendChild(tbl); // phase wheel shows; the rest of the table panel is lent to dialogs
+
       if (!this._tableHook) {
         this._tableHook = true;
-        window.addEventListener("table:changed", () => { const old = document.querySelector("#screen .gm-table"); if (old) old.replaceWith(this.tablePanel()); });
+        window.addEventListener("table:changed", () => {
+          const old = document.querySelector("#screen .gm-table"); if (!old) return;
+          const nu = this.tablePanel(); old.replaceWith(nu);
+          // A table panel open in a dialog is swapped for its fresh copy too.
+          [".gm-ask", ".gm-actions", ".gm-pregen"].forEach((sel) => { const lent = document.querySelector(`.modal-card ${sel}`); const fresh = nu.querySelector(sel); if (lent && fresh) lent.replaceWith(fresh); });
+        });
       }
 
       // ---- Drop into combat -------------------------------------------
@@ -183,7 +182,7 @@ export const GM = {
       };
       addRow("Bestiary monster", monsters, "monster");
       addRow("Rulebook NPC / animal", npcs, "npc");
-      root.appendChild(dPanel);
+      shelf.appendChild(dPanel);
 
       // ---- Broadcast to players ---------------------------------------
       const bPanel = el(`<div class="panel"><h3>📢 Message players</h3></div>`);
@@ -200,7 +199,7 @@ export const GM = {
       } else {
         bPanel.appendChild(el(`<p class="stat-line">Create or join a campaign as the GM (Settings → Multiplayer) to push messages and table rolls to players' devices.</p>`));
       }
-      root.appendChild(bPanel);
+      shelf.appendChild(bPanel);
 
       // ---- GM reference (the official screen's aids) -------------------
       const ref = el(`<div class="panel"><h3>GM reference</h3><p class="stat-line">Roll a table privately; “📢 Push” reveals the result to players (synced GM only).</p></div>`);
@@ -231,11 +230,49 @@ export const GM = {
       ref.appendChild(d6Table("Demon fumble — ranged (D6)", DB.demonRanged));
       ref.appendChild(d6Table("Fear table (D6)", DB.fearTable));
       ref.appendChild(d6Table("Leaving the adventure site (D6)", DB.leavingSite));
-      root.appendChild(ref);
+      shelf.appendChild(ref);
+      root.appendChild(shelf);
+
+      // Tool tiles
+      // Lend a panel to a dialog; whatever is in the dialog goes back home when it closes
+      // (table panels go back into the live .gm-table, which re-renders on table changes).
+      const lend = (title, node, homeSel) => {
+        if (!node) return;
+        const m = modal(title); m.body.appendChild(node);
+        m.back._onClose = () => { const cur = m.body.firstElementChild; if (!cur) return; const home = homeSel ? document.querySelector("#screen " + homeSel) : null; (home || shelf).appendChild(cur); };
+      };
+      const tp = () => document.querySelector("#screen .gm-table");
+      const tiles = el(`<div class="gm-tiles"></div>`);
+      [["dice", "Ask a roll", () => lend("Ask for a roll", tp() && tp().querySelector(".gm-ask"), ".gm-table")],
+       ["tent", "Rests & end", () => lend("Party actions", tp() && tp().querySelector(".gm-actions"), ".gm-table")],
+       ["scroll", "Roll log", () => Table.openLog()],
+       ["swords", "Add to fight", () => lend("Drop into combat", dPanel)],
+       ["horn", "Message", () => lend("Message players", bPanel)],
+       ["person", "Hand pre-gen", () => lend("Hand out a pre-gen", tp() && tp().querySelector(".gm-pregen"), ".gm-table")],
+       ["book", "GM tables", () => lend("GM reference", ref)]].forEach(([ic, label, fn]) => {
+        const b = el(`<button type="button" class="gm-tile">${icon(ic, "ic gt-ic")}<span>${label}</span></button>`); b.onclick = fn; tiles.appendChild(b);
+      });
+      root.insertBefore(tiles, tbl);
 
       return root;
     },
 
+    // Tap a party crest: everything the GM can do to that hero.
+    heroActions(id) {
+      const c = Store.get(id); if (!c) return;
+      const m = modal(c.identity.name);
+      const l = el(`<div class="pick-list"></div>`);
+      [["↗ Open sheet", "Peek or edit", () => Sheet.open(id)], ["− Damage", "At 0 HP it's a failed death roll", () => this.handDamage(id)], ["+ Condition", "Set or clear one", () => this.handCondition(id)], ["😱 Fear", "WIL roll or Scared + fear table", () => this.handFear(id)], ["🎲 Ask this hero to roll", "Sends a roll request", () => this.askOne(id)]].forEach(([t, sub, fn]) => {
+        const b = el(`<button type="button" class="pick-row"><b>${t}</b><small>${sub}</small></button>`); b.onclick = () => { m.close(); fn(); }; l.appendChild(b);
+      });
+      m.body.appendChild(l);
+    },
+    askOne(id) {
+      const m = modal("Ask for a roll");
+      const sel = el(`<select class="input" aria-label="Skill to roll">${(DB.skills || []).map((x) => x.name).sort().map((n) => `<option${n === (this._lastSkill || "Awareness") ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`);
+      const go = el(`<button class="btn block u-mt2">Ask</button>`); go.onclick = () => { this._lastSkill = sel.value; Table.requestRoll(sel.value, [id]); m.close(); };
+      m.body.append(sel, go);
+    },
     // ---- Hand-out actions (write through the normal Store path) --------
     handDamage(id) {
       const c = Store.get(id); if (!c) return;

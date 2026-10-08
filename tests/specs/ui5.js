@@ -113,7 +113,7 @@ module.exports = {
 
     // Solo mode is a switch.
     await nav("solo");
-    t.ok("solo: mode status is a switch", await page.evaluate(() => { const b = document.querySelector(".solo-ctx-btn"); return !!b && b.getAttribute("role") === "switch" && b.classList.contains("toggle"); }));
+    t.ok("solo: 'Rolling as' hero picker on top", await page.evaluate(() => !!document.querySelector(".solo-top .solo-ctx-sel")));
 
     // GM reference: rolled result card, no leading dash on rows.
     await nav("gm");
