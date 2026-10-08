@@ -248,9 +248,10 @@ export const Sheet = {
       const dr = c.state.deathRolls || { successes: 0, failures: 0 };
       const dots = (n, cls) => Array.from({length:3}, (_,i)=>`<span class="dr-dot ${cls === "ok" ? "s" : "f"} ${i<n?cls:""}"></span>`).join("");
       
-      const head = el(`<div><p class="stat-line">Roll D20 vs CON <b>${con}</b> (roll ≤ CON = success).<br>3 successes → stabilize (+D6 HP). 3 failures → death.<br>Dragon (1) = 2 successes; Demon (20) = 2 failures.</p>
+      const head = el(`<div>${Roller.targetBar(con, "CON")}<p class="stat-line dt-why">3 successes → stabilize (+D6 HP) · 3 failures → death · Dragon = 2 successes · Demon = 2 failures</p>
         <p class="stat-line cur-dr">Successes <span class="dr-dots">${dots(dr.successes,"ok")}</span> &nbsp; Failures <span class="dr-dots">${dots(dr.failures,"bad")}</span></p></div>`);
       const btn = el(`<button class="btn block roll-go u-mt3">Roll Death Roll</button>`);
+      Roller.diceTable(m, btn);
       const out = el(`<div class="roll-result u-mt35"></div>`);
 
       btn.onclick = () => {

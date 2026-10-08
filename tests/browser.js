@@ -32,7 +32,9 @@ async function launch() {
 // Create a page wired for the app: aborts Firebase, seeds settings before any
 // app code runs, collects page errors on page._errors.
 async function newPage(browser, settings, viewport) {
-  const page = await browser.newPage({ viewport: viewport || { width: 390, height: 850 } });
+  // Service workers are blocked: a worker claiming the page mid-test (first install)
+  // can reset the execution context under an evaluate() that imports a module.
+  const page = await browser.newPage({ viewport: viewport || { width: 390, height: 850 }, serviceWorkers: "block" });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push("console: " + m.text()); });

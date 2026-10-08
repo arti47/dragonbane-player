@@ -167,5 +167,30 @@ module.exports = {
     t.ok(`R3: no JS page errors (${p3._errors.length})`, p3._errors.length === 0);
     p3._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
     await p3.close();
+    // ---- R4 the dice table ----
+    const p4 = await newPage({}, { width: 390, height: 844 });
+    await p4.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
+    await p4.waitForTimeout(200);
+    const e4 = (f, a) => p4.evaluate(f, a);
+    await p4.click("#use-pregen"); await p4.waitForTimeout(150);
+    await e4(() => document.querySelectorAll(".card-grid .card")[2].click()); await p4.waitForTimeout(300);
+    const kn = await e4(() => JSON.parse(localStorage.getItem("dragonbane.characters"))[0]);
+    const agl = Object.entries(kn.skills).find(([, v]) => v.attribute === "AGL");
+    await e4(([id, n]) => { const c = JSON.parse(localStorage.getItem("dragonbane.characters")); c[0].state.conditions.dazed = true; localStorage.setItem("dragonbane.characters", JSON.stringify(c)); }, [kn.id, agl[0]]);
+    await e4(([id, n]) => import("/src/roller.js").then((m) => m.Roller.skill(id, n)), [kn.id, agl[0]]); await p4.waitForTimeout(200);
+    const dt = await e4(() => { const m = document.querySelector(".modal-card"); return { full: m.classList.contains("dice-modal"), cells: m.querySelectorAll(".t-bar .tb-c").length, ok: m.querySelectorAll(".t-bar .tb-c.ok").length, dice: m.querySelectorAll(".dt-tray .dt-die").length, bane: !!m.querySelector(".dt-tray.bane"), big: !!m.querySelector(".roll-go .rg-die svg") }; });
+    t.ok("R4: roll dialog is the dice table (full height + big d20 button)", dt.full && dt.big);
+    t.eq("R4: 1–20 strip with the success zone = skill level", `${dt.cells}/${dt.ok}`, `20/${agl[1].level}`);
+    t.ok("R4: a Dazed bane shows two bane dice (keep highest)", dt.dice === 2 && dt.bane);
+    await e4(() => { document.querySelector(".dt-boon").click(); document.querySelector(".dt-boon").click(); }); await p4.waitForTimeout(60);
+    t.ok("R4: two boons over one bane → net boon, two dice, keep lowest", await e4(() => document.querySelectorAll(".dt-tray.boon .dt-die").length === 2 && /keep lowest/.test(document.querySelector(".dt-net").textContent)));
+    await e4(() => document.querySelector(".modal-card .roll-go").click()); await p4.waitForTimeout(200);
+    t.ok("R4: the rolled number is marked on the strip", await e4(() => { const hit = document.querySelector(".t-bar .tb-c.hit"); const n = +document.querySelector(".roll-stage .d20-n").textContent; return !!hit && +hit.dataset.n === n; }));
+    await e4(() => document.querySelector(".modal-x").click());
+    await e4((id) => import("/src/sheet.js").then((m) => m.Sheet.deathRollModal(id)), kn.id); await p4.waitForTimeout(150);
+    t.eq("R4: death roll uses the strip against CON", await e4(() => document.querySelectorAll(".modal-card .t-bar .tb-c.ok").length), kn.attributes.CON);
+    t.ok(`R4: no JS page errors (${p4._errors.length})`, p4._errors.length === 0);
+    p4._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
+    await p4.close();
   },
 };

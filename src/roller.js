@@ -31,11 +31,39 @@ export const Roller = {
       const faces = out.querySelector(".dice-faces");
       if (faces) { if (faces.children.length > 1) { faces.classList.add("roll-dice-row"); st.appendChild(faces); } else faces.remove(); }
       out.insertBefore(st, out.firstChild);
+      const bar = (out.closest(".modal-card") || document).querySelector(".t-bar");
+      if (bar) { bar.querySelectorAll(".tb-c").forEach((c) => c.classList.toggle("hit", +c.dataset.n === used)); bar.classList.add("rolled", success ? "is-ok" : "is-bad"); }
       const why = Table.explain(used, target, success, dragon, demon);
       if (why) st.after(el(`<p class="roll-why">${why}</p>`));
       try { if (navigator.vibrate) navigator.vibrate(dragon ? [30, 40, 70] : demon ? [90, 50, 90] : success ? 18 : [12, 40, 12]); } catch (_) {}
     },
     netLabel(net) { return net > 0 ? `Boon ×${net}` : net < 0 ? `Bane ×${-net}` : "Even (1d20)"; },
+    // ---- Dice table (presentation only) ----
+    // The dice you will throw: 1 + |net| d20s (boons keep the lowest, banes the highest).
+    tray(net) {
+      const n = 1 + Math.abs(net), kind = net > 0 ? "boon" : net < 0 ? "bane" : "even";
+      const keep = net > 0 ? "keep lowest" : net < 0 ? "keep highest" : "one die";
+      return `<span class="dt-tray ${kind}" aria-hidden="true">${Array.from({ length: Math.min(n, 5) }, () => `<span class="dt-die">${d20Svg()}</span>`).join("")}</span><span class="nl-t">${this.netLabel(net)}</span><span class="nl-k">${keep}</span>`;
+    },
+    setNet(lbl, net) { lbl.innerHTML = this.tray(net); lbl.className = `net-lbl dt-net ${net > 0 ? "boon" : net < 0 ? "bane" : ""}`; },
+    // Bane / Boon buttons around the tray (same −/+ maths as before, clearer words).
+    netButtons(minus, plus) {
+      minus.classList.add("dt-bane"); plus.classList.add("dt-boon");
+      minus.innerHTML = `<span aria-hidden="true">+</span> Bane`; plus.innerHTML = `<span aria-hidden="true">+</span> Boon`;
+      minus.setAttribute("aria-label", "Add a bane (or remove a boon)"); plus.setAttribute("aria-label", "Add a boon (or remove a bane)");
+    },
+    // The 1–20 strip: ≤ target succeeds, 1 is a Dragon, 20 a Demon. stage() marks the roll.
+    targetBar(target, label) {
+      const t = Math.max(0, Math.min(20, target | 0));
+      let cells = "";
+      for (let i = 1; i <= 20; i++) cells += `<i class="tb-c${i <= t ? " ok" : ""}${i === 1 ? " dragon" : ""}${i === 20 ? " demon" : ""}" data-n="${i}"></i>`;
+      return `<div class="t-bar" role="img" aria-label="Succeed on ${t} or lower out of 20"><div class="tb-cells" style="--t:${t}">${cells}</div><div class="tb-lbl"><span>1</span><b>${label ? esc(label) + " · " : ""}≤ ${t}</b><span>20</span></div></div>`;
+    },
+    // Dress a roll dialog as the dice table: full-height on phones, a big d20 on the Roll button.
+    diceTable(m, goBtn) {
+      const card = m.body.parentElement; if (card) card.classList.add("dice-modal");
+      if (goBtn && !goBtn.querySelector(".rg-die")) goBtn.insertAdjacentHTML("afterbegin", `<span class="rg-die" aria-hidden="true">${d20Svg()}</span>`);
+    },
     refresh(charId) {
       // Only re-render the character sheet when it is actually the mounted
       // screen (window.activeCharacterId tracks the open sheet). Otherwise — e.g.
@@ -54,14 +82,16 @@ export const Roller = {
       const armorBane = armorBanedSkills(c).has(name);
       let net = (condBane ? -1 : 0) + (armorBane ? -1 : 0);
       const m = modal(`Roll: ${name}`);
-      const head = el(`<p class="stat-line">Skill level <b>${sk.level}</b> · ${sk.attribute}${condBane ? ` · <span class="u-bad">${sk.attribute} condition → bane</span>` : ""}${armorBane ? ` · <span class="u-bad">worn armor → bane</span>` : ""}. Roll equal or under to succeed.</p>`);
-      const ctl = el(`<div class="roll-ctl"></div>`);
-      const lbl = el(`<span class="net-lbl">${this.netLabel(net)}</span>`);
+      const head = el(`<div class="dt-head">${this.targetBar(sk.level, sk.attribute)}${condBane || armorBane ? `<p class="stat-line dt-why">${condBane ? `<span class="u-bad">${sk.attribute} condition → bane</span>` : ""}${condBane && armorBane ? " · " : ""}${armorBane ? `<span class="u-bad">worn armor → bane</span>` : ""}</p>` : ""}</div>`);
+      const ctl = el(`<div class="roll-ctl dt-ctl"></div>`);
+      const lbl = el(`<span class="net-lbl"></span>`);
       const minus = el(`<button class="step">−</button>`), plus = el(`<button class="step">+</button>`);
-      minus.onclick = () => { net--; lbl.textContent = this.netLabel(net); };
-      plus.onclick = () => { net++; lbl.textContent = this.netLabel(net); };
-      ctl.append(el(`<span class="stat-line">Boon / Bane</span>`), minus, lbl, plus);
+      this.netButtons(minus, plus); this.setNet(lbl, net);
+      minus.onclick = () => { net--; this.setNet(lbl, net); };
+      plus.onclick = () => { net++; this.setNet(lbl, net); };
+      ctl.append(minus, lbl, plus);
       const rollBtn = el(`<button class="btn block roll-go u-mt3">Roll d20</button>`);
+      this.diceTable(m, rollBtn);
       const result = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doRoll = (pushedCondition) => {
         if (!pushedCondition) {
@@ -205,14 +235,16 @@ export const Roller = {
       // Top section: Attack Roll
       const atkDiv = el(`<div class="roll-setup"></div>`);
       const head = el(`<div></div>`);
-      head.appendChild(el(`<p class="stat-line"><b>Attack Roll:</b> ${esc(skillName)} ≤ ${target}</p>`));
+      head.appendChild(el(`<div class="dt-head">${this.targetBar(target, skillName)}</div>`));
       
-      const ctl = el(`<div class="roll-ctl"><span class="stat-line">Boon / Bane</span></div>`);
+      const ctl = el(`<div class="roll-ctl dt-ctl"></div>`);
       let net = 0;
-      const lbl = el(`<span class="net-lbl">Normal</span>`);
+      const lbl = el(`<span class="net-lbl"></span>`);
       const minus = el(`<button class="step" title="bane">−</button>`);
       const plus = el(`<button class="step" title="boon">+</button>`);
-      const upd = () => { lbl.textContent = net === 0 ? "Normal" : net > 0 ? `+${net} Boon` : `${net} Bane`; lbl.className = `net-lbl ${net > 0 ? "boon" : net < 0 ? "bane" : ""}`; };
+      this.netButtons(minus, plus);
+      const upd = () => { this.setNet(lbl, net); };
+      upd();
       minus.onclick = () => { net--; upd(); }; plus.onclick = () => { net++; upd(); };
       ctl.append(minus, lbl, plus);
       head.appendChild(ctl);
@@ -263,6 +295,7 @@ export const Roller = {
       }
 
       const rollAtkBtn = el(`<button class="btn block roll-go u-mt25">Roll Attack (d20 ≤ ${target})</button>`);
+      this.diceTable(m, rollAtkBtn);
       
       // Bottom section: Damage Roll
       const dmgDiv = el(`<div class="u-mt3"></div>`);
@@ -776,7 +809,7 @@ export const Roller = {
       let pl = 1;
       const condCn = (DB.conditions || []).find((cn) => cn.attribute === castAttr && c.state.conditions[cn.key]);
       const condBane = !!condCn;
-      const head = el(`<p class="stat-line">Roll <b>${esc(schoolName)}</b> (level ${level})${condBane ? ` · <span class="u-bad">${esc(condCn.name)} → bane</span>` : ""}. ${perLevel} WP per power level.</p>`);
+      const head = el(`<div class="dt-head">${this.targetBar(level, schoolName)}<p class="stat-line dt-why">${perLevel} WP per power level${condBane ? ` · <span class="u-bad">${esc(condCn.name)} → bane</span>` : ""}</p></div>`);
       const plRow = el(`<div class="roll-ctl"></div>`);
       const plLbl = el(`<span class="net-lbl">Power level ${pl} · ${pl * perLevel} WP</span>`);
       const pm = el(`<button class="step">−</button>`), pp = el(`<button class="step">+</button>`);
@@ -791,6 +824,7 @@ export const Roller = {
       </label>`);
 
       const castBtn = el(`<button class="btn block roll-go u-mt3">Cast</button>`);
+      this.diceTable(m, castBtn);
       if (hasMetal) { castBtn.disabled = true; castBtn.style.opacity = "0.4"; castBtn.style.cursor = "not-allowed"; castBtn.title = "Remove metal armor/weapon to cast"; }
       const out = el(`<div class="roll-result" role="status" aria-live="polite"></div>`);
       const doCast = (pushedCondition) => {

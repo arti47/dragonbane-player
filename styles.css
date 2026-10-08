@@ -2636,6 +2636,45 @@ html.ob-open, html.ob-open body { overflow: hidden; }
 .is-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .is-dur { margin-top: 10px; gap: 8px; }
 
+/* ================= REDESIGN R4: the dice table ================= */
+@media (max-width: 599px) {
+  .modal-card.dice-modal { min-height: min(680px, 88dvh); }
+  .modal-card.dice-modal .modal-body { display: flex; flex-direction: column; }
+}
+.dt-head { margin: 2px 0 10px; }
+.dt-why { text-align: center; margin: 6px 0 0; }
+/* 1–20 target strip */
+.t-bar { margin: 4px 0 2px; }
+.tb-cells { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 2px; }
+.tb-c { display: block; height: 22px; border-radius: 3px; background: color-mix(in srgb, var(--bad) 16%, var(--bg-raised)); position: relative; transition: transform .2s ease; }
+.tb-c.ok { background: color-mix(in srgb, var(--ok) 38%, var(--bg-raised)); }
+.tb-c.dragon { background: var(--gold-leaf); }
+.tb-c.demon { background: var(--bad-fill); }
+.tb-c.hit { transform: scaleY(1.45); box-shadow: 0 0 0 2px var(--ink); z-index: 1; }
+.t-bar.rolled .tb-c:not(.hit) { opacity: .45; }
+.tb-lbl { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-soft); }
+.tb-lbl b { font-family: var(--font-heading); font-size: var(--fs-lg); color: var(--ink); }
+/* Boon / bane tray */
+.dt-ctl { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
+.dt-ctl .step.dt-bane, .dt-ctl .step.dt-boon { width: auto; min-width: 82px; height: 44px; padding: 0 10px; border-radius: var(--r-pill); font-family: var(--font-heading); font-size: var(--fs-md); gap: 4px; }
+.dt-ctl .step.dt-bane { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+.dt-ctl .step.dt-boon { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.net-lbl.dt-net { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.dt-tray { display: flex; gap: 3px; justify-content: center; }
+.dt-die { position: relative; width: 30px; height: 30px; display: block; --d20: var(--ink-soft); }
+.dt-tray.boon .dt-die { --d20: var(--ok-fill); }
+.dt-tray.bane .dt-die { --d20: var(--bad-fill); }
+.dt-die .d20-svg { width: 100%; height: 100%; display: block; }
+.nl-t { font-family: var(--font-heading); font-size: var(--fs-md); }
+.nl-k { font-size: var(--fs-xs); color: var(--ink-soft); }
+/* The big d20 Roll button */
+.dice-modal .roll-go { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 12px 12px; min-height: 0; height: auto; }
+.rg-die { position: relative; width: 84px; height: 84px; display: block; filter: drop-shadow(0 3px 6px color-mix(in srgb, #000 35%, transparent)); transition: transform .15s ease; --d20: var(--gold-leaf); }
+.rg-die .d20-svg { width: 100%; height: 100%; }
+.dice-modal .roll-go:active .rg-die { transform: rotate(-18deg) scale(.94); }
+.dice-modal .roll-go:not(:disabled):hover .rg-die { transform: rotate(8deg); }
+@media (max-width: 599px) { .dice-modal .roll-go { margin-top: auto; } }
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }
