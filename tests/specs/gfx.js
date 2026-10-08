@@ -13,7 +13,7 @@ module.exports = {
     const brand = await page.evaluate(() => { const b = document.querySelector(".app-header .brand"); return { svg: !!b.querySelector("svg.drake"), text: b.textContent.trim() }; });
     t.ok("brand: drake emblem in the header", brand.svg);
     t.eq("brand: name text unchanged", brand.text, "Dragonbane");
-    t.ok("home: empty state has a line-art illustration", await page.evaluate(() => !!document.querySelector(".empty svg.illo")));
+    t.ok("home: empty state has a line-art illustration", await page.evaluate(() => !!document.querySelector(".home-empty svg.illo")));
 
     // Crest: deterministic by name, varies between names, carries the initials.
     const cr = await page.evaluate(async () => {

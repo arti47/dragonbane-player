@@ -28,6 +28,63 @@ export const Wizard = {
       };
       this.render();
     },
+    // Quick hero: a random but fully legal character in one tap. It drives the same
+    // wizard state and the same validate()/build() as the step-by-step wizard, so it
+    // obeys every creation rule (4D6 drop lowest, age skill count, ≥6 profession
+    // skills, starting heroic ability / 3 tricks + 3 rank-1 spells, a gear row).
+    quick() {
+      const pick = (a) => a[Math.floor(Math.random() * a.length)];
+      const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+      this.start();
+      const s = this.s;
+      s.kin = pick(DB.kin || []).key;
+      const prof = pick(DB.professions || []); s.profession = prof.key;
+      if (prof.key === "mage") s.mageSchool = pick(Magic.mageSchools())[0];
+      s.age = pick(DB.ages || []).key;
+      // Attributes: roll six, put the best in the profession's key attribute, then CON, AGL, WIL, INT, STR, CHA.
+      s.rolledDice = []; s.rolled = [0, 0, 0, 0, 0, 0].map(() => { const v = Dice.attribute(); s.rolledDice.push(Dice.lastAttr.slice()); return v; });
+      const order = [prof.keyAttribute, "CON", "AGL", "WIL", "INT", "STR", "CHA"].filter((k, i, a) => k && a.indexOf(k) === i);
+      const byVal = s.rolled.map((v, i) => [v, i]).sort((x, y) => y[0] - x[0]);
+      order.forEach((k, i) => { if (byVal[i]) s.assign[k] = byVal[i][1]; });
+      // Trained skills: exactly the age total, at least 6 from the profession (a mage's school always).
+      const total = this.ageObj().trainedSkills;
+      const profList = this.professionSkillList();
+      const school = s.mageSchool ? Magic.cap(s.mageSchool) : null;
+      if (school) s.trained.add(school);
+      shuffle(profList.filter((n) => n !== school)).forEach((n) => { if ([...s.trained].filter((x) => profList.includes(x)).length < 6) s.trained.add(n); });
+      shuffle((DB.skills || []).filter((sk) => sk.kind !== "magic" && !s.trained.has(sk.name)).map((sk) => sk.name)).forEach((n) => { if (s.trained.size < total) s.trained.add(n); });
+      // Heroic ability (not mages): the profession's, plus a solo pick when Solo is on.
+      if (prof.key !== "mage") {
+        const pool = [...prof.heroicAbilities];
+        if (Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.heroicAbilities) DRAGONBANE_SOLO.heroicAbilities.forEach((h) => { if (!pool.includes(h.name)) pool.push(h.name); });
+        s.heroicPicks = [pick(prof.heroicAbilities)];
+        shuffle(pool.filter((n) => n !== s.heroicPicks[0])).forEach((n) => { if (s.heroicPicks.length < this.heroicCap()) s.heroicPicks.push(n); });
+      }
+      // Magic: 3 tricks + 3 rank-1 spells from the school (or General).
+      if (this.isCaster()) {
+        const sp = Magic.poolFor(s.mageSchool), gen = Magic.corePool("general");
+        const tricks = [...(sp.tricks || []).map((x) => ({ ...x, src: s.mageSchool })), ...(gen.tricks || []).map((x) => ({ ...x, src: "general" }))];
+        const rank1 = [...(sp.spells || []).filter((x) => x.rank === 1).map((x) => ({ ...x, src: s.mageSchool })), ...(gen.spells || []).filter((x) => x.rank === 1).map((x) => ({ ...x, src: "general" }))];
+        s.spells.tricks = shuffle(tricks).slice(0, 3).map((x) => ({ name: x.name, rank: 0, school: x.src, text: x.text }));
+        s.spells.known = shuffle(rank1).slice(0, 3).map((x) => ({ name: x.name, rank: 1, school: x.src, text: x.text }));
+      }
+      s.gearRow = (prof.gear || []).length ? Math.floor(Math.random() * prof.gear.length) : null;
+      // Name + flavour from the random tables.
+      if (DB.names && DB.names.kin) {
+        const names = DB.names.kin[s.kin] || DB.names.kin.human || ["Hero"];
+        const nick = (DB.names.nicknames && DB.names.nicknames[s.profession]) || [];
+        s.identity.name = pick(names) + (nick.length && Math.random() < 0.65 ? ` "${pick(nick)}"` : "");
+      } else s.identity.name = "Hero";
+      ["appearance", "weakness", "memento"].forEach((k) => { const l = DB.flavor && DB.flavor[k]; if (l && l.length) s.identity[k] = pick(l); });
+      // Every step must pass the wizard's own validation; otherwise finish by hand.
+      const bad = this.steps().find((st) => this.validate(st));
+      if (bad) { s.step = this.steps().indexOf(bad); this.render(); showToast("Finish this step to complete your hero.", "warn"); return null; }
+      const c = this.build();
+      const list = Store.list(); list.push(c); Store.save(list);
+      Sheet.open(c.id);
+      this.forged(c);
+      return c;
+    },
     // The ordered list of steps. Mages skip the heroic step; mages and
     // Harmonism-bards get a magic step.
     isMage() { return this.s.profession === "mage"; },
@@ -75,6 +132,7 @@ export const Wizard = {
         </div>`));
       const nSteps = this.steps().length;
       root.appendChild(el(`<div class="wiz-track" role="progressbar" aria-valuemin="1" aria-valuemax="${nSteps}" aria-valuenow="${this.s.step + 1}" aria-label="Wizard progress"><div class="wiz-bar"><i style="width:${((this.s.step + 1) / nSteps) * 100}%"></i></div><div class="wiz-dots">${this.steps().map((st, i) => `<span class="wiz-dot ${i < this.s.step ? "done" : i === this.s.step ? "cur" : ""}" title="${esc(this.stepTitle(st))}"></span>`).join("")}</div></div>`));
+      root.appendChild(el(`<h2 class="wiz-q">${esc(this.question(step))}</h2>`));
       const bodyWrap = el(`<div id="wiz-body"></div>`);
       bodyWrap.appendChild(this["step_" + step]());
       root.appendChild(bodyWrap);
@@ -113,6 +171,11 @@ export const Wizard = {
       }
       return bits.join(" · ");
     },
+    question(step) {
+      return { attributes: "Roll your six attributes", kin: "What kin are you?", profession: "What is your calling?", age: "How old are you?",
+        skills: "What have you trained?", magic: "Which magic do you know?", heroic: "What makes you heroic?",
+        gear: "What do you carry?", details: "Who are you?", review: "Ready to adventure?" }[step] || "";
+    },
     stepTitle(step) {
       return { attributes: "Attributes", kin: "Kin", profession: "Profession", age: "Age",
         skills: "Trained Skills", magic: "Magic", heroic: "Heroic Ability",
@@ -122,7 +185,7 @@ export const Wizard = {
     /* ---- Step: Attributes ---- */
     step_attributes() {
       const wrap = el(`<div class="panel"></div>`);
-      wrap.appendChild(el(`<p class="stat-line">Roll 4D6 (drop the lowest) six times, then assign each score to an attribute. Age modifiers are applied later.</p>`));
+      wrap.appendChild(el(`<p class="stat-line wiz-tip">4D6 six times, lowest die dropped. Tap a score, then an attribute. Age adjusts them later.</p>`));
       const rollBtn = el(`<button class="btn block" style="margin-bottom:14px">${this.s.rolled ? "Re-roll all" : "Roll attributes"}</button>`);
       const grid = el(`<div class="attr-grid${window._wizManual ? " manual" : ""}"></div>`);
       const renderGrid = () => {
@@ -171,7 +234,6 @@ export const Wizard = {
     /* ---- Step: Kin ---- */
     step_kin() {
       const wrap = el(`<div></div>`);
-      wrap.appendChild(el(sectionTitle("Choose your kin")));
       const grid = el(`<div class="card-grid"></div>`);
       (DB.kin || []).forEach((k) => {
         const c = el(`<button class="card ${this.s.kin === k.key ? "sel" : ""}">${emblem("kin", k.key, "emb card-emb")}
@@ -187,7 +249,6 @@ export const Wizard = {
     /* ---- Step: Profession ---- */
     step_profession() {
       const wrap = el(`<div></div>`);
-      wrap.appendChild(el(sectionTitle("Choose your profession")));
       const grid = el(`<div class="card-grid"></div>`);
       (DB.professions || []).forEach((p) => {
         const c = el(`<button class="card ${this.s.profession === p.key ? "sel" : ""}">${emblem("prof", p.key, "emb card-emb")}
@@ -220,7 +281,6 @@ export const Wizard = {
     /* ---- Step: Age ---- */
     step_age() {
       const wrap = el(`<div></div>`);
-      wrap.appendChild(el(sectionTitle("Choose your age")));
       const grid = el(`<div class="card-grid"></div>`);
       (DB.ages || []).forEach((a) => {
         const modList = Object.entries(a.mods);
@@ -248,13 +308,12 @@ export const Wizard = {
       const isMage = this.s.profession === "mage";
       const schoolName = isMage && this.s.mageSchool ? this.s.mageSchool[0].toUpperCase() + this.s.mageSchool.slice(1) : null;
       if (isMage && schoolName) this.s.trained.add(schoolName); // school is always trained
-      wrap.appendChild(el(sectionTitle("Trained skills")));
       const counter = el(`<div class="panel notice sticky-count" id="skill-count"></div>`);
       wrap.appendChild(counter);
       const updateCount = () => {
         const total = this.s.trained.size;
         const fromProf = [...this.s.trained].filter((n) => profList.includes(n)).length;
-        counter.innerHTML = `Trained: <b>${total} / ${age.trainedSkills}</b> · from profession: <b>${fromProf} / 6</b>. Pick exactly ${age.trainedSkills} (at least 6 from your profession). Trained skills start at twice their base chance.`;
+        counter.innerHTML = `<span class="sc-n${total === age.trainedSkills ? " ok" : ""}"><b>${total}</b>/${age.trainedSkills} trained</span><span class="sc-n${fromProf >= 6 ? " ok" : ""}"><b>${fromProf}</b>/6 from profession</span>`;
       };
       const makeChip = (name, locked) => {
         const on = this.s.trained.has(name);
@@ -284,7 +343,6 @@ export const Wizard = {
     /* ---- Step: Magic (mage or Harmonism bard) ---- */
     step_magic() {
       const wrap = el(`<div></div>`);
-      wrap.appendChild(el(sectionTitle("Magic")));
       const isHarmonist = this.s.profession === "bard" && this.s.bardHarmonism;
       const school = isHarmonist ? "harmonism" : this.s.mageSchool;
       const schoolPool = Magic.poolFor(school);
@@ -292,7 +350,7 @@ export const Wizard = {
       const genPool = isHarmonist ? { tricks: [], spells: [] } : Magic.corePool("general");
       const allTricks = [...(schoolPool.tricks || []).map((t) => ({ ...t, src: school })), ...(genPool.tricks || []).map((t) => ({ ...t, src: "general" }))];
       const allRank1 = [...(schoolPool.spells || []).filter((x) => x.rank === 1).map((x) => ({ ...x, src: school })), ...(genPool.spells || []).filter((x) => x.rank === 1).map((x) => ({ ...x, src: "general" }))];
-      wrap.appendChild(el(`<p class="stat-line">As ${isHarmonist ? "a Harmonism bard (cast via Performance)" : "a " + esc(Magic.cap(school)) + " mage"}, choose <b>3 magic tricks</b> and <b>3 rank-1 spells</b>${isHarmonist ? " from Harmonism." : " (from your school or General Magic)."}</p>`));
+      wrap.appendChild(el(`<p class="stat-line wiz-tip">Choose <b>3 tricks</b> and <b>3 rank-1 spells</b>${isHarmonist ? " from Harmonism (cast with Performance)." : ` — ${esc(Magic.cap(school))} or General.`}</p>`));
       const mk = (arr, bucket, max, label) => {
         const sec = el(`<div class="panel"></div>`);
         sec.appendChild(el(`<p class="section-title"><b>${label}</b> <span class="stat-line" id="cnt-${bucket}"></span></p>`));
@@ -324,8 +382,7 @@ export const Wizard = {
       const p = this.prof();
       const cap = this.heroicCap();
       if (!Array.isArray(this.s.heroicPicks)) this.s.heroicPicks = this.s.heroic ? [this.s.heroic] : [];
-      wrap.appendChild(el(sectionTitle("Heroic ability")));
-      wrap.appendChild(el(`<p class="stat-line">${cap > 1 ? `Solo: choose <b>two</b> starting heroic abilities (one profession + one extra).` : `Your profession grants one starting heroic ability${p.heroicAbilities.length > 1 ? " — choose one" : ""}.`} (Skill requirements are waived for starting abilities.) <span id="hpick-count"></span></p>`));
+      wrap.appendChild(el(`<p class="stat-line wiz-tip">${cap > 1 ? "Solo: choose <b>two</b>." : p.heroicAbilities.length > 1 ? "Choose <b>one</b>." : "Your profession gives you this one."} Requirements don't apply at creation. <span id="hpick-count"></span></p>`));
       const grid = el(`<div class="card-grid"></div>`);
       const pool = [...p.heroicAbilities];
       if (Settings.soloMode() && typeof DRAGONBANE_SOLO !== "undefined" && DRAGONBANE_SOLO.heroicAbilities) {
@@ -352,8 +409,7 @@ export const Wizard = {
     step_gear() {
       const wrap = el(`<div></div>`);
       const p = this.prof();
-      wrap.appendChild(el(sectionTitle("Starting gear")));
-      wrap.appendChild(el(`<p class="stat-line">Pick a starting gear package (or roll). Dice in the list (coins, rations) are rolled when you create the hero.</p>`));
+      wrap.appendChild(el(`<p class="stat-line wiz-tip">Pick or roll a package. Its dice (coins, rations) roll when you finish.</p>`));
       const rollBtn = el(`<button class="btn secondary" style="margin-bottom:12px">🎲 Roll a random package</button>`);
       const grid = el(`<div class="card-grid"></div>`);
       const renderRows = () => {
@@ -374,7 +430,6 @@ export const Wizard = {
     /* ---- Step: Details ---- */
     step_details() {
       const wrap = el(`<div class="panel"></div>`);
-      wrap.appendChild(el(sectionTitle("Details")));
       const field = (key, label, ph) => {
         const f = el(`<div class="form-field"><label>${label}</label></div>`);
         const inp = key === "name" ? el(`<input type="text" placeholder="${ph}">`) : el(`<textarea rows="2" placeholder="${ph}"></textarea>`);
@@ -422,7 +477,6 @@ export const Wizard = {
     step_review() {
       const c = this.build();
       const wrap = el(`<div></div>`);
-      wrap.appendChild(el(sectionTitle("Review")));
       const a = c.attributes;
       wrap.appendChild(el(`<div class="panel">
         <h3>${esc(c.identity.name || "Unnamed")}</h3>

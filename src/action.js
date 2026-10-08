@@ -27,6 +27,7 @@ export const Action = {
   },
   compute() {
     const route = ($("#screen") && $("#screen").dataset.route) || "home";
+    if (route === "form") return null; // wizard / pre-gen picker: their own Next buttons lead
     const h = this.hero();
     const cs = Combat.load();
     const fight = !!(cs.round && cs.combatants.length);
@@ -90,5 +91,6 @@ export const Action = {
   init() {
     const b = this.btn(); if (!b) return;
     b.addEventListener("click", () => { if (this.cur) this.cur.run(); });
+    window.addEventListener("screen:mounted", () => this.update());
   },
 };

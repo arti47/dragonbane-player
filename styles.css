@@ -2415,6 +2415,67 @@ textarea.ruled { line-height: 1.55rem; padding-top: 6px; background-image: repea
 .rp-btn small { color: var(--ink-soft); font-size: var(--fs-sm); text-align: center; }
 .rp-ic { width: 30px; height: 30px; color: var(--accent-ink); }
 
+/* ================= REDESIGN R2: levels, onboarding, quick hero, wizard ================= */
+body.lvl-standard .adv-only { display: none !important; }
+body.lvl-beginner .std-only { display: none !important; }
+/* Home: three make-tiles + a quiet How to Play link */
+.home-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 4px; }
+.home-empty .illo { width: min(220px, 60vw); height: auto; }
+.he-line { font-family: var(--font-heading); font-size: var(--fs-xl); margin: 4px 0 0; }
+.make-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.make-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 4px 12px; border-radius: var(--r-lg); border: 1px solid color-mix(in srgb, var(--gold) 50%, var(--line));
+  background: var(--card-bg); color: var(--ink); font: inherit; cursor: pointer; box-shadow: 0 2px 6px var(--shadow); min-width: 0; }
+.make-tile b { font-family: var(--font-heading); font-size: var(--fs-lg); line-height: 1.1; }
+.make-tile small { color: var(--ink-soft); font-size: var(--fs-sm); }
+.make-tile .mk-ic { width: 34px; height: 34px; color: var(--accent-ink); }
+.make-tile.primary { background: var(--accent); color: var(--on-accent); border-color: var(--gold-leaf); }
+.make-tile.primary small, .make-tile.primary .mk-ic { color: var(--on-accent); }
+.link-btn { display: inline-flex; align-items: center; gap: 6px; margin: 12px auto 0; padding: 6px 10px; border: none; background: none; color: var(--accent-ink); font: inherit; font-family: var(--font-heading); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+#screen .link-btn { display: flex; }
+.link-btn .ic { width: 18px; height: 18px; }
+.party-cta { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--accent); background: var(--tint-accent); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.party-cta > span { display: flex; flex-direction: column; flex: 1; }
+.party-cta small { color: var(--ink-soft); }
+.party-cta .ic { width: 28px; height: 28px; color: var(--accent-ink); }
+.pc-go { font-size: var(--fs-xl); color: var(--accent-ink); flex: 0 0 auto !important; }
+/* Wizard: one big question per screen */
+.wiz-q { font-family: var(--font-display); font-size: var(--fs-2xl); text-align: center; margin: 10px 0 12px; line-height: 1.2; text-wrap: balance; }
+.wiz-tip { text-align: center; }
+#wiz-body .card-grid > .card { min-height: 92px; }
+#wiz-body .card .card-emb { width: 34px; height: 34px; }
+.sticky-count { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.sc-n { padding: 4px 12px; border-radius: var(--r-pill); background: var(--bg-raised); border: 1px solid var(--line); }
+.sc-n.ok { border-color: var(--ok); color: var(--ok); }
+/* Experience level control */
+.lvl-row { flex-wrap: wrap; }
+.lvl-seg { flex: 1 1 100%; margin-top: 8px; }
+/* First-run flow */
+html.ob-open, html.ob-open body { overflow: hidden; }
+.onboard { position: fixed; inset: 0; z-index: 400; display: flex; justify-content: center; overflow-y: auto; background: var(--bg);
+  background-image: radial-gradient(ellipse at 50% 0%, var(--tint-gold), transparent 60%); padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); }
+.ob-inner { width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 12px; animation: screenIn .25s ease-out; }
+.ob-dots { display: flex; gap: 8px; margin-top: 4px; }
+.ob-dots i { width: 8px; height: 8px; transform: rotate(45deg); background: var(--line); }
+.ob-dots i.on { background: var(--accent); } .ob-dots i.done { background: var(--gold-leaf); }
+.ob-art .illo { width: min(240px, 62vw); height: auto; }
+.ob-q { font-family: var(--font-display); font-size: var(--fs-2xl); text-align: center; margin: 0; line-height: 1.2; text-wrap: balance; }
+.ob-cards { display: grid; gap: 10px; width: 100%; }
+.ob-card { display: grid; grid-template-columns: 52px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; text-align: left; padding: 14px 16px; border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line)); background: var(--card-bg); color: var(--ink); font: inherit; cursor: pointer; box-shadow: 0 2px 8px var(--shadow); }
+.ob-card:hover, .ob-card:focus-visible { border-color: var(--accent); }
+.ob-ic { grid-row: 1 / 3; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-ink); background: var(--tint-accent); }
+.ob-ic .ic { width: 28px; height: 28px; }
+.ob-card b { font-family: var(--font-heading); font-size: var(--fs-xl); }
+.ob-card small { color: var(--ink-soft); font-size: var(--fs-md); }
+.ob-skip { border: none; background: none; color: var(--ink-soft); font: inherit; text-decoration: underline; cursor: pointer; padding: 8px; }
+/* Coach marks */
+.coach-spot { position: fixed; z-index: 380; border-radius: var(--r-md); pointer-events: auto; box-shadow: 0 0 0 9999px color-mix(in srgb, #000 55%, transparent), 0 0 0 2px var(--gold-bright); transition: all .2s ease; }
+.coach-spot.pass { pointer-events: none; }
+.coach-bubble { position: fixed; z-index: 390; padding: 14px 14px 10px; border-radius: var(--r-lg); background: var(--bg-panel); color: var(--ink); border: 1px solid var(--gold-leaf); box-shadow: var(--shadow-lg); }
+.coach-bubble p { margin: 0 0 10px; font-size: var(--fs-lg); line-height: 1.35; }
+.coach-bubble .cb-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.coach-bubble .cb-step { position: absolute; right: 12px; bottom: 12px; font-size: var(--fs-sm); color: var(--ink-soft); }
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }

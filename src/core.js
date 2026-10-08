@@ -16,7 +16,7 @@ export const sectionTitle = (t) => `<div class="section-title"><h2>${esc(t)}</h2
 
 export const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-export const mountScreen = (node) => { const s = $("#screen"); s.innerHTML = ""; s.dataset.route = "form"; node.classList.add("screen-in"); s.appendChild(node); window.scrollTo(0, 0); };
+export const mountScreen = (node) => { const s = $("#screen"); s.innerHTML = ""; s.dataset.route = "form"; node.classList.add("screen-in"); s.appendChild(node); window.scrollTo(0, 0); try { window.dispatchEvent(new Event("screen:mounted")); } catch (_) {} };
 
 // Collapsed "how to use" help accordion for a screen. steps = array of HTML
 // bullet strings (already trusted markup). Returns a <details> DOM node.

@@ -10,7 +10,11 @@ export const Settings = {
     bookOfMagic() { return !!this.get("bookOfMagic"); },
     soloMode() { return !!this.get("soloMode"); },
     gmAutomation() { return !!this.get("gmAutomation"); },
-    gmScreen() { return !!this.get("gmScreen"); }
+    gmScreen() { return !!this.get("gmScreen"); },
+    // Experience level (per device): "beginner" | "standard" | "expert". Devices from
+    // before levels existed keep their old behaviour (beginner flag → beginner, else expert).
+    level() { const l = this.get("level"); if (l === "beginner" || l === "standard" || l === "expert") return l; return this.get("beginner") ? "beginner" : "expert"; },
+    setLevel(l) { const s = this.load(); s.level = l; s.beginner = l === "beginner"; localStorage.setItem(this.KEY, JSON.stringify(s)); }
   };
 
   /* =================================================================

@@ -15,19 +15,14 @@ import { GM } from './gm.js';
 import { icon } from './icons.js';
 import { crest, emblem, illo } from './graphics.js';
 import { renderRuleDetail, rulesScreen } from './library.js';
+import { Coach } from './onboard.js';
 export { renderRuleDetail };
 import { Router } from './router.js';
 
 export function renderPartyBanner() {
     if (typeof Sync === "undefined" || !Sync.enabled) return null;
     if (!Sync.campaign) {
-      const banner = el(`<div class="panel" style="border-left:4px solid var(--accent);background:var(--bg-raised);cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;box-shadow:0 2px 8px var(--tint-shade)">
-        <div>
-          <h3 style="margin:0;color:var(--accent-ink);font-size:var(--fs-lg)">🛡️ Multiplayer Cloud Sync Ready</h3>
-          <p class="stat-line" style="margin:4px 0 0 0;font-size:var(--fs-sm)">You are offline/local. Join or create a party campaign to sync characters and combat live across devices.</p>
-        </div>
-        <button class="btn secondary" style="flex-shrink:0;margin-left:12px">⚡ Join Party</button>
-      </div>`);
+      const banner = el(`<button type="button" class="party-cta">${icon("people", "ic")}<span><b>Play with friends</b><small>Join or start a party</small></span><span class="pc-go" aria-hidden="true">→</span></button>`);
       banner.onclick = () => {
         Router.go("about");
         setTimeout(() => {
@@ -81,22 +76,21 @@ export const Screens = {
     home() {
       const chars = Store.list();
       let body;
+      const makeRow = `
+          <div class="make-row">
+            <button type="button" class="make-tile primary" id="quick-hero">${icon("dice", "ic mk-ic")}<b>Quick hero</b><small>One tap</small></button>
+            <button type="button" class="make-tile" id="use-pregen">${icon("person", "ic mk-ic")}<b>Pre-made</b><small>Core Set</small></button>
+            <button type="button" class="make-tile" id="new-hero">${icon("wand", "ic mk-ic")}<b>Build</b><small>Step by step</small></button>
+          </div>
+          <button type="button" class="link-btn" id="open-tutorial">${icon("book", "ic")} How to Play</button>`;
       if (!chars.length) {
         body = `
           ${sectionTitle("Your heroes")}
-          <div class="panel">
-            <div class="empty">
-              ${illo("campfire")}
-              <div class="big">⚔</div>
-              <h2>No heroes yet</h2>
-              <p class="stat-line">Create a character to begin your adventures in the Misty Vale.<br><b>New to Dragonbane or solo play? Tap 📘 How to Play first.</b></p>
-            </div>
-            <div class="home-actions">
-              <button class="btn block" id="new-hero">Forge a new hero</button>
-              <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
-              <button class="btn ghost block" id="open-tutorial">📘 New here? How to Play</button>
-            </div>
-          </div>`;
+          <div class="home-empty">
+            ${illo("campfire")}
+            <p class="he-line">Make a hero to begin.</p>
+          </div>
+          ${makeRow}`;
       } else {
         const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
         const myChars = inPartyCamp
@@ -144,21 +138,18 @@ export const Screens = {
           ${resume}
           <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
           <div class="fleuron-div" aria-hidden="true"></div>
-          <div class="home-actions">
-            <button class="btn block" id="new-hero">Forge a new hero</button>
-            <button class="btn ghost block" id="use-pregen">Use a pre-generated hero</button>
-            <button class="btn ghost block" id="open-tutorial">📘 How to Play</button>
-          </div>`;
+          ${makeRow}`;
       }
       const root = el(`<div>${body}</div>`);
       root.insertBefore(helpBox("Heroes", [
-        "Tap <b>Forge a new hero</b> to run the character-creation wizard.",
-        "Or <b>Use a pre-generated hero</b> for a ready-made Core Set PC.",
+        "<b>Quick hero</b> rolls a random, rules-legal hero in one tap.",
+        "<b>Pre-made</b> gives you a Core Set hero; <b>Build</b> walks you through every choice.",
         "Tap any hero card to open its full sheet.",
         "In a party campaign, toggle a card's <b>In Party / Private</b> chip to share or hide that hero."
       ]), root.firstChild);
       const pb = renderPartyBanner(); if (pb) root.insertBefore(pb, root.firstChild);
       root.querySelector("#new-hero").addEventListener("click", () => Wizard.start());
+      root.querySelector("#quick-hero").addEventListener("click", () => Wizard.quick());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
       root.querySelector("#open-tutorial")?.addEventListener("click", () => Screens.openTutorial());
       root.querySelector(".resume-card")?.addEventListener("click", (e) => Sheet.open(e.currentTarget.dataset.resume));
@@ -230,11 +221,17 @@ export const Screens = {
         "<b>Export / Import / Clear</b> manage your locally-stored heroes."
       ]), root.firstChild);
       const sp = root.querySelector("#settings-panel");
-      const beg = !!Settings.get("beginner");
-      const row0 = el(`<div class="toggle-row"><div><b>Beginner mode (this device)</b><br><span class="stat-line">Explains every roll in plain words, shows what each combat action does, adds a hint to the game-phase banner, and hides advanced panels (familiar, teacher training, GM automation, permanent WP loss).</span></div></div>`);
-      const tog0 = el(`<button class="toggle ${beg ? "on" : ""}" role="switch" aria-checked="${beg}" id="tog-beginner"><span class="knob"></span></button>`);
-      tog0.onclick = () => { Settings.set("beginner", !Settings.get("beginner")); Table.applyBeginner(); Table.render(); Router.go("about"); };
-      row0.appendChild(tog0); sp.appendChild(row0);
+      const lvl = Settings.level();
+      const row0 = el(`<div class="toggle-row lvl-row"><div><b>Experience</b><br><span class="stat-line">New: plain-words help and only the basics. Some: the basics, no extra help. Veteran: every option.</span></div></div>`);
+      const seg = el(`<div class="seg lvl-seg" role="group" aria-label="Experience level"></div>`);
+      [["beginner", "New"], ["standard", "Some"], ["expert", "Veteran"]].forEach(([k, l]) => {
+        const b = el(`<button type="button" id="lvl-${k}" aria-pressed="${lvl === k}">${l}</button>`);
+        b.onclick = () => { Settings.setLevel(k); Table.applyBeginner(); Table.render(); Router.go("about"); };
+        seg.appendChild(b);
+      });
+      row0.appendChild(seg); sp.appendChild(row0);
+      const tour = el(`<button type="button" class="btn ghost block u-mt2" id="btn-tour">${icon("compass", "ic")} Show me around</button>`);
+      tour.onclick = () => { const h = Store.list()[0]; if (!h) { showToast("Make a hero first — the tour runs on the hero sheet."); return; } Coach.start(); Sheet.open(localStorage.getItem("dragonbane.lastHero") && Store.get(localStorage.getItem("dragonbane.lastHero")) ? localStorage.getItem("dragonbane.lastHero") : h.id); };
       sp.appendChild(el(`<div style="margin-top:10px;border-top:1px solid var(--border)"></div>`));
       const bom = Settings.bookOfMagic();
       const row = el(`<div class="toggle-row"><div><b>Book of Magic content</b><br><span class="stat-line">Adds the 9 new schools &amp; extra spells to the Rules browser and character creation. Revised core spells apply either way.</span></div></div>`);
@@ -265,7 +262,7 @@ export const Screens = {
         const rows = [...sp.querySelectorAll(":scope > .toggle-row")]; // beginner, book of magic, solo, gm automation, gm screen
         sp.querySelectorAll(":scope > div:not(.toggle-row)").forEach((d) => d.remove());
         const [rBeg, rBom, rSolo, rAuto, rGm] = rows;
-        sp.append(rBom, el(`<h3 class="set-h">Play style</h3>`), rBeg, rSolo, rGm, rAuto);
+        sp.append(rBom, el(`<h3 class="set-h">Play style</h3>`), rBeg, tour, rSolo, rGm, rAuto);
         rows.forEach((r) => { r.style.marginTop = ""; r.style.borderTop = ""; r.style.paddingTop = ""; const d = r.querySelector(".stat-line"); if (d) { d.classList.add("tr-desc"); d.onclick = () => d.classList.toggle("open"); } });
       }
 

@@ -15,7 +15,7 @@ module.exports = {
 
     // Beginner mode on (About toggle).
     await nav("about");
-    await page.evaluate(() => document.querySelector("#tog-beginner").click());
+    await page.evaluate(() => document.querySelector("#lvl-beginner").click());
     await page.waitForTimeout(100);
     t.ok("beginner: body class set", await page.evaluate(() => document.body.classList.contains("beginner")));
 

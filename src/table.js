@@ -48,7 +48,7 @@ export const Table = {
   // ---- Where state lives -------------------------------------------------
   synced() { return !!(Sync && Sync.enabled && Sync.db && Sync.campaign); },
   isGm() { return Combat.isGm(); },
-  beginner() { return !!Settings.get("beginner"); },
+  beginner() { return Settings.level() === "beginner"; },
   seen() { try { return JSON.parse(localStorage.getItem(this.SEEN_KEY)) || {}; } catch (_) { return {}; } },
   markSeen(k, v) { const s = this.seen(); s[k] = v; localStorage.setItem(this.SEEN_KEY, JSON.stringify(s)); },
   loadLocal() {
@@ -293,7 +293,11 @@ export const Table = {
     if (success) return `You needed <b>${target} or lower</b> and rolled <b>${used}</b> — it works!`;
     return `You needed <b>${target} or lower</b> but rolled <b>${used}</b> — it doesn't work. You may <b>push</b>: take a condition (it makes rolls with that attribute harder) and roll once more.`;
   },
-  applyBeginner() { document.body.classList.toggle("beginner", this.beginner()); },
+  applyBeginner() {
+    const l = Settings.level();
+    document.body.classList.toggle("beginner", l === "beginner");
+    ["beginner", "standard", "expert"].forEach((k) => document.body.classList.toggle("lvl-" + k, l === k));
+  },
 
   // ---- Foe HP for players: bands instead of numbers ---------------------------
   hideFoeHp(cb) { return cb.kind !== "hero" && !this.isGm(); },

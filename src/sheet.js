@@ -15,6 +15,7 @@ import { Roller } from './roller.js';
 import { Combat } from './combat.js';
 import { Router } from './router.js';
 import { Action } from './action.js';
+import { Coach } from './onboard.js';
 
 export const Sheet = {
     id: null,
@@ -1359,6 +1360,7 @@ export const Sheet = {
       root.querySelector("#sheet-back").onclick = () => { window.activeCharacterId = null; Router.go("home"); };
       this.applyClamps(root);
       Action.update();
+      Coach.maybe();
     },
 
     // Long ability/spell texts collapse to two lines with a "More" toggle
