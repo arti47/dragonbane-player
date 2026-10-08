@@ -30,7 +30,7 @@ module.exports = {
     await page.waitForTimeout(200);
 
     // Go to the Solo tab and drop a generator foe (+ hero) into combat via "Fight it".
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='solo']").click());
+    await page.evaluate(() => window.__go('solo'));
     await page.waitForTimeout(150);
     await page.evaluate(() => { const b = [...document.querySelectorAll("button")].find((x) => /Fight it/.test(x.textContent)); if (b) b.click(); });
     await page.waitForTimeout(200);

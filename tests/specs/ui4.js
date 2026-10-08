@@ -10,7 +10,7 @@ module.exports = {
     const page = await newPage({ soloMode: true }, { width: 390, height: 844 });
     await page.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
     await page.waitForTimeout(200);
-    const nav = async (r) => { await page.evaluate((rt) => document.querySelector(`#app-nav button[data-route='${rt}']`).click(), r); await page.waitForTimeout(150); };
+    const nav = async (r) => { await page.evaluate((rt) => window.__go(rt), r); await page.waitForTimeout(150); };
 
     // Wizard: dropdowns hidden until asked for; live summary; age chips.
     await page.click("#new-hero"); await page.waitForTimeout(150);

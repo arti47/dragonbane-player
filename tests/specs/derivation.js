@@ -13,7 +13,7 @@ module.exports = {
     t.ok("pregens available", count > 0);
 
     for (let i = 0; i < count; i++) {
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click());
+      await page.evaluate(() => window.__go('home'));
       await page.waitForTimeout(120);
       await page.click("#use-pregen");
       await page.waitForTimeout(150);

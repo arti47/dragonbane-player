@@ -46,7 +46,7 @@ module.exports = {
     t.eq("P1: dose consumed after drinking", after.items, 0);
 
     // ---- P4: navigation closes dialogs ----
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='rules']").click()); // nav button → Router.go
+    await page.evaluate(() => window.__go('rules')); // nav button → Router.go
     await page.waitForTimeout(100);
     t.eq("P4: dialogs closed on navigation", await page.evaluate(() => document.querySelectorAll(".modal-back").length), 0);
 

@@ -2354,6 +2354,67 @@ textarea.ruled { line-height: 1.55rem; padding-top: 6px; background-image: repea
 .cb-cond { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); display: inline-flex; align-items: center; gap: 3px; }
 .cb-cond-emb { width: 13px; height: 13px; }
 
+/* ================= REDESIGN R1: four tabs + the context button ================= */
+.app-nav { align-items: stretch; }
+.app-nav button[data-route] { flex: 1 1 0; min-width: 0; }
+.app-nav .ctx-action { flex: 0 0 78px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px;
+  background: none; border: none; padding: 0 0 7px; margin: 0; cursor: pointer; color: var(--accent-ink); font-family: var(--font-heading); font-size: .8rem; font-weight: 600; -webkit-tap-highlight-color: transparent; }
+.app-nav .ctx-action[hidden] { display: flex !important; visibility: hidden; }
+.app-nav .ctx-action .ca-seal { width: 60px; height: 60px; margin-top: -28px; border-radius: 50%; display: grid; place-items: center; color: var(--on-accent);
+  background: radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--accent) 76%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 70%, #000));
+  box-shadow: 0 0 0 2px var(--gold-leaf), 0 0 0 6px var(--bg-panel), 0 6px 14px var(--shadow); transition: transform .12s ease; }
+.app-nav .ctx-action .ca-ic { width: 28px; height: 28px; stroke-width: 2; }
+.app-nav .ctx-action .ca-lbl { max-width: 78px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-nav .ctx-action:active .ca-seal { transform: scale(.94); }
+.app-nav .ctx-action:focus-visible { outline: none; }
+.app-nav .ctx-action:focus-visible .ca-seal { box-shadow: 0 0 0 2px var(--gold-leaf), 0 0 0 6px var(--bg-panel), 0 0 0 9px var(--gold-bright); }
+.app-nav .ctx-action.ca-pop .ca-seal { animation: caPop .32s ease-out; }
+.app-nav .ctx-action.hot .ca-seal { animation: caRing 1.6s ease-out 3; }
+.app-nav .ctx-action .ca-seal { position: relative; }
+.app-nav .ctx-action.ca-pop.hot .ca-seal { animation: caPop .32s ease-out, caRing 1.6s ease-out .3s 3; }
+@keyframes caPop { 0% { transform: scale(.7); } 70% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes caRing { 0% { box-shadow: 0 0 0 2px var(--gold-leaf), 0 0 0 6px var(--bg-panel), 0 6px 14px var(--shadow), 0 0 0 6px color-mix(in srgb, var(--gold-bright) 90%, transparent); }
+  100% { box-shadow: 0 0 0 2px var(--gold-leaf), 0 0 0 6px var(--bg-panel), 0 6px 14px var(--shadow), 0 0 0 20px transparent; } }
+@media (min-width: 1024px) {
+  .app-nav .ctx-action { flex: 0 0 auto; padding: 8px 0 12px; order: 9; margin-top: 8px; }
+  .app-nav .ctx-action .ca-seal { margin-top: 0; width: 56px; height: 56px; }
+}
+/* The context seal is the one red roundel; the active tab is a quiet gilt mark. */
+.app-nav button[data-route].active .ico { width: 44px; height: 28px; border-radius: var(--r-pill); color: var(--accent-ink); background: var(--tint-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold-leaf) 55%, transparent); }
+/* Story/Book mode switch */
+.mode-switch { display: flex; gap: 4px; padding: 4px; margin: 0 0 14px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-pill); }
+.ms-btn { flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border: none; background: none; border-radius: var(--r-pill);
+  font-family: var(--font-heading); font-size: var(--fs-md); color: var(--ink-soft); cursor: pointer; }
+.ms-btn.on { background: var(--accent); color: var(--on-accent); box-shadow: inset 0 0 0 1.5px var(--gold-leaf); }
+.ms-btn.off { opacity: .72; }
+.ms-plus { font-weight: 700; color: var(--accent-ink); }
+.ms-ic { width: 18px; height: 18px; }
+/* Story chooser */
+.sp-cards { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 560px) { .sp-cards { grid-template-columns: 1fr 1fr; } }
+.sp-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 16px; border-radius: var(--r-lg); border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: var(--card-bg); color: var(--ink); cursor: pointer; box-shadow: 0 2px 8px var(--shadow); font: inherit; text-align: center; }
+.sp-card b { font-family: var(--font-heading); font-size: var(--fs-xl); }
+.sp-line { color: var(--ink-soft); font-size: var(--fs-md); }
+.sp-art { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-ink); background: var(--tint-accent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--gold-leaf) 60%, transparent); }
+.sp-ic { width: 40px; height: 40px; }
+/* Roll picker / dice board tiles */
+.dice-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 560px) { .dice-board { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.db-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 8px; min-height: 84px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); cursor: pointer; font: inherit; }
+.db-tile.trained { border-color: color-mix(in srgb, var(--gold-leaf) 70%, var(--line)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold-leaf) 40%, transparent); }
+.db-tile.baned { border-color: var(--bad); }
+.db-tile .db-emb { width: 20px; height: 20px; color: var(--ink-soft); }
+.db-lvl { font-family: var(--font-body); font-variant-numeric: lining-nums tabular-nums; font-size: var(--fs-2xl); line-height: 1; color: var(--accent-ink); }
+.db-name { font-size: var(--fs-sm); line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+/* Rest picker */
+.rest-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rp-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 6px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); font: inherit; cursor: pointer; }
+.rp-btn b { font-family: var(--font-heading); font-size: var(--fs-lg); }
+.rp-btn small { color: var(--ink-soft); font-size: var(--fs-sm); text-align: center; }
+.rp-ic { width: 30px; height: 30px; color: var(--accent-ink); }
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }

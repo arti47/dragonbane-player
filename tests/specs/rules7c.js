@@ -49,7 +49,7 @@ module.exports = {
     t.eq("F15: Giant Octopus Ferocity 4", fero.octopus, 4);
 
     // ---- F15: a Dragon rolls 3 attacks in the combat tracker ----
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='party']")?.click());
+    await page.evaluate(() => window.__go('party'));
     await page.waitForTimeout(200);
     await page.evaluate(() => {
       const monSel = [...document.querySelectorAll("select")].find((s) => [...s.options].some((o) => /Bestiary monster/.test(o.textContent)));

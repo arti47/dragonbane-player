@@ -47,7 +47,7 @@ module.exports = {
 
     // Every tab renders
     for (const r of ["party", "solo", "rules", "about", "home"]) {
-      await page.evaluate((rt) => document.querySelector(`#app-nav button[data-route='${rt}']`)?.click(), r);
+      await page.evaluate((rt) => window.__go(rt), r);
       await page.waitForTimeout(200);
       const ok = await page.evaluate(() => document.querySelector("#screen").children.length > 0);
       t.ok(`tab '${r}' renders`, ok);

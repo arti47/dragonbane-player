@@ -9,7 +9,7 @@ module.exports = {
   async run({ baseURL, newPage, t }) {
     const page = await newPage({}, { width: 390, height: 844 });
     await page.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='rules']").click());
+    await page.evaluate(() => window.__go('rules'));
     await page.waitForTimeout(200);
 
     const s = await page.evaluate(() => {

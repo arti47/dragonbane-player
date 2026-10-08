@@ -31,11 +31,11 @@ module.exports = {
     t.ok("decorative nav icons are aria-hidden", nav.iconsHidden);
 
     // aria-current follows navigation
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='rules']")?.click());
+    await page.evaluate(() => window.__go('rules'));
     await page.waitForTimeout(150);
     const movedCurrent = await page.evaluate(() => document.querySelector("#app-nav button[aria-current='page']")?.dataset.route);
-    t.eq("aria-current moves to the active tab", movedCurrent, "rules");
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click());
+    t.eq("aria-current moves to the active tab (Book group)", movedCurrent, "book");
+    await page.evaluate(() => window.__go('home'));
     await page.waitForTimeout(120);
 
     // --- Open a pregen sheet ---

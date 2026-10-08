@@ -58,14 +58,14 @@ module.exports = {
         await check(`sheet(mage:${tab})`);
       }
       await page.evaluate(() => document.querySelector(".tab[data-tab='overview']")?.click());
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click()); await page.waitForTimeout(100);
+      await page.evaluate(() => window.__go('home')); await page.waitForTimeout(100);
       await page.click("#use-pregen"); await page.waitForTimeout(100);
       await page.evaluate(() => document.querySelectorAll(".card-grid .card")[2]?.click()); await page.waitForTimeout(150);
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click()); await page.waitForTimeout(100);
+      await page.evaluate(() => window.__go('home')); await page.waitForTimeout(100);
       await check("home");
 
       // Combat: add a hero, a monster, a boss NPC, then expand every card
-      await page.evaluate(() => { window._combatAddOpen = true; document.querySelector("#app-nav button[data-route='party']")?.click(); }); await page.waitForTimeout(150);
+      await page.evaluate(() => { window._combatAddOpen = true; window.__go('party'); }); await page.waitForTimeout(150);
       const sel = await page.$(".inv-add select"); if (sel) await sel.selectOption({ index: 1 });
       let sb = await page.$$(".inv-add .btn.secondary"); if (sb[0]) { await sb[0].click(); await page.waitForTimeout(120); }
       let sels = await page.$$(".inv-add select"); if (sels[1]) await sels[1].selectOption({ index: 1 });
@@ -80,26 +80,26 @@ module.exports = {
       await check("combat(expanded)");
 
       // Rules: open all accordions
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='rules']")?.click()); await page.waitForTimeout(150);
+      await page.evaluate(() => window.__go('rules')); await page.waitForTimeout(150);
       await page.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true))); await page.waitForTimeout(200);
       await check("rules(open)");
 
       // Solo + About
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='solo']")?.click()); await page.waitForTimeout(150);
+      await page.evaluate(() => window.__go('solo')); await page.waitForTimeout(150);
       for (const tab of ["play", "prompts", "journey", "foes"]) {
         await page.evaluate((k) => document.querySelector(`.tab[data-tab='${k}']`)?.click(), tab); await page.waitForTimeout(100);
         await check(`solo(${tab})`);
       }
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='about']")?.click()); await page.waitForTimeout(150);
+      await page.evaluate(() => window.__go('about')); await page.waitForTimeout(150);
       await check("about");
 
       // GM screen (party panel + reference tables open)
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='gm']")?.click()); await page.waitForTimeout(150);
+      await page.evaluate(() => window.__go('gm')); await page.waitForTimeout(150);
       await page.evaluate(() => document.querySelectorAll(".screen-gm details").forEach((d) => (d.open = true))); await page.waitForTimeout(150);
       await check("gm-screen");
 
       // Cast modal over the mage sheet
-      await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']")?.click()); await page.waitForTimeout(100);
+      await page.evaluate(() => window.__go('home')); await page.waitForTimeout(100);
       await page.evaluate(() => document.querySelectorAll(".card[data-id]")[0]?.click()); await page.waitForTimeout(200);
       await page.evaluate(() => document.querySelectorAll("details").forEach((d) => { if (/Magic|Spell|Trick/i.test(d.textContent)) d.open = true; }));
       await page.evaluate(() => [...document.querySelectorAll(".cast-btn")][0]?.click());

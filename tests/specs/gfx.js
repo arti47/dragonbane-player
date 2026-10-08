@@ -38,7 +38,7 @@ module.exports = {
     t.eq("wizard: 6 kin emblems on kin cards", await page.evaluate(() => document.querySelectorAll(".card .emb-kin").length), 6);
 
     // Sheet.
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']").click());
+    await page.evaluate(() => window.__go('home'));
     await page.waitForTimeout(100);
     await page.click("#use-pregen"); await page.waitForTimeout(150);
     await page.evaluate(() => document.querySelectorAll(".card-grid .card")[0].click());
@@ -73,20 +73,20 @@ module.exports = {
 
     // Death tokens at 0 HP.
     await page.evaluate(() => { const cs = JSON.parse(localStorage.getItem("dragonbane.characters")); cs[cs.length - 1].state.hp = 0; cs[cs.length - 1].state.deathRolls = { successes: 1, failures: 2 }; localStorage.setItem("dragonbane.characters", JSON.stringify(cs)); });
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']").click()); await page.waitForTimeout(100);
+    await page.evaluate(() => window.__go('home')); await page.waitForTimeout(100);
     await page.evaluate(() => document.querySelectorAll(".card[data-id]")[0].click()); await page.waitForTimeout(250);
     const dr = await page.evaluate(() => ({ s: document.querySelectorAll(".panel.dying .dr-dot.s").length, f: document.querySelectorAll(".panel.dying .dr-dot.f").length, ok: document.querySelectorAll(".panel.dying .dr-dot.s.ok").length, bad: document.querySelectorAll(".panel.dying .dr-dot.f.bad").length }));
     t.ok(`death: 3 hearts + 3 skulls, 1 lit / 2 lit (${JSON.stringify(dr)})`, dr.s === 3 && dr.f === 3 && dr.ok === 1 && dr.bad === 2);
 
     // Combat silhouettes.
-    await page.evaluate(() => { window._combatAddOpen = true; document.querySelector("#app-nav button[data-route='party']").click(); });
+    await page.evaluate(() => { window._combatAddOpen = true; window.__go('party'); });
     await page.waitForTimeout(150);
     await page.evaluate(() => { const s = document.querySelectorAll(".inv-add select")[1]; s.selectedIndex = 1; s.dispatchEvent(new Event("change")); document.querySelectorAll(".inv-add .btn.secondary")[1].click(); });
     await page.waitForTimeout(150);
     t.ok("combat: creature silhouette on the monster card", await page.evaluate(() => !!document.querySelector(".cb-type .emb-creature")));
 
     // Rules: school sigils.
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='rules']").click()); await page.waitForTimeout(120);
+    await page.evaluate(() => window.__go('rules')); await page.waitForTimeout(120);
     await page.evaluate(() => { const d = document.querySelector("details.rule-accordion[data-cat='spells']"); d.open = true; d.dispatchEvent(new Event("toggle")); });
     await page.waitForTimeout(150);
     t.ok("rules: magic schools carry sigils", await page.evaluate(() => document.querySelectorAll(".school-summary .emb-school").length >= 4));

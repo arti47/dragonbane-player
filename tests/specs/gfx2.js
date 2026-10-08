@@ -13,13 +13,13 @@ module.exports = {
     await page.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
     await page.waitForTimeout(200);
     const ev = (f, a) => page.evaluate(f, a);
-    const nav = async (r) => { await ev((rt) => document.querySelector(`#app-nav button[data-route='${rt}']`).click(), r); await page.waitForTimeout(200); };
+    const nav = async (r) => { await ev((rt) => window.__go(rt), r); await page.waitForTimeout(200); };
     const tab = async (k) => { await ev((x) => [...document.querySelectorAll(".tab")].find((b) => b.textContent.trim().toLowerCase().startsWith(x)).click(), k); await page.waitForTimeout(150); };
 
     // Frame
-    const fr = await ev(() => ({ ribbon: getComputedStyle(document.querySelector("#screen .section-title > h2")).clipPath !== "none", chain: getComputedStyle(document.querySelector(".app-nav"), "::before").content !== "none", seal: getComputedStyle(document.querySelector(".app-nav button.active .ico")).borderRadius === "50%" }));
+    const fr = await ev(() => ({ ribbon: getComputedStyle(document.querySelector("#screen .section-title > h2")).clipPath !== "none", chain: getComputedStyle(document.querySelector(".app-nav"), "::before").content !== "none", seal: getComputedStyle(document.querySelector("#ctx-action .ca-seal")).borderRadius === "50%" }));
     t.ok("frame: ribbon screen title", fr.ribbon);
-    t.ok("frame: nav chain edge + wax-seal active item", fr.chain && fr.seal);
+    t.ok("frame: nav chain edge + wax-seal context button", fr.chain && fr.seal);
 
     // Wizard: step emblem + 4D6 faces (six groups of four, lowest struck)
     await page.click("#new-hero"); await page.waitForTimeout(150);

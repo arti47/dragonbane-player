@@ -13,7 +13,7 @@ module.exports = {
 
     // Help button placement on every main screen.
     for (const r of ["home", "party", "solo", "rules", "about"]) {
-      await page.evaluate((rt) => document.querySelector(`#app-nav button[data-route='${rt}']`).click(), r);
+      await page.evaluate((rt) => window.__go(rt), r);
       await page.waitForTimeout(120);
       const ok = await page.evaluate(() => !!document.querySelector("#screen .section-title .help-btn"));
       t.ok(`${r}: help ⓘ in the title row`, ok);
@@ -25,7 +25,7 @@ module.exports = {
     await page.evaluate(() => document.querySelector(".modal-x").click());
 
     // Wizard tap-assign.
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']").click());
+    await page.evaluate(() => window.__go('home'));
     await page.waitForTimeout(100);
     await page.click("#new-hero"); await page.waitForTimeout(150);
     await page.evaluate(() => [...document.querySelectorAll("#screen button")].find((b) => /Roll attributes/.test(b.textContent)).click());
@@ -39,7 +39,7 @@ module.exports = {
     t.ok("wizard: progress bar present", await page.evaluate(() => !!document.querySelector(".wiz-track .wiz-bar i")));
 
     // Sheet mini-bar.
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='home']").click());
+    await page.evaluate(() => window.__go('home'));
     await page.waitForTimeout(100);
     await page.click("#use-pregen"); await page.waitForTimeout(150);
     await page.evaluate(() => document.querySelectorAll(".card-grid .card")[0].click());
@@ -62,7 +62,7 @@ module.exports = {
     await page.evaluate(() => document.querySelector(".modal-x").click());
 
     // Combat ⋯ menu.
-    await page.evaluate(() => { window._combatAddOpen = true; document.querySelector("#app-nav button[data-route='party']").click(); });
+    await page.evaluate(() => { window._combatAddOpen = true; window.__go('party'); });
     await page.waitForTimeout(150);
     await page.evaluate(() => { const s = document.querySelectorAll(".inv-add select")[1]; s.selectedIndex = 1; s.dispatchEvent(new Event("change")); document.querySelectorAll(".inv-add .btn.secondary")[1].click(); });
     await page.waitForTimeout(150);

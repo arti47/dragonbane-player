@@ -105,6 +105,13 @@ export const Combat = {
       });
       s.combatants.push(...extras);
     },
+    nextTurn() { this.guardGm(() => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } })); },
+    // Bring a combatant's card into view, expanded (used by the "Your turn" context button).
+    focusTurn(id) {
+      const card = document.querySelector(`#screen .cb-card[data-cb="${id}"]`); if (!card) return;
+      const body = card.querySelector(".cb-body"); if (body) { body.style.display = "block"; card.classList.add("expanded"); }
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
     ordered(s) { return [...s.combatants].sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init)); },
     // Voluntarily wait / swap turn order: exchange initiative cards with another
     // willing combatant. GM-guarded.
@@ -301,7 +308,7 @@ export const Combat = {
       const drawBtn = el(`<button class="btn ${s.round ? "ghost" : ""}">${s.round ? "Re-draw" : "Draw initiative"}</button>`);
       drawBtn.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); if (!st.round) st.round = 1; }));
       const nextTurn = el(`<button class="btn ${s.round ? "" : "ghost"}">Next turn</button>`);
-      nextTurn.onclick = () => this.guardGm(() => this.mutate((st) => { const ord = this.ordered(st).filter((c) => c.init != null); const cur = ord.find((c) => !c.done); if (cur) { const ref = st.combatants.find((c) => c.id === cur.id); ref.done = true; } }));
+      nextTurn.onclick = () => this.nextTurn();
       const nextRound = el(`<button class="btn secondary">Next round</button>`);
       nextRound.onclick = () => this.guardGm(() => this.mutate((st) => { this.draw(st); st.round = (st.round || 0) + 1; st.combatants.forEach(c => { c.done = false; c.acted = false; }); }));
       const resetTurns = el(`<button class="btn ghost">Reset Turns</button>`);
@@ -345,7 +352,7 @@ export const Combat = {
         const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0 && !isDyingHero);
         const heroC = cb.kind === "hero" && cb.charId ? Store.get(cb.charId) : null;
         const condChips = heroC ? (DB.conditions || []).filter((k) => heroC.state && heroC.state.conditions && heroC.state.conditions[k.key]).map((k) => `<span class="tag cb-cond" title="${esc(k.name)}: bane on ${esc(k.attribute)} rolls">${emblem("cond", k.key, "emb cb-cond-emb")}${esc(k.name)}</span>`).join("") : "";
-        const card = el(`<div class="panel cb-card ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""} ${isDefeated ? "defeated" : ""}" style="margin:0;padding:0;overflow:hidden"></div>`);
+        const card = el(`<div data-cb="${esc(cb.id)}" class="panel cb-card ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""} ${isDefeated ? "defeated" : ""}" style="margin:0;padding:0;overflow:hidden"></div>`);
         
         const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:var(--tint-shade)" : ""}">
           <div style="display:flex;align-items:center;gap:10px;width:100%">

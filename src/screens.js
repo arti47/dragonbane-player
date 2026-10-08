@@ -181,6 +181,24 @@ export const Screens = {
 
     party() { return Combat.view(); },
 
+    // Story tab with neither Solo nor the GM screen switched on: pick how you play.
+    story() {
+      const root = el(`<div class="story-pick">${sectionTitle("Story")}<div class="sp-cards"></div></div>`);
+      const cards = root.querySelector(".sp-cards");
+      [["solo", "soloMode", "compass", "Play solo", "The app answers your questions as the world."],
+       ["gm", "gmScreen", "dice", "Run the table", "You are the GM: party, phases, monsters."]].forEach(([r, key, ic, title, line]) => {
+        const b = el(`<button type="button" class="sp-card" data-mode="${r}"><span class="sp-art" aria-hidden="true">${icon(ic, "ic sp-ic")}</span><b>${title}</b><span class="sp-line">${line}</span></button>`);
+        b.onclick = () => { Settings.set(key, true); Router.go(r); };
+        cards.appendChild(b);
+      });
+      if (Table.synced() || Table.log.length) {
+        const lg = el(`<button type="button" class="btn ghost block u-mt3">📜 Party roll log</button>`);
+        lg.onclick = () => Table.openLog();
+        root.appendChild(lg);
+      }
+      return root;
+    },
+
     rules() { return rulesScreen(); },
 
     about() {

@@ -39,6 +39,8 @@ async function newPage(browser, settings, viewport) {
   await page.route("**/firebasejs/**", (r) => r.abort());
   // Suppress the one-time welcome popup so it never intercepts test interactions.
   await page.addInitScript(() => { try { localStorage.setItem("dragonbane.welcomed", "1"); } catch (_) {} });
+  // Navigate like the app does internally (Router listens for db:go) — tabs are grouped now.
+  await page.addInitScript(() => { window.__go = (r) => document.dispatchEvent(new CustomEvent("db:go", { detail: r })); });
   if (settings) await page.addInitScript((s) => localStorage.setItem("dragonbane.settings", JSON.stringify(s)), settings);
   page._errors = errors;
   return page;

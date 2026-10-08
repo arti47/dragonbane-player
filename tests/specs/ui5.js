@@ -12,7 +12,7 @@ module.exports = {
     const page = await newPage({ soloMode: true, gmAutomation: true, gmScreen: true }, { width: 390, height: 844 });
     await page.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
     await page.waitForTimeout(200);
-    const nav = async (r) => { await page.evaluate((rt) => document.querySelector(`#app-nav button[data-route='${rt}']`).click(), r); await page.waitForTimeout(200); };
+    const nav = async (r) => { await page.evaluate((rt) => window.__go(rt), r); await page.waitForTimeout(200); };
     const tab = async (k) => { await page.evaluate((x) => document.querySelector(`.tab[data-tab='${x}']`).click(), k); await page.waitForTimeout(150); };
 
     // Slash glyph comes from the EB Garamond "Fell Digits" face.

@@ -12,7 +12,7 @@ const path = require("path");
 const serve = require("./serve");
 const { launch } = require("./browser");
 
-const SPECS = ["smoke", "spillage", "derivation", "cast", "inventory", "a11y", "gm", "rules7c", "playtest", "playfix", "ui2", "ui3", "gfx", "rules-lib", "table", "ui4", "ui5", "gfx2", "links"];
+const SPECS = ["smoke", "spillage", "derivation", "cast", "inventory", "a11y", "gm", "rules7c", "playtest", "playfix", "ui2", "ui3", "gfx", "rules-lib", "table", "ui4", "ui5", "gfx2", "links", "redesign"];
 
 function recorder() {
   const r = { pass: 0, fail: 0, fails: [] };

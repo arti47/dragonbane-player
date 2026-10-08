@@ -36,7 +36,7 @@ module.exports = {
     await page.emulateMedia({ media: "screen" });
 
     // Themed selects everywhere.
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='party']").click());
+    await page.evaluate(() => window.__go('party'));
     await page.waitForTimeout(150);
     const native = await page.evaluate(() => [...document.querySelectorAll("select")].filter((s) => getComputedStyle(s).appearance !== "none").length);
     t.eq("selects: none use native appearance", native, 0);
@@ -45,7 +45,7 @@ module.exports = {
     await page.evaluate(() => { const s = document.querySelectorAll(".inv-add select")[1]; s.selectedIndex = 1; s.dispatchEvent(new Event("change")); document.querySelectorAll(".inv-add .btn.secondary")[1].click(); });
     await page.waitForTimeout(200);
     t.ok("badge: gold dot on Combat while a round runs", await page.evaluate(() => !!document.querySelector("#app-nav button[data-route='party'] .nav-dot.round")));
-    await page.evaluate(() => { const cs = JSON.parse(localStorage.getItem("dragonbane.characters")); cs[cs.length - 1].state.hp = 0; localStorage.setItem("dragonbane.characters", JSON.stringify(cs)); document.querySelector("#app-nav button[data-route='home']").click(); });
+    await page.evaluate(() => { const cs = JSON.parse(localStorage.getItem("dragonbane.characters")); cs[cs.length - 1].state.hp = 0; localStorage.setItem("dragonbane.characters", JSON.stringify(cs)); window.__go('home'); });
     await page.waitForTimeout(150);
     const dying = await page.evaluate(() => { const b = document.querySelector("#app-nav button[data-route='home']"); return { dot: !!b.querySelector(".nav-dot.dying"), label: b.getAttribute("aria-label") || "" }; });
     t.ok("badge: red dot on Heroes when a hero is dying", dying.dot);

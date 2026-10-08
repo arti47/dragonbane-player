@@ -14,6 +14,7 @@ import { SpellAutomation } from './spell-automation.js';
 import { Roller } from './roller.js';
 import { Combat } from './combat.js';
 import { Router } from './router.js';
+import { Action } from './action.js';
 
 export const Sheet = {
     id: null,
@@ -1357,6 +1358,7 @@ export const Sheet = {
       s.appendChild(root); window.scrollTo(0, y);
       root.querySelector("#sheet-back").onclick = () => { window.activeCharacterId = null; Router.go("home"); };
       this.applyClamps(root);
+      Action.update();
     },
 
     // Long ability/spell texts collapse to two lines with a "More" toggle

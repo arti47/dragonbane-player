@@ -21,17 +21,16 @@ module.exports = {
     t.eq("Leaving-the-site table (D6)", data.site, 6);
 
     // GM tab is visible when the setting is on
-    const navVisible = await page.evaluate(() => {
-      const b = document.querySelector("#app-nav button[data-route='gm']");
-      return b && getComputedStyle(b).display !== "none";
-    });
-    t.ok("GM nav tab visible when enabled", navVisible);
+    await page.evaluate(() => window.__go("story")); await page.waitForTimeout(200);
+    const navVisible = await page.evaluate(() => { const b = document.querySelector(".mode-switch [data-mode='gm']"); return !!b && !b.classList.contains("off"); });
+    t.ok("GM mode available on the Story tab when enabled", navVisible);
+    await page.evaluate(() => window.__go("home")); await page.waitForTimeout(150);
 
     // Create a hero, then open the GM screen
     await page.click("#use-pregen"); await page.waitForTimeout(200);
     await page.evaluate(() => document.querySelectorAll(".card-grid .card")[0]?.click());
     await page.waitForTimeout(300);
-    await page.evaluate(() => document.querySelector("#app-nav button[data-route='gm']")?.click());
+    await page.evaluate(() => window.__go('gm'));
     await page.waitForTimeout(250);
 
     const screen = await page.evaluate(() => {
@@ -89,11 +88,8 @@ module.exports = {
     const page2 = await newPage({});
     await page2.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
     await page2.waitForTimeout(300);
-    const hidden = await page2.evaluate(() => {
-      const b = document.querySelector("#app-nav button[data-route='gm']");
-      return b && getComputedStyle(b).display === "none";
-    });
-    t.ok("GM tab hidden when disabled", hidden);
+    const hidden = await page2.evaluate(async () => { window.__go("gm"); await new Promise((r) => setTimeout(r, 200)); return document.querySelector("#screen").dataset.route !== "gm" && !document.querySelector(".screen-gm"); });
+    t.ok("GM screen not reachable when disabled", hidden);
     await page2.close();
 
     t.ok(`no JS page errors (${page._errors.length})`, page._errors.length === 0);

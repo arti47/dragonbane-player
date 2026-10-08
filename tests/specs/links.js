@@ -11,7 +11,7 @@ module.exports = {
     await page.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
     await page.waitForTimeout(200);
     const ev = (f, a) => page.evaluate(f, a);
-    const nav = async (r) => { await ev((rt) => document.querySelector(`#app-nav button[data-route='${rt}']`).click(), r); await page.waitForTimeout(200); };
+    const nav = async (r) => { await ev((rt) => window.__go(rt), r); await page.waitForTimeout(200); };
 
     // Knight pre-gen with Plate Armor + Great Helm worn.
     await page.click("#use-pregen"); await page.waitForTimeout(150);
