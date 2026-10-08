@@ -3,7 +3,7 @@
 import { $, DB, Dice, MAGICX, el, esc, uid } from './core.js';
 import { normName } from './rules.js';
 import { confirmModal, modal, showToast } from './ui.js';
-import { effHpMax, effWpMax, equippedArmor } from './derived.js';
+import { damageHero, effHpMax, effWpMax, equippedArmor } from './derived.js';
 import { Magic } from './settings.js';
 import { Store } from './store.js';
 import { Roller } from './roller.js';
@@ -147,13 +147,17 @@ export const SpellAutomation = {
       const applyHp = (t, delta) => {
         if (!t) return;
         if (t.isChar) {
-          Store.update(t.charId, ch => { const mx = effHpMax(ch); ch.state.hp = Math.max(0, Math.min(mx, (ch.state.hp || 0) + delta)); if (delta > 0 && ch.state.hp > 0) { ch.state.dying = false; ch.state.deathRolls = { successes: 0, failures: 0 }; } });
+          Store.update(t.charId, ch => { const mx = effHpMax(ch); if (delta < 0) damageHero(ch, -delta); else ch.state.hp = Math.max(0, Math.min(mx, (ch.state.hp || 0) + delta)); if (delta > 0 && ch.state.hp > 0) { ch.state.dying = false; ch.state.deathRolls = { successes: 0, failures: 0 }; } });
           const syncCb = combs.find(x => x.charId === t.charId); if (syncCb) syncCb.hp = Store.get(t.charId).state.hp;
           Roller.refresh(t.charId);
         } else {
-          t.cb.hp = Math.max(0, Math.min(t.cb.maxHp || 9999, (t.cb.hp || 0) + delta));
-          if (t.cb.hp === 0) t.cb.defeated = true;
-          if (t.cb.charId && Store.get(t.cb.charId)) { Store.update(t.cb.charId, ch => { ch.state.hp = t.cb.hp; }); Roller.refresh(t.cb.charId); }
+          if (t.cb.charId && Store.get(t.cb.charId)) {
+            const ch = Store.update(t.cb.charId, ch => { if (delta < 0) damageHero(ch, -delta); else { ch.state.hp = Math.max(0, Math.min(effHpMax(ch), (ch.state.hp || 0) + delta)); if (ch.state.hp > 0) ch.state.deathRolls = { successes: 0, failures: 0 }; } });
+            t.cb.hp = ch.state.hp; Roller.refresh(t.cb.charId);
+          } else {
+            t.cb.hp = Math.max(0, Math.min(t.cb.maxHp || 9999, (t.cb.hp || 0) + delta));
+            if (t.cb.hp === 0) t.cb.defeated = true;
+          }
         }
         Combat.save(cd); Combat.rerender();
       };

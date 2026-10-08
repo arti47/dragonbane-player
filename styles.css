@@ -2350,6 +2350,10 @@ textarea.ruled { line-height: 1.55rem; padding-top: 6px; background-image: repea
 }
 @media print { .mantling, .motto, .vital-emb, .cast-sigil, .coin-stack, .cb-art, .rose-art, .foe-art, .app-nav::before, #screen::after { display: none !important; } }
 
+/* Hero conditions on the combat card */
+.cb-cond { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); display: inline-flex; align-items: center; gap: 3px; }
+.cb-cond-emb { width: 13px; height: 13px; }
+
 /* ================= PRINT: parchment character sheet ================= */
 @media print {
   @page { margin: 12mm; }

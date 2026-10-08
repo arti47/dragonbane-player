@@ -2,10 +2,10 @@
    See CLAUDE.md §5 for the module map. */
 import { Table } from './table.js';
 import { cardPips, creatureType, crest, emblem, hourglass, illo } from './graphics.js';
-import { $, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
+import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { resolveEquippedWeapons } from './rules.js';
-import { effHpMax, effWpMax, equippedArmor } from './derived.js';
+import { damageHero, effHpMax, effWpMax, heroArmor } from './derived.js';
 import { Settings } from './settings.js';
 import { Store } from './store.js';
 import { Sync } from './sync.js';
@@ -225,11 +225,10 @@ export const Combat = {
         add.onclick = () => {
           if (!sel.value) return; const h = Store.get(sel.value);
           window._combatAddSelections.hero = "";
-          const hArmor = equippedArmor(h);
           this.mutate((st) => st.combatants.push({
             id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false,
             hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h),
-            armor: hArmor ? hArmor.rating : 0
+            armor: heroArmor(h)
           }));
         };
         heroRow.append(sel, add); addPanel.appendChild(heroRow);
@@ -344,6 +343,8 @@ export const Combat = {
         const isCur = cb.id === currentId;
         const isDyingHero = cb.kind === "hero" && cb.hp != null && cb.hp <= 0 && !cb.defeated;
         const isDefeated = cb.defeated || (cb.hp != null && cb.hp <= 0 && !isDyingHero);
+        const heroC = cb.kind === "hero" && cb.charId ? Store.get(cb.charId) : null;
+        const condChips = heroC ? (DB.conditions || []).filter((k) => heroC.state && heroC.state.conditions && heroC.state.conditions[k.key]).map((k) => `<span class="tag cb-cond" title="${esc(k.name)}: bane on ${esc(k.attribute)} rolls">${emblem("cond", k.key, "emb cb-cond-emb")}${esc(k.name)}</span>`).join("") : "";
         const card = el(`<div class="panel cb-card ${isCur ? "current" : ""} ${cb.done || cb.acted ? "done" : ""} ${isDefeated ? "defeated" : ""}" style="margin:0;padding:0;overflow:hidden"></div>`);
         
         const head = el(`<div class="combat-row" style="display:flex;flex-direction:column;padding:10px 12px;cursor:pointer;gap:8px;${isDefeated ? "text-decoration:line-through;background:var(--tint-shade)" : ""}">
@@ -358,6 +359,7 @@ export const Combat = {
             ${isCur && !isDefeated ? '<span class="tag" style="background:var(--accent);color:var(--on-accent);border-color:var(--accent)">now</span>' : ""}
             ${isDefeated ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">💀 DEFEATED</span>' : ""}
             ${isDyingHero ? '<span class="tag" style="background:var(--bad-fill);color:var(--on-fill)">🩸 DYING (0 HP)</span>' : ""}
+            ${condChips}
             <div class="quick-attacks" style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end"></div>
             <span class="cb-hp${Table.hideFoeHp(cb) ? " cb-band" : ""}" style="font-weight:bold;font-size:var(--fs-lg);color:${isDefeated || isDyingHero ? "var(--bad)" : "inherit"};padding-left:4px">${cb.hp != null ? (Table.hideFoeHp(cb) ? esc(Table.band(cb)) : `HP ${cb.hp}/${cb.maxHp || cb.hp}`) : ""}</span>
           </div>
@@ -456,7 +458,8 @@ export const Combat = {
               ref.defeated = ref.hp === 0 && ref.kind !== "hero";
               cb.hp = ref.hp; cb.defeated = ref.defeated;
               this.save(st);
-              if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { ch.state.hp = ref.hp; });
+              // A hero already at 0 HP who takes damage fails a death roll (same as the sheet's − button).
+              if (ref.kind === "hero" && ref.charId) Store.update(ref.charId, ch => { if (d < 0) { if (prev <= 0) damageHero(ch, 1); else ch.state.hp = ref.hp; } else { ch.state.hp = ref.hp; if (ref.hp > 0) { ch.state.deathRolls = { successes: 0, failures: 0 }; ch.state.rallied = false; } } });
               hpSpan.textContent = `${cb.hp} / ${cb.maxHp || cb.hp}`;
               const hs = head.querySelector(".cb-hp"); if (hs) hs.textContent = `HP ${cb.hp}/${cb.maxHp || cb.hp}`;
               const bar = head.querySelector(".hpbar"); if (bar) { const pct = Math.max(0, Math.min(100, (cb.hp / (cb.maxHp || 1)) * 100)); bar.className = `hpbar ${pct > 50 ? "hi" : pct > 25 ? "mid" : ""}`; bar.firstChild.style.setProperty("--pct", pct + "%"); }

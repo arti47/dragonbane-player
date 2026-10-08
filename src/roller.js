@@ -5,7 +5,7 @@ import { $, CONDITION_BY_MISHAP, DB, Dice, MISHAPS, el, esc } from './core.js';
 import { modal, showToast } from './ui.js';
 import { d20Svg, dieFaces, emblem, momentArt } from './graphics.js';
 import { resolveCanonicalSpell, resolveEquippedWeapons } from './rules.js';
-import { applyInvoluntaryConditionTo, armorBanedSkills, effWpMax, equippedArmor, equippedHelmet, normalizeInventory } from './derived.js';
+import { applyInvoluntaryConditionTo, armorBanedSkills, damageHero, effWpMax, equippedArmor, equippedHelmet, normalizeInventory } from './derived.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
 import { SpellAutomation } from './spell-automation.js';
@@ -122,7 +122,8 @@ export const Roller = {
 
     renderDamageApplier(attackerCombatantId, rawDamage, defaultIgnoreArmor = false, noAdvance = false) {
       const cst = Combat.load() || { combatants: [] };
-      const targets = (cst.combatants || []).filter(cb => cb.id !== attackerCombatantId && !cb.defeated && (cb.hp == null || cb.hp > 0));
+      // Downed heroes stay targetable: a hit while at 0 HP is a failed death roll.
+      const targets = (cst.combatants || []).filter(cb => cb.id !== attackerCombatantId && !cb.defeated && (cb.hp == null || cb.hp > 0 || cb.kind === "hero"));
       if (!targets.length) return el(`<p class="stat-line" style="color:var(--muted);margin-top:12px">💡 No active opponent targets in combat tracker. (Add monsters or NPCs in the <b>Combat</b> tab to apply damage directly to their HP)</p>`);
 
       const wrap = el(`<div style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--ok);border-radius:var(--r-md);box-shadow:0 2px 8px var(--tint-shade)"></div>`);
@@ -153,10 +154,13 @@ export const Roller = {
         const netDmg = Math.max(0, rawDamage - armSub);
         
         if (tgt.hp != null) {
-          tgt.hp = Math.max(0, tgt.hp - netDmg);
-          if (tgt.hp === 0 && tgt.kind !== "hero") tgt.defeated = true;
-          if (tgt.kind === "hero" && tgt.charId) {
-            Store.update(tgt.charId, ch => { ch.state.hp = tgt.hp; });
+          if (tgt.kind === "hero" && tgt.charId && Store.get(tgt.charId)) {
+            // Damage while at 0 HP = a failed death roll (rule); otherwise reduce HP.
+            const ch = Store.update(tgt.charId, ch => { damageHero(ch, netDmg); });
+            tgt.hp = ch.state.hp;
+          } else {
+            tgt.hp = Math.max(0, tgt.hp - netDmg);
+            if (tgt.hp === 0 && tgt.kind !== "hero") tgt.defeated = true;
           }
         } else {
           tgt.hp = 0; tgt.defeated = true;

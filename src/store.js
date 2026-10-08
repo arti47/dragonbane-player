@@ -4,13 +4,17 @@ import { showToast } from './ui.js';
 import { Settings } from './settings.js';
 import { Sync } from './sync.js';
 import { Combat } from './combat.js';
+import { effHpMax, effWpMax, heroArmor } from './derived.js';
 
 export function syncCharToCombat(c) {
     if (typeof Combat !== "undefined" && c) {
       const cs = Combat.load();
       const cb = cs.combatants?.find(x => x.charId === c.id);
-      if (cb && (cb.hp !== c.state?.hp || cb.wp !== c.state?.wp)) {
-        cb.hp = c.state?.hp; cb.wp = c.state?.wp;
+      if (!cb) return;
+      // The hero's combat card mirrors the sheet: vitals, max pools, worn armor (body + helmet) and name.
+      const want = { hp: c.state?.hp, wp: c.state?.wp, maxHp: effHpMax(c), maxWp: effWpMax(c), armor: heroArmor(c), name: c.identity?.name || cb.name };
+      if (Object.keys(want).some((k) => cb[k] !== want[k])) {
+        Object.assign(cb, want);
         if (cb.hp > 0) cb.defeated = false;
         Combat.save(cs);
       }
@@ -79,6 +83,7 @@ export const Store = {
     remove(id) {
       const c = this.get(id);
       this.save(this.list().filter((x) => x.id !== id));
+      if (typeof Combat !== "undefined") { const cs = Combat.load(); if ((cs.combatants || []).some((x) => x.charId === id)) { cs.combatants = cs.combatants.filter((x) => x.charId !== id); Combat.save(cs); } }
       if (typeof Sync !== "undefined" && Sync.enabled && c?.campaignId) Sync.removeChar(id);
     },
     // Wipe locally-stored heroes and the local combat tracker (keeps theme,

@@ -5,7 +5,7 @@ import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
 import { Store } from './store.js';
-import { applyInvoluntaryConditionTo, effHpMax, effWpMax, equippedArmor } from './derived.js';
+import { applyInvoluntaryConditionTo, effHpMax, effWpMax, heroArmor } from './derived.js';
 import { Roller } from './roller.js';
 import { Combat } from './combat.js';
 import { Sheet } from './sheet.js';
@@ -454,8 +454,8 @@ export const SoloMode = {
         Combat.mutate(st => {
           st.combatants.push(foe);
           if (linked && !st.combatants.some(c => c.charId === linked.id)) {
-            const h = Store.get(linked.id); const arm = equippedArmor(h);
-            st.combatants.push({ id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false, hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h), armor: arm ? arm.rating : 0 });
+            const h = Store.get(linked.id);
+            st.combatants.push({ id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false, hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h), armor: heroArmor(h) });
           }
         });
         showToast(`Fight on — ${foe.name}${linked ? " vs " + linked.identity.name : ""}!`, "success");

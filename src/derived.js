@@ -111,6 +111,18 @@ export const encUsed = (c) => {
 export function equippedArmor(c) { const it = (c.inventory.items || []).find((x) => x.equipped && classifyItem(x.name) === "armor"); return it ? resolveArmorItem(it.name) : null; }
 
 export function equippedHelmet(c) { const it = (c.inventory.items || []).find((x) => x.equipped && classifyItem(x.name) === "helmet"); return it ? resolveHelmetItem(it.name) : null; }
+
+/** Total armor rating a hero wears: body armor + helmet (the helmet's rating adds to the armor's). */
+export function heroArmor(c) { if (!c || !c.inventory) return 0; const a = equippedArmor(c), h = equippedHelmet(c); return (a ? a.rating || 0 : 0) + (h ? h.rating || 0 : 0); }
+
+/** Apply `net` damage to a character in place. At 0 HP, taking damage counts as one failed death roll (HP stays 0). */
+export function damageHero(ch, net) {
+  if (!ch || !ch.state || !(net > 0)) return;
+  if ((ch.state.hp || 0) <= 0) {
+    const dr = ch.state.deathRolls || (ch.state.deathRolls = { successes: 0, failures: 0 });
+    dr.failures = Math.min(3, (dr.failures || 0) + 1);
+  } else ch.state.hp = Math.max(0, ch.state.hp - net);
+}
   // Skills currently baned by worn armor + helmet (e.g. Plate → Acrobatics/Evade/Sneaking).
 
 export function armorBanedSkills(c) {

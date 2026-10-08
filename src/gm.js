@@ -10,7 +10,7 @@ import { Store } from './store.js';
 import { Sync } from './sync.js';
 import { Settings } from './settings.js';
 import { modal, showToast, promptModal, confirmModal } from './ui.js';
-import { applyInvoluntaryConditionTo, effHpMax, effWpMax } from './derived.js';
+import { applyInvoluntaryConditionTo, damageHero, effHpMax, effWpMax } from './derived.js';
 import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
 import { Table, PHASES } from './table.js';
@@ -242,7 +242,7 @@ export const GM = {
       promptModal(`Damage to deal to ${c.identity.name}?`, { title: "Deal damage", inputType: "number", placeholder: "HP", okText: "Apply" }).then((raw) => {
         if (raw == null) return;
         const n = parseInt(raw, 10); if (isNaN(n) || n <= 0) return;
-        Store.update(id, (ch) => { ch.state.hp = Math.max(0, (ch.state.hp || 0) - n); });
+        Store.update(id, (ch) => { damageHero(ch, n); }); // at 0 HP this is a failed death roll
         showToast(`${c.identity.name} takes ${n} damage.`, "warn");
         this.refresh();
       });
