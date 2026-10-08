@@ -3,7 +3,9 @@
    highlighting, a sticky open-category header and a back-to-top button.
    Guide text is the original wording, only re-laid out as steps/lists. */
 import { CORE_SCHOOLS, DB, MAGICX, el, esc, helpBox, sectionTitle } from './core.js';
-import { Magic } from './settings.js';
+import { Calc, findHeroicAbility, resolveCanonicalSpell } from './rules.js';
+import { Magic, Settings } from './settings.js';
+import { GM } from './gm.js';
 import { icon } from './icons.js';
 import { emblem, illo, itemGlyph } from './graphics.js';
 
@@ -21,75 +23,75 @@ const d6 = (rows) => `<div class="d6-list">${rows.map(([n, x]) => `<p class="d6-
 
 // ---- Guides ----------------------------------------------------------------
 function howToPlay() {
-  const intro = `<p class="rl-intro">Combined rules primer + how to drive this app. Nav tabs: <b>⚔ Heroes</b>, <b>🛡 Combat</b>, <b>🧭 Solo</b> (when enabled), <b>🎲 GM</b> (when enabled), <b>📖 Rules</b>, <b>⚙ About</b>.</p>`;
+  const intro = `<p class="rl-intro">Combined rules primer + how to drive this app. Four tabs: <b>Hero</b> (your heroes and sheet), <b>Fight</b> (initiative and combat), <b>Story</b> (Solo or GM), <b>Book</b> (these rules + Settings). The round seal in the middle always shows your next move.</p>`;
   const first = entry("🎬 Your first session — Start → Keep playing → End well", "",
     block("START.", steps([
-      ["①", `On <b>⚔ Heroes</b>, tap <b>Forge a new hero</b> (or <b>Use a pre-generated hero</b> to skip creation).`],
-      ["②", `Choose how you'll play. <b>With friends:</b> one person opens <b>⚙ About → Create campaign</b> and shares the join code; everyone else taps <b>Join</b>. <b>Solo (no GM):</b> About → turn on <b>Solo Mode</b>, open the <b>🧭 Solo</b> tab, and pick your hero under <b>🎲 Rolling as</b>.`],
-      ["③", `Set the opening <b>scene</b> — where you are and your goal (group: the GM says it aloud; solo: type it in the Solo <b>Journal</b>).`],
+      ["①", `On <b>Hero</b>, tap <b>Quick hero</b> (one tap), <b>Pre-made</b> (a Core Set hero) or <b>Build</b> (step by step).`],
+      ["②", `Choose how you'll play. <b>With friends:</b> one person opens <b>Book → Settings → Play with friends</b>, creates a campaign and shares the join code; everyone else joins. <b>Solo (no GM):</b> open <b>Story → Solo</b> and pick your hero under <b>Rolling as</b>.`],
+      ["③", `Set the opening <b>scene</b> — where you are and your goal (group: the GM says it aloud; solo: write it in the <b>Scene</b> box).`],
     ])) +
     block("KEEP PLAYING — repeat this each scene:", steps([
-      ["④", `Decide what happens: the <b>GM</b> narrates, or (solo) tap the <b>Fortune Chart</b> oracle for a yes/no answer.`],
-      ["⑤", `<b>Act:</b> open your sheet and tap a <b>skill</b> to roll <b>D20 ≤ its level</b>. Miss? <b>Push</b> (take a Condition and re-roll) or (solo) <b>🎲 Fail forward</b>.`],
-      ["⑥", `<b>Fights</b> run on the <b>🛡 Combat</b> tab: add foes, <b>Draw initiative</b>, then attack/cast and apply damage.`],
-      ["⑦", `<b>Recover</b> with the sheet's <b>Rest</b> buttons (Round / Stretch / Shift).`],
-      ["⑧", `Keep notes in the <b>Journal</b> / Notes and track open questions as <b>🧵 Threads</b>.`],
+      ["④", `Decide what happens: the <b>GM</b> narrates, or (solo) tap <b>Ask</b> for the oracle's answer.`],
+      ["⑤", `<b>Act:</b> tap a <b>skill tile</b> (or the seal → <b>Roll</b>) to roll <b>D20 ≤ its level</b>. Miss? <b>Push</b> (take a Condition and re-roll) or (solo) <b>🎲 Fail forward</b>.`],
+      ["⑥", `<b>Fights</b> run on <b>Fight</b>: add foes from the drawer, then on your card choose <b>Attack · Cast · Move · Other</b> and <b>End turn</b>.`],
+      ["⑦", `<b>Recover</b> with the sheet's <b>Rest</b> button (Round / Stretch / Shift).`],
+      ["⑧", `Keep notes on the sheet's <b>Story</b> tab, and (solo) track open questions as <b>🧵 Threads</b>.`],
     ])) +
     block("END WELL.", steps([
-      ["⑨", `At a good stopping point, on the sheet tap <b>End session — advancement</b>: answer the 5 questions, then roll each marked skill to try to improve it.`],
+      ["⑨", `At a good stopping point, on the <b>Skills</b> tab tap <b>End session — advancement</b>: answer the 5 questions, then roll each marked skill to try to improve it.`],
       ["⑩", `<b>Solo:</b> when a mission is complete, tap <b>🏅 Mission +5</b> instead.`],
-      ["⑪", `Progress saves automatically (and syncs in a campaign; use <b>About → Export</b> for a backup).`],
-      ["⑫", `Jot the <b>next scene</b> in your journal so you can pick up easily next time.`],
+      ["⑪", `Progress saves automatically (and syncs in a campaign; use <b>Settings → Advanced → Export</b> for a backup).`],
+      ["⑫", `Jot the <b>next scene</b> in your notes so you can pick up easily next time.`],
     ])), { open: true, cls: "rl-guide" });
   const setup = entry("① Setup &amp; storage", "", ul([
     `The app runs offline in <b>Local</b> mode (top-right pill) — no login.`,
-    `For a shared party, tap the pill or <b>About → Multiplayer</b> to <b>create a campaign</b> (get a join code) or <b>join</b> one.`,
-    `Optional Google link in About backs up across devices.`,
-    `Content toggles in About: <b>Book of Magic</b>, <b>Solo Mode</b>, <b>GM Automation</b>, <b>GM Screen</b>.`,
+    `For a shared party, tap the pill or <b>Settings → Play with friends</b> to <b>create a campaign</b> (get a join code) or <b>join</b> one.`,
+    `Optional Google link in Settings backs up across devices.`,
+    `Settings: pick <b>Story table</b>, <b>Solo</b> or <b>Full rules</b>, and your <b>Experience</b> (New / Some / Veteran). Every switch is under <b>Advanced settings</b>.`,
   ]), { cls: "rl-guide" });
   const hero = entry("② Make a hero", "",
-    `<p><b>Heroes → Forge a new hero</b> runs the 9-step wizard:</p>` +
+    `<p><b>Hero → Build</b> runs the wizard one question at a time:</p>` +
     steps([`roll 4D6-drop-lowest ×6 and assign to STR/CON/AGL/INT/WIL/CHA`, `pick kin`, `profession (mages/Harmonism-bards pick a school)`, `age`, `trained skills (6 + age bonus)`, `heroic ability or magic`, `gear`, `details.`].map((x, i) => [i + 1, x])) +
-    note(`Or <b>Use a pre-generated hero</b> for a Core Set PC.`) +
-    note(`Everything derived (HP=CON, WP=WIL, movement, damage bonus, skill chances) is computed for you.`), { cls: "rl-guide" });
+    note(`Or <b>Quick hero</b> (random but legal) / <b>Pre-made</b> for a Core Set PC.`) +
+    note(`Everything derived (HP=CON, WP=WIL, movement, damage bonus, skill chances) is computed for you. <b>✎ Edit</b> on the sheet shows the setup controls.`), { cls: "rl-guide" });
   const conds = (DB.conditions || []).map((c) => `${esc(c.name)}/${esc(c.attribute)}`);
   const core = entry("③ Core roll mechanic", "", ul([
-    `Roll <b>D20 ≤ skill</b> (tap a skill on the sheet).`,
+    `Roll <b>D20 ≤ skill</b> (tap a skill tile on the sheet). The dice table shows the 1–20 strip: green succeeds.`,
     `<b>1 = Dragon</b> (crit), <b>20 = Demon</b> (fumble) — both auto-add an advancement mark.`,
-    `A <b>boon</b> rolls 2D20 keep lowest, a <b>bane</b> keep highest (net stepper; conditions/worn-armor auto-apply banes).`,
+    `A <b>boon</b> adds a D20 and you keep the lowest, a <b>bane</b> adds one and you keep the highest; boons and banes cancel one for one (conditions and worn armor add banes for you).`,
     `Fail a roll → <b>Push</b>: take a condition (its attribute is then baned) and re-roll.`,
   ]) + `<p class="rl-sub">Six conditions:</p><p class="rl-chips">${conds.map(tag).join("")}</p>`, { cls: "rl-guide" });
   const combat = entry("④ Combat", "", ul([
-    `<b>Combat</b> tab: add heroes, Bestiary monsters, rulebook NPCs, or custom foes.`,
-    `<b>Draw initiative</b> (cards 1–10, low acts first).`,
-    `Each turn = move + action; expand a row for weapon attacks (auto damage bonus + armor mitigation via the damage applier), spell casting, movement pool, and parry/dodge reactions.`,
+    `<b>Fight</b> tab: add heroes, Bestiary monsters, rulebook NPCs or custom foes from the <b>＋ Add combatants</b> drawer.`,
+    `Adding a fighter draws initiative (cards 1–10, low acts first); the card strip shows the order.`,
+    `Each turn = move + action: <b>Attack · Cast · Move · Other</b> (Dash, Parry, Dodge, Help…). The damage applier adds the damage bonus and subtracts armor.`,
     `Monsters auto-hit (roll their D6 table ×Ferocity); NPCs roll d20.`,
     `<b>Next turn/round</b> redraws.`,
     `GM-locked in a synced campaign.`,
   ]), { cls: "rl-guide" });
   const magic = entry("⑤ Magic", "", ul([
-    `Tap a spell/trick on the sheet or in combat.`,
+    `Tap a spell card on the <b>Magic</b> tab (or Cast on your fight card).`,
     `Tricks (rank 0) cost 1 WP, auto-succeed.`,
     `Spells cost 2 WP/level (power level 1–3), roll the school skill; failure still spends WP; Demon → mishap table.`,
     `Metal armor/weapon blocks casting.`,
     `The VTT resolution card handles heal/damage/AoE/summon/etc.`,
-    `Learn new spells/schools via the sheet's Magic panel.`,
+    `Learn new spells/schools with <b>✎ Edit → ＋ Learn</b> on the Magic tab.`,
   ]), { cls: "rl-guide" });
   const rest = entry("⑥ Rest, death &amp; advancement", "",
     `<dl class="rl-dl"><dt>Round rest</dt><dd>+D6 WP (once/shift)</dd><dt>Stretch rest</dt><dd>+D6 HP/WP + heal a condition (once/shift)</dd><dt>Shift rest</dt><dd>full HP/WP + clear conditions.</dd></dl>` +
     ul([`At <b>0 HP</b> a dying panel runs death rolls (D20 ≤ CON; 3 successes stabilize, 3 fail = death).`,
       `<b>End session — advancement</b> answers the 5 questions then rolls each marked skill (improve on a roll over its level, max 18).`]), { cls: "rl-guide" });
   const group = entry("▶ Running a NON-SOLO game (group + GM)", "", ul([
-    `One player <b>creates a campaign</b> (About) → becomes GM → shares the join code; others <b>join</b>.`,
-    `Add your PC to the party (Heroes card toggle / sheet).`,
+    `One player <b>creates a campaign</b> (Settings) → becomes GM → shares the join code; others <b>join</b>.`,
+    `Add your PC to the party (Hero card toggle / sheet → Edit).`,
     `Sheets, party HP/WP/conditions, and the combat tracker sync live.`,
-    `GM turns on <b>GM Screen</b> (About) for the <b>🎲 GM</b> tab: live party panel, peek any sheet, drop monsters/NPCs into combat, hand out damage/conditions/fear, roll+push private tables, broadcast messages.`,
+    `The GM opens <b>Story → GM</b>: a phase wheel, the party as crests (tap one to deal damage, set a condition, run a fear attack, open the sheet), and tiles to ask for rolls, call rests, drop monsters into the fight, message players and roll the GM tables.`,
     `Combat controls (initiative/turns/reset) are GM-locked in a synced campaign.`,
   ]) + `<p class="rl-sub">Loop:</p>` + flow([`GM frames a scene`, `players roll skills`, `combat as needed`, `rest`, `end-of-session advancement.`]), { cls: "rl-guide" });
   const solo = entry("🧭 Running a SOLO game (no GM)", "", ul([
-    `Enable <b>Solo Mode</b> (About) → <b>🧭 Solo</b> tab; creation grants a 2nd free heroic ability (Army of One / Sole Survivor).`,
-    `Solo tab tools: <b>Fortune Chart</b> oracle (ask yes/no etc. at a likelihood), <b>Inspiration</b> (3D20 prompt), <b>Dragon/Demon</b> narrative twists, <b>NPC generator</b> + attack-table AI, and <b>Wilderness Journeys &amp; Travel Tools</b> (random shift, Camp/Forage skill rolls, Journey Mishap with follow-up WIL/CON check).`,
-    `<b>Link a hero</b> at the top of the Solo tab so those rolls use your sheet + full dice engine.`,
+    `Open <b>Story → Solo</b> (it offers to switch Solo Mode on); creation then grants a 2nd free heroic ability (Army of One / Sole Survivor).`,
+    `The bar at the bottom: <b>Ask</b> (Fortune Chart oracle at a likelihood), <b>Inspire</b> (3D20 prompt), <b>Twist</b> (Dragon/Demon), <b>Foe</b> (NPC generator + attack-table AI) and <b>Travel</b> (random shift, Camp/Forage rolls, Journey Mishap with its WIL/CON check). Every result is written into <b>Story so far</b>.`,
+    `Pick your hero under <b>Rolling as</b> so those rolls use your sheet + full dice engine.`,
     `Fail-forward turns failures into complications.`,
   ]) + `<p class="rl-sub">Loop:</p>` + flow([`set a scene`, `ask the oracle`, `roll skills/combat`, `mishaps`, `advance (Solo: <b>Mission +5 marks</b>).`]), { cls: "rl-guide" });
   const terms = [
@@ -200,12 +202,59 @@ function gear() {
 }
 
 const RENDER = { howtoplay: howToPlay, stages, journeys, kin, professions, skills, heroicAbilities, spells, equipment, gear };
+// Chapter art for the Book's front page.
+const ART = { howtoplay: ["glyph", "book"], stages: ["glyph", "hourglass"], journeys: ["glyph", "compass"], kin: ["kin", "human"], professions: ["prof", "knight"], skills: ["attr", "AGL"], heroicAbilities: ["glyph", "bolt"], spells: ["school", "elementalism"], equipment: ["glyph", "sword"], gear: ["glyph", "pack"], gmtables: ["glyph", "skull"] };
 
 export function renderRuleDetail(key, container) {
   const html = RENDER[key] ? RENDER[key]() : "";
   if (container) { container.innerHTML = html; container.scrollIntoView({ behavior: "smooth", block: "start" }); }
   return html;
 }
+
+// ---- Rule cards (long-press anything tagged data-rule) ------------------------
+// Short reference built only from the data libraries and rules the app already
+// applies — never new rules text. Returns { title, html } or null.
+export function ruleCard(key) {
+  const [kind, ...rest] = String(key || "").split(":"); const id = rest.join(":");
+  if (kind === "cond") {
+    const cn = (DB.conditions || []).find((x) => x.key === id); if (!cn) return null;
+    const at = (DB.attributes || []).find((a) => a.key === cn.attribute) || {};
+    return { title: cn.name, html: `${tag(esc(cn.attribute))}<ul class="rl-list"><li>Every roll with <b>${esc(at.name || cn.attribute)}</b> — and every skill based on it — gets a <b>bane</b>.</li><li>You take a condition of your choice when you <b>push</b> a roll; you can't hold the same one twice, and with all six you can't push.</li><li>A <b>stretch rest</b> heals one condition; a <b>shift rest</b> heals them all.</li></ul>` };
+  }
+  if (kind === "attr") {
+    const at = (DB.attributes || []).find((a) => a.key === id); if (!at) return null;
+    const uses = { STR: "Damage bonus with strength weapons, carrying capacity (half STR, rounded up).", CON: "Your maximum Hit Points.", AGL: "Movement modifier and damage bonus with agile weapons.", WIL: "Your maximum Willpower Points.", INT: "Skills based on Intelligence, including magic schools.", CHA: "Skills based on Charisma." }[id] || "";
+    const sk = (DB.skills || []).filter((x) => x.attribute === id).map((x) => tag(esc(x.name))).join("");
+    return { title: `${at.name} (${at.key})`, html: `<p class="rl-desc">${esc(at.desc || "")}</p>${uses ? `<p>${uses}</p>` : ""}${sk ? `<p class="rl-sub">Skills</p><p class="rl-chips">${sk}</p>` : ""}<p class="rl-note">Range ${(DB.attributeRange || {}).min || 3}–${(DB.attributeRange || {}).max || 18}. Base chance for its skills: ${[3, 6, 9, 13, 16].map((v) => `${v}+ → ${Calc.baseChance(v)}`).join(" · ")}.</p>` };
+  }
+  if (kind === "skill") {
+    const sk = (DB.skills || []).find((x) => x.name === id); if (!sk) return null;
+    const at = (DB.attributes || []).find((a) => a.key === sk.attribute) || {};
+    return { title: sk.name, html: `${tag(esc(sk.attribute))} ${tag(esc(sk.kind))}<ul class="rl-list"><li>Roll <b>D20 ≤ the skill level</b> to succeed.</li><li>Untrained it starts at your base chance from <b>${esc(at.name || sk.attribute)}</b>; trained, at twice that.</li><li><b>1</b> is a Dragon, <b>20</b> a Demon — both mark the skill for advancement.</li></ul>` };
+  }
+  if (kind === "ability") {
+    const h = findHeroicAbility(id);
+    const k = !h && (DB.kin || []).flatMap((x) => x.abilities || []).find((a) => a.name === id);
+    const a = h || k; if (!a) return null;
+    return { title: a.name, html: `${a.req ? tag(esc(a.req)) : ""}${tag(a.wp == null ? "No WP" : "WP " + a.wp)}<p class="rl-desc">${esc(a.text || "")}</p>` };
+  }
+  if (kind === "spell") {
+    const sp = resolveCanonicalSpell({ name: id }, "general"); if (!sp) return null;
+    const meta = [sp.range && `Range: ${esc(sp.range)}`, sp.duration && `Duration: ${esc(sp.duration)}`, sp.castingTime && `Casting time: ${esc(sp.castingTime)}`, sp.requirement && `Requirement: ${esc(sp.requirement)}`].filter(Boolean).join(" · ");
+    return { title: sp.name, html: `${tag(sp.rank ? "Rank " + sp.rank : "Trick")}<p class="rl-desc">${esc(sp.text || "")}</p>${meta ? `<p class="rl-meta">${meta}</p>` : ""}` };
+  }
+  if (kind === "rest") {
+    return { title: "Rest", html: `<dl class="rl-dl"><dt>Round rest</dt><dd>+D6 WP (once per shift)</dd><dt>Stretch rest</dt><dd>+D6 HP and +D6 WP, heal one condition (once per shift)</dd><dt>Shift rest</dt><dd>Full HP and WP, all conditions healed.</dd></dl>` };
+  }
+  return null;
+}
+
+// GM reference tables (also on the GM screen): read-only D6 lists in the Book.
+function gmTables() {
+  const t = (title, rows) => entry(esc(title), tag("D6"), d6((rows || []).map((x) => [x.d6, esc(x.effect)])));
+  return t("Demon fumble — melee", DB.demonMelee) + t("Demon fumble — ranged", DB.demonRanged) + t("Fear table", DB.fearTable) + t("Leaving the adventure site", DB.leavingSite);
+}
+RENDER.gmtables = gmTables;
 
 // ---- Screen ------------------------------------------------------------------
 const GROUPS = [
@@ -218,10 +267,13 @@ const COUNT = {
   equipment: () => (DB.weapons || []).length + (DB.armor || []).length + (DB.helmets || []).length,
 };
 
+// Open one chapter of the Book (used by tiles and deep links such as the tutorial).
+export function openChapter(key) { const r = document.querySelector("#screen .rules-lib"); if (r && r._openChapter) r._openChapter(key); }
+
 export function rulesScreen() {
   const root = el(`
-    <div class="rules-lib">
-      ${sectionTitle("Rules library & Compendiums")}
+    <div class="rules-lib" data-mode="home">
+      ${sectionTitle("The Book")}
       <div class="panel search-panel">
         <div class="search-wrap">
           <span class="search-ic">${icon("search")}</span>
@@ -231,19 +283,45 @@ export function rulesScreen() {
         <div class="search-count" role="status" aria-live="polite"></div>
         <div class="empty-illo search-empty" hidden>${illo("book")}</div>
       </div>
+      <div class="rl-chapters"></div>
+      <button type="button" class="btn ghost ch-back">← All chapters</button>
       <div id="rules-acc-wrap"></div>
       <button type="button" class="rl-top" aria-label="Back to top" hidden>↑ Top</button>
     </div>`);
   root.insertBefore(helpBox("Rules library", [
-    "Tap a category header to expand it; tap again to collapse.",
-    "Type in the <b>search</b> box to filter across every rule, spell, and item.",
+    "Tap a <b>chapter</b> to open it; <b>← All chapters</b> goes back.",
+    "Type in the <b>search</b> box to find any rule, spell or item across every chapter.",
+    "Anywhere in the app, <b>press and hold</b> a condition, attribute, skill, ability or spell to see its rule card.",
     "New to the game? Start with <b>📘 How to Play</b> for the full tutorial.",
-    "Extra magic schools appear only with <b>Book of Magic</b> on (About)."
+    "Extra magic schools appear only with <b>Book of Magic</b> on (Settings)."
   ]), root.querySelector("#rules-acc-wrap"));
 
   const wrap = root.querySelector("#rules-acc-wrap");
   const cats = [];
-  GROUPS.forEach(([gName, list]) => {
+  const groups = GM.enabled() ? GROUPS.concat([["Game master", [["💀 GM tables", "gmtables"]]]]) : GROUPS;
+  // Front page: illustrated chapter tiles.
+  const chapters = root.querySelector(".rl-chapters");
+  groups.forEach(([gName, list]) => {
+    const g = el(`<section class="ch-group"><h3 class="ch-h">${gName}</h3><div class="ch-grid"></div></section>`);
+    list.forEach(([label, key]) => {
+      const n = COUNT[key] ? COUNT[key]() : 0;
+      const [set, k] = ART[key] || ["glyph", "book"];
+      const name = label.replace(/^\S+\s/, "");
+      const b = el(`<button type="button" class="ch-tile" data-ch="${key}"><span class="ch-art" aria-hidden="true">${emblem(set, k, "emb ch-emb")}</span><b>${esc(name)}</b>${n ? `<small>${n}</small>` : ""}</button>`);
+      b.onclick = () => root._openChapter(key);
+      g.querySelector(".ch-grid").appendChild(b);
+    });
+    chapters.appendChild(g);
+  });
+  root._openChapter = (key) => {
+    const cat = root.querySelector(`details.rl-cat[data-cat='${key}']`); if (!cat) return;
+    if (sInp.value) { sInp.value = ""; run(); }
+    cats.forEach((c) => { c.classList.toggle("is-ch", c === cat); if (c !== cat) c.open = false; });
+    cat.open = true; root.dataset.mode = "chapter";
+    window.scrollTo(0, 0);
+  };
+  root.querySelector(".ch-back").onclick = () => { cats.forEach((c) => { c.classList.remove("is-ch"); c.open = c.dataset.def === "1"; }); root.dataset.mode = "home"; window.scrollTo(0, 0); };
+  groups.forEach(([gName, list]) => {
     const g = el(`<section class="rl-group"><h3 class="rl-group-h">${gName}</h3><div class="rl-cats"></div></section>`);
     list.forEach(([label, key]) => {
       const n = COUNT[key] ? COUNT[key]() : 0;
@@ -302,7 +380,8 @@ export function rulesScreen() {
     const q = sInp.value.toLowerCase().trim();
     reset();
     sClr.hidden = !q;
-    if (!q) { sCnt.textContent = ""; sEmpty.hidden = true; return; }
+    if (!q) { sCnt.textContent = ""; sEmpty.hidden = true; if (root.dataset.mode === "search") root.dataset.mode = "home"; return; }
+    root.dataset.mode = "search"; cats.forEach((c) => c.classList.remove("is-ch"));
     let results = 0, catHits = 0;
     cats.forEach((cat) => {
       let n = 0;

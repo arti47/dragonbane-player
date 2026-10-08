@@ -847,7 +847,7 @@ export const Sheet = {
         seals.appendChild(b);
       });
       top.appendChild(seals);
-      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.name}">${SHIELD_BG}${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
+      const attrRow = el(`<div class="stat-block">${(DB.attributes||[]).map((at)=>`<div class="stat-cell ${condByAttr[at.key]?"baned":""}" data-rule="attr:${at.key}" title="${condByAttr[at.key]?"A condition imposes a bane on "+at.key+" rolls":at.name}">${SHIELD_BG}${emblem("attr", at.key)}<span class="stat-num">${a[at.key]}</span><span class="stat-key">${at.key}${condByAttr[at.key]?" ⚠":""}</span></div>`).join("")}</div>`);
       top.appendChild(attrRow);
       const dmgB = (v) => v ? "+" + v : "—";
       top.appendChild(el(`<div class="derived-row stat-line"><span class="tag dv" aria-label="Movement ${c.derived.movement}">${glossHtml("movement", icon("run", "ic dv-ic") + c.derived.movement)}</span><span class="tag dv" aria-label="STR damage bonus ${dmgB(c.derived.dmgBonusSTR)}">${glossHtml("damage bonus", icon("swords", "ic dv-ic") + dmgB(c.derived.dmgBonusSTR))}</span><span class="tag dv" aria-label="AGL damage bonus ${dmgB(c.derived.dmgBonusAGL)}">${glossHtml("damage bonus", icon("bow", "ic dv-ic") + dmgB(c.derived.dmgBonusAGL))}</span><span class="tag dv" aria-label="Carrying limit ${encLimit(c)}">${glossHtml("encumbrance", icon("pack", "ic dv-ic") + encLimit(c))}</span></div>`));
@@ -862,7 +862,7 @@ export const Sheet = {
         pen.append(minus, plus); this._penEl = pen;
       }
       // One Rest button → Round / Stretch / Shift.
-      const restRow = el(`<div class="rest-row u-mt25"></div>`);
+      const restRow = el(`<div class="rest-row u-mt25" data-rule="rest"></div>`);
       const restBtn = el(`<button class="btn ghost rest-btn rest-one" type="button">${icon("tent", "ic")} Rest${c.state.roundRestUsed || c.state.stretchRestUsed ? ` <span class="rest-used">${[c.state.roundRestUsed ? "round" : "", c.state.stretchRestUsed ? "stretch" : ""].filter(Boolean).join(" · ")} used</span>` : ""}</button>`);
       restBtn.onclick = () => Action.restPicker(c);
       restRow.appendChild(restBtn);
@@ -1043,7 +1043,7 @@ export const Sheet = {
         const tiles = sec.querySelector(".sk-tiles");
         g.sort((x, y) => x[0].localeCompare(y[0])).forEach(([n, v]) => {
           const baned = condByAttr[v.attribute];
-          const row = el(`<div class="skill-row sk-tile ${v.trained ? "trained" : ""}${baned ? " baned" : ""}">
+          const row = el(`<div class="skill-row sk-tile ${v.trained ? "trained" : ""}${baned ? " baned" : ""}" data-rule="skill:${esc(n)}">
             <button class="sk-name rollable" aria-label="Roll ${esc(n)} (${v.attribute}), skill ${v.level}"><b class="sk-lvl">${v.level}</b><span class="sk-label">${esc(n)}</span><span class="sk-bar" aria-hidden="true" style="--pct:${Math.min(100, v.level * 5)}%"></span></button>
             <button class="mark ${v.mark ? "marked" : ""}" title="advancement mark" aria-label="${v.mark ? "Remove" : "Add"} advancement mark for ${esc(n)}" aria-pressed="${v.mark ? "true" : "false"}">${v.mark ? "●" : "◦"}</button></div>`);
           row.querySelector(".mark").onclick = () => this.mutate((ch) => { ch.skills[n].mark = !ch.skills[n].mark; });
@@ -1058,7 +1058,7 @@ export const Sheet = {
       skPanel.appendChild(skList); skPanel.appendChild(advMore); panes.skills.appendChild(skPanel);
 
       // Abilities
-      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x) => `<details class="ab-row"><summary>${x.source === "kin" ? emblem("kin", c.identity.kin, "emb ab-glyph") : abilityGlyph(x)}<b>${esc(x.name)}</b><span class="tag">${x.source === "kin" ? "Kin" : "Heroic"}</span>${x.wp == null ? "" : `<span class="wp-gem" title="Costs ${x.wp} WP">${x.wp}</span>`}</summary><p class="stat-line">${esc(x.text || "")}</p></details>`).join("") || '<p class="stat-line">—</p>'}</div>`);
+      const abPanel = el(`<div class="panel"><h3>Abilities</h3>${c.abilities.map((x) => `<details class="ab-row" data-rule="ability:${esc(x.name)}"><summary>${x.source === "kin" ? emblem("kin", c.identity.kin, "emb ab-glyph") : abilityGlyph(x)}<b>${esc(x.name)}</b><span class="tag">${x.source === "kin" ? "Kin" : "Heroic"}</span>${x.wp == null ? "" : `<span class="wp-gem" title="Costs ${x.wp} WP">${x.wp}</span>`}</summary><p class="stat-line">${esc(x.text || "")}</p></details>`).join("") || '<p class="stat-line">—</p>'}</div>`);
       panes.overview.appendChild(abPanel);
       { const gmp = panes.overview.querySelector(":scope > .gm-auto"); if (gmp) panes.overview.appendChild(gmp); } // closed GM disclosure goes last
 

@@ -264,5 +264,52 @@ module.exports = {
     t.ok(`R6: no JS page errors (${p6._errors.length})`, p6._errors.length === 0);
     p6._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
     await p6.close();
+    // ---- R7 the Book, rule cards, settings presets ----
+    const p7 = await newPage({ gmScreen: true }, { width: 390, height: 844 });
+    await p7.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
+    await p7.waitForTimeout(200);
+    const e7 = (f, a) => p7.evaluate(f, a);
+    await e7(() => window.__go("book")); await p7.waitForTimeout(200);
+    t.ok("R7: the Book opens on its front page of chapter tiles", await e7(() => document.querySelector(".rules-lib").dataset.mode === "home" && document.querySelectorAll(".ch-tile").length === 11 && !document.querySelector("#rules-acc-wrap").getClientRects().length));
+    await e7(() => document.querySelector(".ch-tile[data-ch='kin']").click()); await p7.waitForTimeout(150);
+    t.ok("R7: a tile opens just that chapter", await e7(() => { const vis = [...document.querySelectorAll(".rl-cat")].filter((c) => c.getClientRects().length); return document.querySelector(".rules-lib").dataset.mode === "chapter" && vis.length === 1 && vis[0].dataset.cat === "kin" && vis[0].open; }));
+    await e7(() => document.querySelector(".ch-back").click()); await p7.waitForTimeout(100);
+    t.ok("R7: ← All chapters returns to the front page", await e7(() => document.querySelector(".rules-lib").dataset.mode === "home"));
+    await p7.fill("#rules-search", "fireball"); await p7.waitForTimeout(250);
+    t.ok("R7: searching searches every chapter", await e7(() => document.querySelector(".rules-lib").dataset.mode === "search" && [...document.querySelectorAll(".rl-cat")].some((c) => c.dataset.cat === "spells" && c.getClientRects().length)));
+    await p7.click(".search-clear"); await p7.waitForTimeout(100);
+    await e7(() => document.querySelector(".ch-tile[data-ch='gmtables']").click()); await p7.waitForTimeout(120);
+    t.eq("R7: GM tables chapter (GM on) lists the four D6 tables", await e7(() => document.querySelectorAll(".rl-cat.is-ch .rl-entry").length), 4);
+    // Rule cards
+    await e7(() => window.__go("home")); await p7.waitForTimeout(100);
+    await p7.click("#use-pregen"); await p7.waitForTimeout(150);
+    await e7(() => document.querySelectorAll(".card-grid .card")[0].click()); await p7.waitForTimeout(300);
+    await e7(() => document.querySelector(".cond-seal").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))); await p7.waitForTimeout(150);
+    t.ok("R7: right-click / long-press a condition → its rule card", await e7(() => { const m = document.querySelector(".modal-card .rule-card"); return !!m && /bane/.test(m.textContent) && /push/.test(m.textContent); }));
+    await e7(() => document.querySelector(".modal-x").click()); await p7.waitForTimeout(80);
+    const lp = await e7(async () => {
+      const seal = document.querySelectorAll(".cond-seal")[1];
+      const r = seal.getBoundingClientRect(), o = { bubbles: true, clientX: r.left + 5, clientY: r.top + 5, pointerId: 1, button: 0 };
+      seal.dispatchEvent(new PointerEvent("pointerdown", o)); await new Promise((res) => setTimeout(res, 650));
+      seal.dispatchEvent(new PointerEvent("pointerup", o)); seal.click(); await new Promise((res) => setTimeout(res, 150));
+      const c = JSON.parse(localStorage.getItem("dragonbane.characters"))[0];
+      return { card: !!document.querySelector(".modal-card .rule-card"), toggled: Object.values(c.state.conditions || {}).some(Boolean) };
+    });
+    t.ok("R7: a long press shows the card and does not also toggle the seal", lp.card && !lp.toggled);
+    await e7(() => document.querySelector(".modal-x")?.click());
+    await e7(() => document.querySelector(".stat-cell").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))); await p7.waitForTimeout(120);
+    t.ok("R7: attribute rule card names what it does (STR → damage bonus)", await e7(() => /damage bonus/i.test(document.querySelector(".modal-card .rule-card").textContent)));
+    await e7(() => document.querySelector(".modal-x")?.click());
+    // Settings presets
+    await e7(() => window.__go("about")); await p7.waitForTimeout(200);
+    t.eq("R7: three play-style presets", await e7(() => document.querySelectorAll(".preset-card").length), 3);
+    t.ok("R7: every switch sits under Advanced settings (closed)", await e7(() => { const d = document.querySelector(".adv-set"); return !!d && !d.open && !!d.querySelector(".toggle"); }));
+    await e7(() => [...document.querySelectorAll(".preset-card")].find((b) => /Solo/.test(b.textContent)).click()); await p7.waitForTimeout(200);
+    t.ok("R7: Solo preset turns solo mode on and shows as chosen", await e7(() => JSON.parse(localStorage.getItem("dragonbane.settings")).soloMode === true && [...document.querySelectorAll(".preset-card")].find((b) => /Solo/.test(b.textContent)).getAttribute("aria-pressed") === "true"));
+    await e7(() => [...document.querySelectorAll(".preset-card")].find((b) => /Full rules/.test(b.textContent)).click()); await p7.waitForTimeout(200);
+    t.ok("R7: Full rules preset → Book of Magic + GM automation", await e7(() => { const st = JSON.parse(localStorage.getItem("dragonbane.settings")); return st.bookOfMagic === true && st.gmAutomation === true; }));
+    t.ok(`R7: no JS page errors (${p7._errors.length})`, p7._errors.length === 0);
+    p7._errors.slice(0, 5).forEach((e) => t.ok("  error: " + e, false));
+    await p7.close();
   },
 };

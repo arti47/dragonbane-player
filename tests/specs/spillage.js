@@ -88,8 +88,12 @@ module.exports = {
 
       // Rules: open all accordions
       await page.evaluate(() => window.__go('rules')); await page.waitForTimeout(150);
-      await page.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true))); await page.waitForTimeout(200);
-      await check("rules(open)");
+      await check("book(front page)");
+      // Every chapter, everything inside it open.
+      for (const ch of ["howtoplay", "stages", "journeys", "kin", "professions", "skills", "heroicAbilities", "spells", "equipment", "gear", "gmtables"]) {
+        await page.evaluate(async (k) => { (await import("/src/library.js")).openChapter(k); document.querySelectorAll(".rl-cat.is-ch details").forEach((d) => (d.open = true)); }, ch); await page.waitForTimeout(100);
+        await check(`book(${ch})`);
+      }
 
       // Solo + About
       await page.evaluate(() => window.__go('solo')); await page.waitForTimeout(150);

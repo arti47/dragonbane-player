@@ -2447,8 +2447,9 @@ body.lvl-beginner .std-only { display: none !important; }
 .sc-n { padding: 4px 12px; border-radius: var(--r-pill); background: var(--bg-raised); border: 1px solid var(--line); }
 .sc-n.ok { border-color: var(--ok); color: var(--ok); }
 /* Experience level control */
-.lvl-row { flex-wrap: wrap; }
-.lvl-seg { flex: 1 1 100%; margin-top: 8px; }
+.toggle-row.lvl-row { display: block; }
+.lvl-seg { display: flex; width: 100%; margin-top: 8px; }
+.lvl-seg > button { flex: 1 1 0; min-height: 40px; }
 /* First-run flow */
 html.ob-open, html.ob-open body { overflow: hidden; }
 .onboard { position: fixed; inset: 0; z-index: 400; display: flex; justify-content: center; overflow-y: auto; background: var(--bg);
@@ -2812,6 +2813,37 @@ html.ob-open, html.ob-open body { overflow: hidden; }
 @media (max-width: 380px) { .gm-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .gm-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 72px; padding: 10px 4px 8px; border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--gold) 50%, var(--line)); background: var(--card-bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); line-height: 1.15; text-align: center; cursor: pointer; box-shadow: 0 1px 4px var(--shadow); }
 .gt-ic { width: 26px; height: 26px; color: var(--accent-ink); }
+
+/* ================= REDESIGN R7: the Book, rule cards, settings presets ================= */
+.rules-lib[data-mode="home"] #rules-acc-wrap, .rules-lib[data-mode="home"] .ch-back,
+.rules-lib[data-mode="search"] .rl-chapters, .rules-lib[data-mode="search"] .ch-back,
+.rules-lib[data-mode="chapter"] .rl-chapters { display: none !important; }
+.rules-lib[data-mode="chapter"] .rl-cat:not(.is-ch), .rules-lib[data-mode="chapter"] .rl-group-h { display: none !important; }
+.rules-lib[data-mode="chapter"] .rl-group:not(:has(.is-ch)) { display: none; }
+.ch-back { margin: 0 0 10px; }
+.ch-group { margin: 6px 0 14px; }
+.ch-h { font-family: var(--font-heading); font-size: var(--fs-md); color: var(--ink-soft); letter-spacing: .08em; text-transform: uppercase; margin: 0 0 8px; }
+.ch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 560px) { .ch-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ch-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 8px 14px; min-height: 120px; border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line)); background: var(--card-bg); color: var(--ink); font: inherit; cursor: pointer; text-align: center; box-shadow: 0 2px 8px var(--shadow); }
+.ch-tile b { font-family: var(--font-heading); font-size: var(--fs-lg); line-height: 1.15; }
+.ch-tile small { position: absolute; top: 8px; right: 10px; font-size: var(--fs-xs); color: var(--ink-soft); }
+.ch-art { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--tint-accent); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--gold-leaf) 55%, transparent); }
+.ch-emb { width: 32px; height: 32px; }
+/* Rule cards */
+[data-rule] { -webkit-touch-callout: none; }
+.rule-card { line-height: 1.5; }
+.rule-card .rl-list { margin: 8px 0; }
+/* Settings presets */
+.preset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.preset-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 4px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); font: inherit; cursor: pointer; text-align: center; }
+.preset-card b { font-family: var(--font-heading); font-size: var(--fs-md); line-height: 1.15; }
+.preset-card small { font-size: var(--fs-xs); color: var(--ink-soft); line-height: 1.2; }
+.pc-ic { width: 30px; height: 30px; color: var(--accent-ink); }
+.preset-card[aria-pressed="true"] { border-color: var(--accent); background: var(--tint-accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.adv-set > summary { font-family: var(--font-heading); cursor: pointer; }
+.adv-set > .panel { box-shadow: none; margin: 10px 0 0; }
 
 /* ================= PRINT: parchment character sheet ================= */
 @media print {

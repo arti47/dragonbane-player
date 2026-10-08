@@ -10,6 +10,17 @@ A character creator and tracker for the **Dragonbane** tabletop RPG, with a real
 
 Active development — **Phases 1 through 9 Complete**. All core systems are built and verified: character creation wizard, interactive character sheet, full dice roller (boons/banes/pushing/conditions), real-time Firebase multiplayer sync, GM tabletop automation, Book of Magic expansion, and Solo GM assistant mode. See [`CLAUDE.md`](CLAUDE.md) for the full specification and changelog.
 
+## Using it
+
+Four tabs, plus a round seal in the middle of the nav that always shows your next move (Roll, Your turn, Next turn, Rest, Ask…):
+
+- **Hero** — your heroes. Make one with **Quick hero** (one tap, rules-legal), **Pre-made** (Core Set) or **Build** (step by step). The sheet shows HP/WP rings around your crest, condition seals, skill tiles to roll, spell cards and a paper-doll inventory; **✎ Edit** reveals the setup controls.
+- **Fight** — initiative strip, one fighter at a time (or the full list), big Attack · Cast · Move · Other buttons.
+- **Story** — **Solo** (scene, oracle and tools, every result written into a story timeline) or **GM** (phase wheel, party crests, table tools).
+- **Book** — the rules as illustrated chapters with search, and **Settings** (play-style presets, experience level, every switch under *Advanced*).
+
+Press and hold a condition, attribute, skill, ability or spell anywhere to read its rule card. First launch asks three questions (how well you know the game, how you'll play, get a hero) and beginners get a short guided tour.
+
 ## Run it locally
 
 It's a static site — serve the folder with any web server:
@@ -78,10 +89,12 @@ node tests/run.js spillage   # run only matching spec(s)
 ```
 
 The suite (`tests/specs/`) covers: app boot + ES-module wiring (`smoke`),
-mobile text-overflow at 360/390px (`spillage`), rules-accurate derived stats
+mobile text-overflow at 360/390/430px (`spillage`), rules-accurate derived stats
 (`derivation`), spell-cast modals (`cast`), slot-based encumbrance
-(`inventory`), keyboard/screen-reader accessibility (`a11y`), and the GM
-dashboard (`gm`). It prints a per-area pass/fail summary and exits non-zero on
+(`inventory`), keyboard/screen-reader accessibility (`a11y`), the GM
+dashboard (`gm`), and the redesigned screens (`redesign`: tabs, context seal,
+onboarding, quick hero legality, sheet layers, dice table, fight, story, Book).
+Service workers are blocked during tests. It prints a per-area pass/fail summary and exits non-zero on
 any failure. If Chromium isn't auto-detected, point to it with
 `CHROMIUM_BIN=/path/to/chrome`.
 

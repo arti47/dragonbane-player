@@ -109,6 +109,7 @@ module.exports = {
 
     // Rules: the long title wraps → its ornament moves under the text.
     await nav("rules"); await page.waitForTimeout(150);
+    await page.evaluate(() => { document.querySelector(".section-title h2").textContent = "Rules library & Compendiums"; window.dispatchEvent(new Event("resize")); }); await page.waitForTimeout(150);
     t.ok("rules: wrapped title puts the ornament underneath", await page.evaluate(() => { const s = document.querySelector(".section-title"); return s.classList.contains("t-wrap") && getComputedStyle(s.querySelector(".rule")).order === "3"; }));
 
     // Solo mode is a switch.

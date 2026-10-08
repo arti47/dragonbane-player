@@ -14,7 +14,7 @@ import { SoloMode } from './solo.js';
 import { GM } from './gm.js';
 import { icon } from './icons.js';
 import { crest, emblem, illo } from './graphics.js';
-import { renderRuleDetail, rulesScreen } from './library.js';
+import { openChapter, renderRuleDetail, rulesScreen } from './library.js';
 import { Coach } from './onboard.js';
 export { renderRuleDetail };
 import { Router } from './router.js';
@@ -68,10 +68,7 @@ export const Screens = {
     // scroll to that accordion. Used by the "New here?" buttons.
     openTutorial() {
       Router.go("rules");
-      setTimeout(() => {
-        const acc = document.querySelector("details.rule-accordion[data-cat='howtoplay']");
-        if (acc) { acc.open = true; acc.scrollIntoView({ behavior: "smooth", block: "start" }); }
-      }, 60);
+      openChapter("howtoplay");
     },
     home() {
       const chars = Store.list();
@@ -196,7 +193,9 @@ export const Screens = {
       const installed = window.matchMedia("(display-mode: standalone)").matches;
       const root = el(`
         <div>
-          ${sectionTitle("Settings & About")}
+          ${sectionTitle("Settings")}
+          <div class="panel preset-panel"><h3>How do you play?</h3><div class="preset-grid"></div></div>
+          <details class="panel adv-set"><summary>Advanced settings</summary>
           <div class="panel" id="settings-panel"><h3>Content</h3></div>
           <div class="panel">
             <h3>Dragonbane Player</h3>
@@ -212,17 +211,20 @@ export const Screens = {
             </div>
             <input type="file" id="file-import" accept=".json" style="display:none">
           </div>
+          </details>
         </div>`);
 
-      root.insertBefore(helpBox("Settings & About", [
-        "Toggle content: <b>Book of Magic</b>, <b>Solo Mode</b>, <b>GM Automation</b>, <b>GM Screen</b>.",
+      root.insertBefore(helpBox("Settings", [
+        "Pick how you play: <b>Story table</b>, <b>Solo</b> or <b>Full rules</b> — each sets the switches for you.",
+        "<b>Experience</b> sets how much the app shows and explains on this device.",
+        "<b>Advanced settings</b> hold every switch (Book of Magic, Solo Mode, GM Screen, GM Automation) and export / import / clear.",
         "<b>Multiplayer</b>: <b>Create</b> a campaign (get a join code) or <b>Join</b> one to sync your party.",
         "Optionally <b>Link Google</b> to back up characters across devices.",
         "<b>Export / Import / Clear</b> manage your locally-stored heroes."
       ]), root.firstChild);
       const sp = root.querySelector("#settings-panel");
       const lvl = Settings.level();
-      const row0 = el(`<div class="toggle-row lvl-row"><div><b>Experience</b><br><span class="stat-line">New: plain-words help and only the basics. Some: the basics, no extra help. Veteran: every option.</span></div></div>`);
+      const row0 = el(`<div class="toggle-row lvl-row"><div><b>Experience</b><br><span class="stat-line">How much the app shows and explains on this device.</span></div></div>`);
       const seg = el(`<div class="seg lvl-seg" role="group" aria-label="Experience level"></div>`);
       [["beginner", "New"], ["standard", "Some"], ["expert", "Veteran"]].forEach(([k, l]) => {
         const b = el(`<button type="button" id="lvl-${k}" aria-pressed="${lvl === k}">${l}</button>`);
@@ -262,7 +264,22 @@ export const Screens = {
         const rows = [...sp.querySelectorAll(":scope > .toggle-row")]; // beginner, book of magic, solo, gm automation, gm screen
         sp.querySelectorAll(":scope > div:not(.toggle-row)").forEach((d) => d.remove());
         const [rBeg, rBom, rSolo, rAuto, rGm] = rows;
-        sp.append(rBom, el(`<h3 class="set-h">Play style</h3>`), rBeg, tour, rSolo, rGm, rAuto);
+        sp.append(rBom, el(`<h3 class="set-h">Play style</h3>`), rSolo, rGm, rAuto);
+        // Presets: one tap sets the switches for a style of play.
+        const PRESETS = [
+          ["people", "Story table", "A GM tells the story", { soloMode: false, gmAutomation: false, bookOfMagic: false }],
+          ["compass", "Solo", "The app is the world", { soloMode: true, gmAutomation: false }],
+          ["book", "Full rules", "Book of Magic + GM automation", { bookOfMagic: true, gmAutomation: true }],
+        ];
+        const pg = root.querySelector(".preset-grid");
+        PRESETS.forEach(([ic, title, line, set]) => {
+          const on = Object.entries(set).every(([k, v]) => !!Settings.get(k) === v);
+          const b = el(`<button type="button" class="preset-card" aria-pressed="${on}">${icon(ic, "ic pc-ic")}<b>${title}</b><small>${line}</small></button>`);
+          b.onclick = () => { Object.entries(set).forEach(([k, v]) => Settings.set(k, v)); showToast(`${title}: set.`, "success"); Router.go("about"); };
+          pg.appendChild(b);
+        });
+        const pp = root.querySelector(".preset-panel");
+        pp.append(rBeg, tour);
         rows.forEach((r) => { r.style.marginTop = ""; r.style.borderTop = ""; r.style.paddingTop = ""; const d = r.querySelector(".stat-line"); if (d) { d.classList.add("tr-desc"); d.onclick = () => d.classList.toggle("open"); } });
       }
 
@@ -303,7 +320,7 @@ export const Screens = {
           syncPanel.append(campInfo, leaveBtn);
         }
       }
-      root.appendChild(syncPanel);
+      root.insertBefore(syncPanel, root.querySelector(".adv-set"));
 
       root.querySelector("#btn-export").addEventListener("click", () => Screens.export());
       root.querySelector("#btn-import").addEventListener("click", () => root.querySelector("#file-import").click());

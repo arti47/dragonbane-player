@@ -7,6 +7,7 @@ import { Sync, Theme } from './sync.js';
 import { Router } from './router.js';
 import { startIcons, icon } from './icons.js';
 import { Onboard } from './onboard.js';
+import { ruleCard } from './library.js';
 
 export function init() {
     if (typeof Sync !== "undefined") Sync.init();
@@ -116,6 +117,22 @@ export function init() {
         document.querySelectorAll(".row-top-actions.open").forEach((x) => { if (!x.contains(e.target)) { x.classList.remove("open"); const b = x.querySelector(".cb-more-btn"); if (b) b.setAttribute("aria-expanded", "false"); } });
       });
       soon();
+    }
+
+    // Rule cards: press and hold (or right-click) anything tagged data-rule to read its rule.
+    {
+      let timer = 0, fired = false, sx = 0, sy = 0;
+      const show = (node) => { const card = ruleCard(node.dataset.rule); if (!card) return false; const m = modal(card.title); m.body.appendChild(el(`<div class="rule-card">${card.html}</div>`)); try { navigator.vibrate && navigator.vibrate(12); } catch (_) {} return true; };
+      document.addEventListener("pointerdown", (e) => {
+        const n = e.target.closest && e.target.closest("[data-rule]"); fired = false; clearTimeout(timer);
+        if (!n || e.button > 0) return; sx = e.clientX; sy = e.clientY;
+        timer = setTimeout(() => { fired = show(n); }, 520);
+      });
+      document.addEventListener("pointermove", (e) => { if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) clearTimeout(timer); }, { passive: true });
+      ["pointerup", "pointercancel"].forEach((ev) => document.addEventListener(ev, () => clearTimeout(timer)));
+      // A long press must not also toggle/roll the thing underneath.
+      document.addEventListener("click", (e) => { if (fired && e.target.closest && e.target.closest("[data-rule]")) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
+      document.addEventListener("contextmenu", (e) => { const n = e.target.closest && e.target.closest("[data-rule]"); if (!n) return; e.preventDefault(); clearTimeout(timer); if (!fired) fired = show(n); });
     }
 
     // Inline glossary: tap (or Enter/Space on) any .gloss token to show its definition.

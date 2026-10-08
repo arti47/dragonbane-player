@@ -3,6 +3,7 @@
 import { compassRose, crest, dayDial, emblem, illo, oracleSeal } from './graphics.js';
 import { icon } from './icons.js';
 import { Action } from './action.js';
+import { openChapter } from './library.js';
 import { $, DB, Dice, el, esc, helpBox, sectionTitle, uid } from './core.js';
 import { confirmModal, modal, showToast, showUndoToast } from './ui.js';
 import { Magic, Settings } from './settings.js';
@@ -58,7 +59,7 @@ export const SoloMode = {
       ]));
       // Newcomer aids: one-tap tutorial link + the solo loop step-by-step.
       const tut = el(`<button class="btn ghost block u-mb25">📘 New to solo RPGs? Read How to Play</button>`);
-      tut.onclick = () => { Router.go("rules"); setTimeout(() => { const a = document.querySelector("details.rule-accordion[data-cat='howtoplay']"); if (a) { a.open = true; a.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 60); };
+      tut.onclick = () => { Router.go("rules"); openChapter("howtoplay"); };
       help.steps.appendChild(tut); // one "getting started" dialog: help + tutorial + loop
       const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">🧭 The solo loop — what to do each scene</summary></details>`);
       const loopUl = document.createElement("ul"); loopUl.className = "stat-line"; loopUl.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
