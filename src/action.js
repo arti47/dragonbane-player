@@ -15,6 +15,7 @@ import { Sheet } from './sheet.js';
 import { Roller } from './roller.js';
 import { Wizard } from './wizard.js';
 import { Router } from './router.js';
+import { Adventure } from './adventure.js';
 
 const goto = (r) => Router.go(r);
 
@@ -31,6 +32,16 @@ export const Action = {
     const h = this.hero();
     const cs = Combat.load();
     const fight = !!(cs.round && cs.combatants.length);
+    // The Adventure feed: the fight card is on screen; otherwise the next story beat.
+    if (route === "adventure") {
+      if (fight) return { key: "fightcard", ic: "swords", label: "Fight", hot: true, run: () => { const f = $("#screen .adv-fight"); if (f) f.scrollIntoView({ behavior: "smooth", block: "center" }); } };
+      if (h && h.state.hp <= 0 && !((h.state.deathRolls || {}).failures >= 3)) return { key: "death", ic: "skull", label: "Death roll", run: () => Sheet.deathRollModal(h.id) };
+      const st = Adventure.load();
+      if (!Adventure.scene(st) && Adventure.canRun()) return { key: "scene", ic: "compass", label: "Scene", run: () => Adventure.sceneDialog() };
+      const ah = Adventure.hero();
+      if (ah) return { key: "try", ic: "dice", label: "Try", run: () => this.rollPicker(ah) };
+      return null;
+    }
     if (route === "sheet" && h && h.state.hp <= 0 && !((h.state.deathRolls || {}).failures >= 3))
       return { key: "death", ic: "skull", label: "Death roll", run: () => Sheet.deathRollModal(h.id) };
     if (fight) {
@@ -46,10 +57,10 @@ export const Action = {
     if (h && ph && ph.key === "rest") return { key: "rest", ic: "tent", label: "Rest", run: () => this.restPicker(h) };
     if (h && ph && ph.key === "end") return { key: "adv", ic: "medal", label: "Advance", run: () => { Sheet.open(h.id); Sheet.endSession(); } };
     if (route === "sheet" && h) return { key: "roll", ic: "dice", label: "Roll", run: () => this.rollPicker(h) };
-    if (route === "solo") return { key: "ask", ic: "question", label: "Ask", run: () => { const b = $('#screen .sb-btn[data-tool="ask"]'); if (b) b.click(); } };
     if (route === "gm") return { key: "askroll", ic: "dice", label: "Ask roll", run: () => { const b = $("#screen .gm-tile"); if (b) b.click(); } };
     if (route === "party") return { key: "add", ic: "people", label: "Add", run: () => { const d = $("#screen .add-panel"); if (d) { d.open = true; window._combatAddOpen = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); } } };
     if (!h) return { key: "new", ic: "sparkle", label: "New hero", run: () => Wizard.start() };
+    if (route === "home" && Adventure.hasStory()) return { key: "continue", ic: "scroll", label: "Continue", hot: true, run: () => goto("story") };
     return { key: "play", ic: "person", label: "Play", run: () => Sheet.open(h.id) };
   },
   update() {
@@ -84,7 +95,7 @@ export const Action = {
     const row = el(`<div class="rest-pick"></div>`);
     [["round", "Round", "+D6 WP"], ["stretch", "Stretch", "HP · WP · 1 condition"], ["shift", "Shift", "Everything"]].forEach(([k, l, s]) => {
       const b = el(`<button type="button" class="rp-btn">${icon(k === "shift" ? "bed" : "tent", "ic rp-ic")}<b>${l}</b><small>${s}</small></button>`);
-      b.onclick = () => { m.close(); Sheet.open(h.id); Sheet.rest(k); };
+      b.onclick = () => { m.close(); if ($("#screen").dataset.route === "sheet") Sheet.open(h.id); else Sheet.use(h.id); Sheet.rest(k); };
       row.appendChild(b);
     });
     m.body.appendChild(row);

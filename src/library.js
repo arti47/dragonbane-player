@@ -23,11 +23,11 @@ const d6 = (rows) => `<div class="d6-list">${rows.map(([n, x]) => `<p class="d6-
 
 // ---- Guides ----------------------------------------------------------------
 function howToPlay() {
-  const intro = `<p class="rl-intro">Combined rules primer + how to drive this app. Four tabs: <b>Hero</b> (your heroes and sheet), <b>Fight</b> (initiative and combat), <b>Story</b> (Solo or GM), <b>Book</b> (these rules + Settings). The round seal in the middle always shows your next move.</p>`;
+  const intro = `<p class="rl-intro">Combined rules primer + how to drive this app. Four tabs: <b>Hero</b> (your heroes and sheet), <b>Fight</b> (initiative and combat), <b>Story</b> (the Adventure feed, plus the GM screen), <b>Book</b> (these rules + Settings). The round seal in the middle always shows your next move.</p>`;
   const first = entry("🎬 Your first session — Start → Keep playing → End well", "",
     block("START.", steps([
       ["①", `On <b>Hero</b>, tap <b>Quick hero</b> (one tap), <b>Pre-made</b> (a Core Set hero) or <b>Build</b> (step by step).`],
-      ["②", `Choose how you'll play. <b>With friends:</b> one person opens <b>Book → Settings → Play with friends</b>, creates a campaign and shares the join code; everyone else joins. <b>Solo (no GM):</b> open <b>Story → Solo</b> and pick your hero under <b>Rolling as</b>.`],
+      ["②", `Choose how you'll play. <b>With friends:</b> one person opens <b>Book → Settings → Play with friends</b>, creates a campaign and shares the join code; everyone else joins. <b>Solo (no GM):</b> pick the <b>Solo</b> preset in <b>Book → Settings</b>, then open <b>Story</b> and choose your hero at the top.`],
       ["③", `Set the opening <b>scene</b> — where you are and your goal (group: the GM says it aloud; solo: write it in the <b>Scene</b> box).`],
     ])) +
     block("KEEP PLAYING — repeat this each scene:", steps([
@@ -35,7 +35,7 @@ function howToPlay() {
       ["⑤", `<b>Act:</b> tap a <b>skill tile</b> (or the seal → <b>Roll</b>) to roll <b>D20 ≤ its level</b>. Miss? <b>Push</b> (take a Condition and re-roll) or (solo) <b>🎲 Fail forward</b>.`],
       ["⑥", `<b>Fights</b> run on <b>Fight</b>: add foes from the drawer, then on your card choose <b>Attack · Cast · Move · Other</b> and <b>End turn</b>.`],
       ["⑦", `<b>Recover</b> with the sheet's <b>Rest</b> button (Round / Stretch / Shift).`],
-      ["⑧", `Keep notes on the sheet's <b>Story</b> tab, and (solo) track open questions as <b>🧵 Threads</b>.`],
+      ["⑧", `Keep notes on the sheet's <b>Story</b> tab, and track open questions as <b>Quests</b> on the Story tab.`],
     ])) +
     block("END WELL.", steps([
       ["⑨", `At a good stopping point, on the <b>Skills</b> tab tap <b>End session — advancement</b>: answer the 5 questions, then roll each marked skill to try to improve it.`],
@@ -87,11 +87,12 @@ function howToPlay() {
     `Sheets, party HP/WP/conditions, and the combat tracker sync live.`,
     `The GM opens <b>Story → GM</b>: a phase wheel, the party as crests (tap one to deal damage, set a condition, run a fear attack, open the sheet), and tiles to ask for rolls, call rests, drop monsters into the fight, message players and roll the GM tables.`,
     `Combat controls (initiative/turns/reset) are GM-locked in a synced campaign.`,
+    `Everyone's rolls, wounds, loot and fights write themselves into one shared <b>Adventure</b> feed on the Story tab. The GM starts and ends scenes, turns the shift clock and ends the session there.`,
   ]) + `<p class="rl-sub">Loop:</p>` + flow([`GM frames a scene`, `players roll skills`, `combat as needed`, `rest`, `end-of-session advancement.`]), { cls: "rl-guide" });
   const solo = entry("🧭 Running a SOLO game (no GM)", "", ul([
-    `Open <b>Story → Solo</b> (it offers to switch Solo Mode on); creation then grants a 2nd free heroic ability (Army of One / Sole Survivor).`,
-    `The bar at the bottom: <b>Ask</b> (Fortune Chart oracle at a likelihood), <b>Inspire</b> (3D20 prompt), <b>Twist</b> (Dragon/Demon), <b>Foe</b> (NPC generator + attack-table AI) and <b>Travel</b> (random shift, Camp/Forage rolls, Journey Mishap with its WIL/CON check). Every result is written into <b>Story so far</b>.`,
-    `Pick your hero under <b>Rolling as</b> so those rolls use your sheet + full dice engine.`,
+    `Pick the <b>Solo</b> preset (Book → Settings); creation then grants a 2nd free heroic ability (Army of One / Sole Survivor).`,
+    `On <b>Story</b>, start a scene (a place, and a spark from the Inspiration table if you like). The bar at the bottom asks <b>What do you do?</b>: <b>Try something</b> (a skill), <b>Ask</b> (Fortune Chart oracle at a likelihood), <b>Look for trouble</b> (3D20 prompt), <b>Twist</b> (Dragon/Demon), <b>Fight</b> (a rulebook foe or the quick-foe generator) and <b>Travel</b> (a shift on the road, random shift, Camp/Forage rolls, Journey Mishap with its WIL/CON check). Every result is written into the story.`,
+    `Pick your hero at the top of the feed so those rolls use your sheet + full dice engine.`,
     `Fail-forward turns failures into complications.`,
   ]) + `<p class="rl-sub">Loop:</p>` + flow([`set a scene`, `ask the oracle`, `roll skills/combat`, `mishaps`, `advance (Solo: <b>Mission +5 marks</b>).`]), { cls: "rl-guide" });
   const terms = [

@@ -34,8 +34,8 @@ export const SoloMode = {
       const shared = el(`<button class="btn block">Play the party hero<small class="btn-sub">HP, conditions and advancement sync to the group; the GM sees a summary in the roll log.</small></button>`);
       const copy = el(`<button class="btn secondary block u-mt2">Make a solo copy<small class="btn-sub">A separate hero for solo only — the party sheet never changes.</small></button>`);
       const cancel = el(`<button class="btn ghost block u-mt2">Cancel</button>`);
-      shared.onclick = () => { m.close(); this.setHero(h.id); Router.go("solo"); };
-      copy.onclick = () => { m.close(); const c = this.soloCopy(h); this.setHero(c.id); showToast(`Solo copy created: ${c.identity.name}.`, "success"); Router.go("solo"); };
+      shared.onclick = () => { m.close(); this.setHero(h.id); Router.go("adventure"); };
+      copy.onclick = () => { m.close(); const c = this.soloCopy(h); this.setHero(c.id); showToast(`Solo copy created: ${c.identity.name}.`, "success"); Router.go("adventure"); };
       cancel.onclick = () => { m.close(); if (onCancel) onCancel(); };
       m.body.append(shared, copy, cancel);
     },
@@ -46,179 +46,19 @@ export const SoloMode = {
       const list = Store.list(); list.push(c); Store.save(list);
       return c;
     },
-    view() {
+    // The solo tools (oracle, inspiration, twists, foe generator, journey) as
+    // panels for the Adventure feed. api: { hero, log(text, kind), thread(text),
+    // npc(name, note), fight(foe) } — every result is written into the story.
+    buildTools(api) {
       const solo = typeof DRAGONBANE_SOLO !== "undefined" ? DRAGONBANE_SOLO : null;
-      const root = el(`<div></div>`);
-      root.appendChild(el(sectionTitle("Solo Assistant")));
-      const help = root.appendChild(helpBox("Solo Assistant", [
-        "<b>Rolling as</b>: pick your hero — journey and skill rolls use their sheet and the full dice engine.",
-        "Write the <b>Scene</b>: where you are and what you want.",
-        "Use the bar at the bottom: <b>Ask</b> (the oracle) · <b>Inspire</b> · <b>Twist</b> · <b>Foe</b> · <b>Travel</b>. Every result is written into <b>Story so far</b> by itself.",
-        "<b>＋ Thread</b> keeps an open question; <b>🧵 Threads</b> and <b>👥 NPCs</b> sit under the scene.",
-        "When the mission is done: <b>🏅 Mission +5</b>."
-      ]));
-      // Newcomer aids: one-tap tutorial link + the solo loop step-by-step.
-      const tut = el(`<button class="btn ghost block u-mb25">📘 New to solo RPGs? Read How to Play</button>`);
-      tut.onclick = () => { Router.go("rules"); openChapter("howtoplay"); };
-      help.steps.appendChild(tut); // one "getting started" dialog: help + tutorial + loop
-      const loop = el(`<details class="help-acc" style="background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:6px 12px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-ink)">🧭 The solo loop — what to do each scene</summary></details>`);
-      const loopUl = document.createElement("ul"); loopUl.className = "stat-line"; loopUl.style.cssText = "margin:8px 0 4px;padding-left:20px;line-height:1.55";
-      [
-        "① <b>Set the scene</b> — where you are and your goal.",
-        "② <b>Ask</b> the oracle a yes/no question to decide what happens; the answer goes into your story.",
-        "③ <b>Act</b>: open your hero's sheet and tap a skill to roll it (or use the Journey / Combat tools).",
-        "④ On a failure, <b>Push</b> the roll or use <b>🎲 Fail forward</b> to keep the story moving.",
-        "⑤ Track open questions as <b>🧵 Threads</b>; when the mission is done, tap <b>🏅 Mission +5</b> to advance."
-      ].forEach((s) => { const li = document.createElement("li"); li.style.margin = "3px 0"; li.innerHTML = s; loopUl.appendChild(li); });
-      loop.appendChild(loopUl); help.steps.appendChild(loop);
-      if (!solo) {
-        root.appendChild(el(`<div class="panel"><p class="stat-line">Solo rules library not loaded.</p></div>`));
-        return root;
-      }
-
-      // ---- Who you're playing (rolls use this hero's sheet and the full dice engine) ----
-      const heroes = Store.list();
-      const linked = this.linkedHero();
-      const ini = (n) => { const w = (n || "?").trim().split(/\s+/); return (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase(); };
-      const top = el(`<div class="panel solo-top"></div>`);
-      const who = el(`<div class="solo-who"><span class="sw-face" aria-hidden="true">${linked ? crest(linked.identity.name, linked.identity.kin, ini(linked.identity.name)) : icon("person", "ic")}</span><div class="sw-main"><b>${linked ? esc(linked.identity.name) : "Rolling as…"}</b><span class="sw-vit"></span></div></div>`);
-      const heroSel = el(`<select class="input solo-ctx-sel" aria-label="Rolling as"></select>`);
-      heroSel.appendChild(el(`<option value="">— No hero (type values) —</option>`));
-      heroes.forEach((h) => { const o = el(`<option value="${esc(h.id)}">${esc(h.identity.name)}</option>`); if (linked && h.id === linked.id) o.selected = true; heroSel.appendChild(o); });
-      heroSel.onchange = () => {
-        const h = heroSel.value ? Store.get(heroSel.value) : null;
-        if (!h || !h.campaignId || h.soloCopy) { this.setHero(heroSel.value || null); Router.go("solo"); return; }
-        this.askPartyHero(h, () => { heroSel.value = linked ? linked.id : ""; });
-      };
-      who.appendChild(heroSel);
-      top.appendChild(who);
-      if (linked) {
-        const vit = who.querySelector(".sw-vit");
-        const upd = () => { const c = Store.get(linked.id); if (c) vit.innerHTML = `<span class="sw-hp">${icon("heart", "ic")} ${c.state.hp}/${effHpMax(c)}</span><span class="sw-wp">${icon("bolt", "ic")} ${c.state.wp}/${effWpMax(c)}</span>`; };
-        upd();
-        const acts = el(`<div class="sw-acts"></div>`);
-        const openB = el(`<button class="btn ghost">${icon("scroll", "ic")} Sheet</button>`); openB.onclick = () => Sheet.open(linked.id);
-        const restB = el(`<button class="btn ghost">${icon("tent", "ic")} Rest</button>`); restB.onclick = () => Action.restPicker(Store.get(linked.id));
-        const mission = el(`<button class="btn ghost u-bd-accent">🏅 Mission +5</button>`);
-        mission.onclick = () => { Sheet.open(linked.id); Sheet.soloMissionMarks(); };
-        acts.append(openB, restB, mission);
-        top.appendChild(acts);
-      }
-      root.appendChild(top);
-
-      // Tool panels live on a hidden shelf; the action bar lends them to a dialog.
-      const shelf = el(`<div class="solo-shelf" hidden></div>`);
-
-      // ---- The scene ----
-      const sceneCard = el(`<div class="panel scene-card"><label class="sc-lbl" for="solo-scene">${icon("compass", "ic")} Scene</label></div>`);
-      const sceneIn = el(`<textarea id="solo-scene" rows="2" placeholder="Where are you, and what do you want?"></textarea>`);
-      sceneIn.value = this.loadJournal().scene || "";
-      sceneIn.oninput = () => { const j = this.loadJournal(); j.scene = sceneIn.value; this.saveJournal(j); };
-      sceneCard.appendChild(sceneIn);
-      const chips = el(`<div class="solo-chips"></div>`);
-      sceneCard.appendChild(chips);
-      root.appendChild(sceneCard);
-
-      // ---- The story so far: every result lands here by itself ----
-      const KIND_IC = { oracle: "orb", inspire: "bulb", twist: "dragon", foe: "swords", travel: "tree", camp: "tent", mishap: "storm", note: "journal" };
-      const journalPanel = el(`<div class="panel solo-tl"><h3>Story so far</h3></div>`);
-      const logList = el(`<div class="j-log"></div>`);
-      const renderLog = () => {
-        const j = this.loadJournal(); logList.innerHTML = "";
-        if (!j.entries.length) { logList.appendChild(el(`<div class="empty-illo">${illo("quill")}</div>`)); logList.appendChild(el(`<p class="stat-line empty-note">Your story starts here. Tap <b>Ask</b> to question the oracle.</p>`)); return; }
-        j.entries.forEach((e, idx) => {
-          const when = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-          const row = el(`<div class="j-entry k-${esc(e.kind || "note")}"><span class="je-ic" aria-hidden="true">${icon(KIND_IC[e.kind] || "journal", "ic")}</span><span class="je-txt">${esc(e.text)}</span><span class="je-time">${esc(when)}</span></div>`);
-          const x = el(`<button class="step rm" aria-label="Delete entry">✕</button>`);
-          x.onclick = () => { const jj = this.loadJournal(); const gone = jj.entries.splice(idx, 1)[0]; this.saveJournal(jj); renderLog(); if (gone) showUndoToast("Removed log entry", () => { const j2 = this.loadJournal(); j2.entries.splice(idx, 0, gone); this.saveJournal(j2); renderLog(); }); };
-          row.appendChild(x); logList.appendChild(row);
-        });
-      };
-      renderLog();
-      const addLog = (text, kind, quiet) => { if (!text) return; const j = this.loadJournal(); j.entries.push({ ts: Date.now(), text, kind: kind || "note" }); this.saveJournal(j); renderLog(); if (!quiet) showToast("Logged to journal.", "success"); };
-      const addRow = el(`<div class="inv-add"></div>`);
-      const noteIn = el(`<input type="text" placeholder="Write what happens…">`);
-      const noteBtn = el(`<button class="btn secondary">Log</button>`);
-      const doNote = () => { const t = noteIn.value.trim(); if (!t) return; noteIn.value = ""; addLog(t, "note"); };
-      noteBtn.onclick = doNote; noteIn.onkeydown = (e) => { if (e.key === "Enter") doNote(); };
-      addRow.append(noteIn, noteBtn);
-      const clearB = el(`<button class="btn ghost j-clear">Clear log</button>`);
-      clearB.onclick = async () => { if (await confirmModal("Clear the journal log? Scene, threads and NPCs are kept.", { title: "Clear log", okText: "Clear", danger: true })) { const j = this.loadJournal(); j.entries = []; this.saveJournal(j); renderLog(); } };
-      journalPanel.append(logList, addRow, clearB);
-
-      // Plot threads (open questions) — add / toggle-resolved / delete.
-      const threadsList = el(`<div class="j-list"></div>`);
-      const renderChips = () => {
-        const j = this.loadJournal();
-        chips.innerHTML = "";
-        const open = j.threads.filter((x) => !x.done).length;
-        const tb = el(`<button type="button" class="solo-chip">🧵 Threads <b>${open}</b></button>`); tb.onclick = () => openBox("Threads", threadsBox);
-        const nb = el(`<button type="button" class="solo-chip">👥 NPCs <b>${j.npcs.length}</b></button>`); nb.onclick = () => openBox("NPCs met", npcsBox);
-        chips.append(tb, nb);
-      };
-      const renderThreads = () => {
-        const j = this.loadJournal(); threadsList.innerHTML = "";
-        if (!j.threads.length) { threadsList.appendChild(el(`<div class="empty-illo">${illo("spool")}</div>`)); threadsList.appendChild(el(`<p class="stat-line empty-note">No open threads.</p>`)); renderChips(); return; }
-        j.threads.forEach((th) => {
-          const row = el(`<div class="j-item"></div>`);
-          const tog = el(`<button class="skill-chip ${th.done ? "picked" : ""}" title="toggle resolved" aria-pressed="${th.done}">${th.done ? "✓" : "○"}</button>`);
-          tog.onclick = () => { const jj = this.loadJournal(); const x = jj.threads.find((y) => y.id === th.id); if (x) x.done = !x.done; this.saveJournal(jj); renderThreads(); };
-          const txt = el(`<span class="u-f1${th.done ? " j-done" : ""}">${esc(th.text)}</span>`);
-          const rm = el(`<button class="step rm" aria-label="Delete thread">✕</button>`);
-          rm.onclick = () => { const jj = this.loadJournal(); jj.threads = jj.threads.filter((y) => y.id !== th.id); this.saveJournal(jj); renderThreads(); };
-          row.append(tog, txt, rm); threadsList.appendChild(row);
-        });
-        renderChips();
-      };
-      const addThread = (text) => { if (!text) return; const j = this.loadJournal(); j.threads.push({ id: uid(), text, done: false }); this.saveJournal(j); renderThreads(); showToast("Added thread.", "success"); };
-      const thRow = el(`<div class="inv-add"></div>`);
-      const thIn = el(`<input type="text" placeholder="Add a plot thread / open question…">`);
-      const thBtn = el(`<button class="btn secondary">Add</button>`);
-      const doTh = () => { const t = thIn.value.trim(); if (!t) return; thIn.value = ""; addThread(t); };
-      thBtn.onclick = doTh; thIn.onkeydown = (e) => { if (e.key === "Enter") doTh(); };
-      thRow.append(thIn, thBtn);
-      const threadsBox = el(`<div class="j-box"></div>`); threadsBox.append(threadsList, thRow); shelf.appendChild(threadsBox);
-
-      // NPCs met — a lightweight roster (name + note).
-      const npcsList = el(`<div class="j-list"></div>`);
-      const renderNpcs = () => {
-        const j = this.loadJournal(); npcsList.innerHTML = "";
-        if (!j.npcs.length) { npcsList.appendChild(el(`<div class="empty-illo">${illo("frame")}</div>`)); npcsList.appendChild(el(`<p class="stat-line empty-note">No NPCs recorded.</p>`)); renderChips(); return; }
-        j.npcs.forEach((n) => {
-          const row = el(`<div class="j-item"><span class="u-f1"><b>${esc(n.name)}</b>${n.note ? ` — ${esc(n.note)}` : ""}</span></div>`);
-          const rm = el(`<button class="step rm" aria-label="Delete NPC">✕</button>`);
-          rm.onclick = () => { const jj = this.loadJournal(); jj.npcs = jj.npcs.filter((y) => y.id !== n.id); this.saveJournal(jj); renderNpcs(); };
-          row.appendChild(rm); npcsList.appendChild(row);
-        });
-        renderChips();
-      };
-      const addNpc = (name, note) => { name = (name || "").trim(); if (!name) return; const j = this.loadJournal(); j.npcs.push({ id: uid(), name, note: (note || "").trim() }); this.saveJournal(j); renderNpcs(); showToast("Recorded NPC.", "success"); };
-      const npcRow = el(`<div class="inv-add"></div>`);
-      const npcNameIn = el(`<input type="text" placeholder="NPC name…">`);
-      const npcNoteIn = el(`<input type="text" placeholder="note (optional)…">`);
-      const npcBtn = el(`<button class="btn secondary">Add</button>`);
-      const doNpcRow = () => { if (!npcNameIn.value.trim()) return; addNpc(npcNameIn.value, npcNoteIn.value); npcNameIn.value = ""; npcNoteIn.value = ""; };
-      npcBtn.onclick = doNpcRow; npcNameIn.onkeydown = (e) => { if (e.key === "Enter") doNpcRow(); };
-      npcRow.append(npcNameIn, npcNoteIn, npcBtn);
-      const npcsBox = el(`<div class="j-box"></div>`); npcsBox.append(npcsList, npcRow); shelf.appendChild(npcsBox);
-      renderThreads(); renderNpcs();
-      root.appendChild(journalPanel);
-
-      // Lend a shelf panel to a dialog; it goes back to the shelf when closed.
-      const openBox = (title, node) => {
-        const m = modal(title); m.body.appendChild(node);
-        const prev = m.back._onClose; m.back._onClose = () => { shelf.appendChild(node); renderChips(); if (prev) prev(); };
-        const f = node.querySelector("input[type=text], textarea"); if (f && node.querySelector(".oracle-q")) setTimeout(() => f.focus(), 60);
-        return m;
-      };
-
-      // ＋ Log / ＋ Thread buttons appended to every roll result.
-      // Every result is written into the story by itself; ＋ Thread keeps it as an open question.
+      if (!solo) return {};
+      const linked = api.hero || null;
+      const addNpc = (name, note) => api.npc(name, note);
       const resultBtns = (getText, kind) => {
         const t = () => (typeof getText === "function" ? getText() : getText);
-        addLog(t(), kind || "note", true);
+        api.log(t(), kind || "note");
         const wrap = el(`<div class="res-logged"><span class="rl-ok">✓ In your story</span></div>`);
-        const tb = el(`<button class="btn ghost">＋ Thread</button>`); tb.onclick = () => { addThread(t()); tb.disabled = true; };
+        const tb = el(`<button class="btn ghost">＋ Quest</button>`); tb.onclick = () => { api.thread(t()); tb.disabled = true; };
         wrap.append(tb); return wrap;
       };
 
@@ -283,7 +123,6 @@ export const SoloMode = {
         fPanel.querySelector("#solo-f-out").appendChild(resultBtns(`${q ? q + " → " : "Oracle: "}${ans}${twist ? " (twist!)" : ""}${colKey !== "yes/no" ? ` [${colKey}]` : ""}`, "oracle"));
         fPanel.querySelector("#solo-f-q").value = "";
       };
-      shelf.appendChild(fPanel);
 
       // 2. Inspiration Table
       const insp = solo.inspiration || [];
@@ -323,7 +162,6 @@ export const SoloMode = {
       iPanel.querySelector("#solo-i-act").onclick = () => doInsp("act");
       iPanel.querySelector("#solo-i-att").onclick = () => doInsp("att");
       iPanel.querySelector("#solo-i-thg").onclick = () => doInsp("thg");
-      shelf.appendChild(iPanel);
 
       // 3. Narrative Twists
       const tw = solo.dragonDemonEffects || [];
@@ -350,7 +188,6 @@ export const SoloMode = {
       };
       tPanel.querySelector("#solo-t-drag").onclick = () => doTwist(true);
       tPanel.querySelector("#solo-t-dem").onclick = () => doTwist(false);
-      shelf.appendChild(tPanel);
 
       // 4. Solo NPC Generator & Attack Roller
       const npcs = solo.npcTemplates || [];
@@ -419,20 +256,8 @@ export const SoloMode = {
         Combat.mutate(st => st.combatants.push(foe));
         showToast(`Added "${foe.name}" to the Combat Tracker!`, "success");
       };
-      // ⚔ One-tap fight: drop the foe (and the linked hero, if not already in the
-      // tracker) into Combat and jump straight to the Combat tab.
-      nPanel.querySelector("#solo-n-fight").onclick = () => {
-        const foe = buildFoe();
-        Combat.mutate(st => {
-          st.combatants.push(foe);
-          if (linked && !st.combatants.some(c => c.charId === linked.id)) {
-            const h = Store.get(linked.id);
-            st.combatants.push({ id: uid(), name: h.identity.name, kind: "hero", charId: h.id, init: null, done: false, hp: h.state.hp, maxHp: effHpMax(h), wp: h.state.wp, maxWp: effWpMax(h), armor: heroArmor(h) });
-          }
-        });
-        showToast(`Fight on — ${foe.name}${linked ? " vs " + linked.identity.name : ""}!`, "success");
-        Router.go("party");
-      };
+      // ⚔ One-tap fight: the foe (and the linked hero) step into a fight in the feed.
+      nPanel.querySelector("#solo-n-fight").onclick = () => api.fight(buildFoe());
       nPanel.querySelector("#solo-n-remember").onclick = () => { const foe = buildFoe(); addNpc(foe.name, foe.notes || ""); };
 
       nPanel.querySelector("#solo-n-atk").onclick = () => {
@@ -457,7 +282,6 @@ export const SoloMode = {
           </div>`;
         nPanel.querySelector("#solo-n-out").appendChild(resultBtns(`NPC ${role}: ${actionText}`, "foe"));
       };
-      shelf.appendChild(nPanel);
 
       const jm = (DB.journeyMishaps || []);
       const hero = linked; // the linked hero (or null) — journey rolls use their sheet
@@ -595,19 +419,8 @@ export const SoloMode = {
       mishapSec.append(mishapBtn, mishapOut);
       jPanel.appendChild(mishapSec);
 
-      shelf.appendChild(jPanel);
 
-      // The action bar: Ask · Inspire · Twist · Foe · Travel.
-      root.appendChild(shelf);
-      const bar = el(`<div class="solo-bar" role="toolbar" aria-label="Solo tools"></div>`);
-      [["ask", "orb", "Ask", "Ask the oracle", fPanel], ["inspire", "bulb", "Inspire", "Inspiration", iPanel], ["twist", "dragon", "Twist", "Dragon / Demon twist", tPanel], ["foe", "swords", "Foe", "Foes", nPanel], ["travel", "tree", "Travel", "Journey", jPanel]].forEach(([k, ic, label, title, node]) => {
-        const b = el(`<button type="button" class="sb-btn" data-tool="${k}">${icon(ic, "ic sb-ic")}<span>${label}</span></button>`);
-        b.onclick = () => openBox(title, node);
-        bar.appendChild(b);
-      });
-      root.appendChild(bar);
-      this.openTool = (k) => { const b = bar.querySelector(`[data-tool="${k}"]`); if (b) b.click(); };
-      return root;
+      return { ask: fPanel, inspire: iPanel, twist: tPanel, foe: nPanel, travel: jPanel };
     }
   };
 

@@ -17,7 +17,7 @@ module.exports = {
     t.ok("R1: context seal docked in the nav", await ev(() => !!document.querySelector("#app-nav #ctx-action .ca-seal")));
     t.eq("R1: empty home → New hero", await ctx(), "New hero");
     await go("story");
-    t.ok("R1: Story with no mode on shows the chooser", await ev(() => document.querySelectorAll(".sp-card").length === 2 && document.querySelector("#screen").dataset.route === "story"));
+    t.ok("R1: Story opens the Adventure feed with no mode on", await ev(() => document.querySelector("#screen").dataset.route === "adventure" && !!document.querySelector(".adv-feed")));
     t.eq("R1: Story tab is current", await ev(() => document.querySelector("#app-nav [aria-current='page']").dataset.route), "story");
     await go("book");
     t.eq("R1: Book opens the rules first", await ev(() => document.querySelector("#screen").dataset.route), "rules");
@@ -233,21 +233,21 @@ module.exports = {
     await e6(() => document.querySelectorAll(".card-grid .card")[0].click()); await p6.waitForTimeout(300);
     await e6(() => localStorage.setItem("dragonbane.soloHeroId", JSON.parse(localStorage.getItem("dragonbane.characters"))[0].id));
     await e6(() => window.__go("story")); await p6.waitForTimeout(200);
-    t.eq("R6: Story opens Solo (first enabled mode)", await e6(() => document.querySelector("#screen").dataset.route), "solo");
-    t.ok("R6: no tab strip — one timeline + an action bar of five tools", await e6(() => !document.querySelector("#screen .tabs") && document.querySelectorAll(".solo-bar .sb-btn").length === 5));
-    await e6(() => document.querySelector(".sb-btn[data-tool='ask']").click()); await p6.waitForTimeout(150);
+    t.eq("R6: Story opens the Adventure feed", await e6(() => document.querySelector("#screen").dataset.route), "adventure");
+    t.ok("R6: no tab strip — one feed + a prompt bar with the solo tools", await e6(() => !document.querySelector("#screen .tabs") && ["ask", "inspire", "twist", "travel"].every((k) => !!document.querySelector(`.ab-chip[data-act='${k}']`))));
+    await e6(() => document.querySelector(".ab-chip[data-act='ask']").click()); await p6.waitForTimeout(150);
     t.ok("R6: Ask opens the oracle box (question + 3 likelihoods)", await e6(() => { const m = document.querySelector(".modal-card"); return !!m && !!m.querySelector("#solo-f-q") && m.querySelectorAll(".lp-btn").length === 3; }));
     await e6(() => { document.querySelector(".lp-btn[data-like='likely']").click(); document.querySelector("#solo-f-q").value = "Is the bridge guarded?"; document.querySelector("#solo-f-roll").click(); }); await p6.waitForTimeout(150);
     t.ok("R6: the likelihood choice drives the roll (2D6 highest)", await e6(() => document.querySelector("#solo-f-like").value === "likely" && /highest/.test(document.querySelector("#solo-f-out").textContent)));
     await e6(() => document.querySelector(".modal-x").click()); await p6.waitForTimeout(100);
-    t.ok("R6: the answer lands in Story so far with the question", await e6(() => { const e = [...document.querySelectorAll(".solo-tl .j-entry")].pop(); return !!e && e.classList.contains("k-oracle") && /Is the bridge guarded\? →/.test(e.textContent); }));
+    t.ok("R6: the answer lands in the story with the question", await e6(() => { const e = [...document.querySelectorAll(".adv-feed .ae")].pop(); return !!e && e.classList.contains("k-oracle") && /Is the bridge guarded\? →/.test(e.textContent); }));
     t.ok("R6: the oracle panel goes back to its shelf", await e6(() => !!document.querySelector(".solo-shelf #solo-f-roll")));
-    await e6(() => { document.querySelector(".sb-btn[data-tool='inspire']").click(); }); await p6.waitForTimeout(100);
+    await e6(() => { document.querySelector(".ab-chip[data-act='inspire']").click(); }); await p6.waitForTimeout(100);
     await e6(() => document.querySelector("#solo-i-all").click()); await p6.waitForTimeout(100);
-    await e6(() => [...document.querySelectorAll(".modal-card .btn")].find((b) => /Thread/.test(b.textContent)).click()); await p6.waitForTimeout(80);
+    await e6(() => [...document.querySelectorAll(".modal-card .btn")].find((b) => /Quest/.test(b.textContent)).click()); await p6.waitForTimeout(80);
     await e6(() => document.querySelector(".modal-x").click()); await p6.waitForTimeout(100);
-    t.eq("R6: inspiration logged too (2 entries)", await e6(() => document.querySelectorAll(".solo-tl .j-entry").length), 2);
-    t.ok("R6: ＋ Thread counts on the Threads chip", await e6(() => /Threads\s*1/.test(document.querySelector(".solo-chips").textContent)));
+    t.ok("R6: inspiration logged too", await e6(() => [...document.querySelectorAll(".adv-feed .ae.k-inspire")].length === 1));
+    t.ok("R6: ＋ Quest counts on the Quests chip", await e6(() => /Quests\s*1/.test(document.querySelector(".adv-chips").textContent)));
     // GM
     await e6(() => document.querySelector(".mode-switch [data-mode='gm']").click()); await p6.waitForTimeout(250);
     t.eq("R6: GM phase wheel — six phases around a hub", await e6(() => `${document.querySelectorAll(".phase-wheel .phase-btn:not(.pw-hub)").length}/${document.querySelectorAll(".phase-wheel .pw-hub").length}`), "6/1");

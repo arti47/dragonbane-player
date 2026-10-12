@@ -1,6 +1,7 @@
 /* sync.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { Table } from './table.js';
+import { Adventure } from './adventure.js';
 import { $, FANTASY_WORDS, uid } from './core.js';
 import { confirmModal, promptModal, showToast } from './ui.js';
 import { Settings } from './settings.js';
@@ -277,6 +278,7 @@ export const Sync = {
       });
 
       Table.attach();
+      Adventure.attach();
 
       // GM → players broadcast feed.
       this._broadcastSeen = null;
@@ -305,6 +307,7 @@ export const Sync = {
       if (this.broadcastRef) { this.broadcastRef.off(); this.broadcastRef = null; }
       this.broadcast = []; this._broadcastSeen = null;
       Table.detach();
+      Adventure.detach();
     },
 
     // GM pushes a message (or a rolled table result) to all players in the campaign.
@@ -313,6 +316,7 @@ export const Sync = {
       if (!text) return false;
       if (!this.enabled || !this.db || !this.isGm()) { showToast("Only a campaign GM (synced) can push to players.", "warn"); return false; }
       this.db.ref(`campaigns/${this.campaign.id}/broadcast`).push({ text, ts: Date.now(), from: this.uid }).catch(() => {});
+      Adventure.post({ kind: "gm", text, tone: "gm" }); // the message joins the party's story too
       showToast("Sent to players.", "success");
       return true;
     },

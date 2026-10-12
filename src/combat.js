@@ -42,7 +42,10 @@ export const Combat = {
         Sync.pushCombat(s);
       }
     },
-    rerender() { const y = window.scrollY; const sc = $("#screen"); sc.innerHTML = ""; sc.appendChild(this.view()); window.scrollTo(0, y); },
+    // Re-draw the tracker only when it is the screen on show; elsewhere (the
+    // Adventure feed's fight card, a sheet opened from combat) the change is
+    // picked up through db:changed instead of hijacking the screen.
+    rerender() { const sc = $("#screen"); if (sc.dataset.route && sc.dataset.route !== "party") return; const y = window.scrollY; sc.innerHTML = ""; sc.appendChild(this.view()); window.scrollTo(0, y); },
     mutate(fn) {
       const s = this.load();
       const was = s.round || 0;
@@ -145,6 +148,26 @@ export const Combat = {
       if (cb.init != null) items.push(["⇅ Wait / swap", "Trade initiative cards", () => this.swapInit(cb.id)]);
       items.push(["↗ Open sheet", "", () => Sheet.open(h.id)]);
       this.pick(`${h.identity.name} — other actions`, items);
+    },
+    // A hero's four big turn actions — Attack (weapon in hand) · Cast · Move · Other.
+    // Used on the hero's combat card and on the Adventure feed's fight card.
+    turnActions(cb, h) {
+      const hWeapons = resolveEquippedWeapons(h.inventory && h.inventory.items);
+      const allSp = [...((h.spells && h.spells.tricks) || []).map((x) => [x, true]), ...((h.spells && h.spells.known) || []).map((x) => [x, false])];
+      const acts = el(`<div class="turn-acts" role="group" aria-label="Turn actions"></div>`);
+      const act = (ic, label, fn, dis) => { const b = el(`<button type="button" class="ta-btn"${dis ? " disabled" : ""}>${icon(ic, "ic ta-ic")}<b>${label}</b></button>`); b.onclick = fn; acts.appendChild(b); };
+      // Weapons in hand first (equipped); otherwise anything in the pack.
+      const held = resolveEquippedWeapons((h.inventory && h.inventory.items || []).filter((i) => i && i.equipped));
+      const atkList = held.length ? held : hWeapons;
+      act("swords", "Attack", () => {
+        if (!atkList.length) { showToast("No weapon — add one on the Gear tab."); return; }
+        if (atkList.length === 1) Roller.heroWeaponAttack(cb.charId, atkList[0], cb.id);
+        else this.pick("Attack with…", atkList.map((w) => [w.name, `${w.skill} · ${w.damage}`, () => Roller.heroWeaponAttack(cb.charId, w, cb.id)]));
+      });
+      act("sparkle", "Cast", () => this.pick("Cast…", allSp.map(([sp, isT]) => [sp.name, isT ? "Trick · 1 WP" : `Rank ${sp.rank || 1}`, () => Roller.cast(cb.charId, sp, isT)])), !allSp.length);
+      act("run", "Move", () => Sheet.movementModal(cb.charId));
+      act("hand", "Other", () => this.otherMenu(cb, h));
+      return acts;
     },
     ordered(s) { return [...s.combatants].sort((a, b) => (a.init == null ? 99 : a.init) - (b.init == null ? 99 : b.init)); },
     // Voluntarily wait / swap turn order: exchange initiative cards with another
@@ -565,21 +588,7 @@ export const Combat = {
             }
             // The four big turn actions; the full lists live under "More".
             const hWeapons = resolveEquippedWeapons(h.inventory && h.inventory.items);
-            const allSp = [...((h.spells && h.spells.tricks) || []).map((x) => [x, true]), ...((h.spells && h.spells.known) || []).map((x) => [x, false])];
-            const acts = el(`<div class="turn-acts" role="group" aria-label="Turn actions"></div>`);
-            const act = (ic, label, fn, dis) => { const b = el(`<button type="button" class="ta-btn"${dis ? " disabled" : ""}>${icon(ic, "ic ta-ic")}<b>${label}</b></button>`); b.onclick = fn; acts.appendChild(b); };
-            // Weapons in hand first (equipped); otherwise anything in the pack.
-            const held = resolveEquippedWeapons((h.inventory && h.inventory.items || []).filter((i) => i && i.equipped));
-            const atkList = held.length ? held : hWeapons;
-            act("swords", "Attack", () => {
-              if (!atkList.length) { showToast("No weapon — add one on the Gear tab."); return; }
-              if (atkList.length === 1) Roller.heroWeaponAttack(cb.charId, atkList[0], cb.id);
-              else this.pick("Attack with…", atkList.map((w) => [w.name, `${w.skill} · ${w.damage}`, () => Roller.heroWeaponAttack(cb.charId, w, cb.id)]));
-            });
-            act("sparkle", "Cast", () => this.pick("Cast…", allSp.map(([sp, isT]) => [sp.name, isT ? "Trick · 1 WP" : `Rank ${sp.rank || 1}`, () => Roller.cast(cb.charId, sp, isT)])), !allSp.length);
-            act("run", "Move", () => Sheet.movementModal(cb.charId));
-            act("hand", "Other", () => this.otherMenu(cb, h));
-            if (!isDyingHero) body.appendChild(acts);
+            if (!isDyingHero) body.appendChild(this.turnActions(cb, h));
             if (hWeapons.length) {
               hDiv.appendChild(el(`<p class="stat-line u-m0"><b>Equipped Weapons:</b></p>`));
               const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px"></div>`);

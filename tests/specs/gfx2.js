@@ -71,7 +71,12 @@ module.exports = {
     let seal = false;
     for (let i = 0; i < 12 && !seal; i++) { await ev(() => document.querySelector("#solo-f-roll").click()); seal = await ev(() => !!document.querySelector("#solo-f-out .oracle-seal")); }
     t.ok("solo: oracle answer gets a seal", seal);
-    t.ok("solo: empty threads/NPCs get illustrations", await ev(() => document.querySelectorAll(".empty-illo .illo-spool, .empty-illo .illo-frame").length === 2));
+    await ev(() => document.querySelector(".adv-chips [data-chip='quests']").click()); await page.waitForTimeout(100);
+    const spool = await ev(() => !!document.querySelector(".modal-card .empty-illo .illo-spool"));
+    await ev(() => document.querySelector(".modal-x").click()); await page.waitForTimeout(80);
+    await ev(() => document.querySelector(".adv-chips [data-chip='npcs']").click()); await page.waitForTimeout(100);
+    t.ok("solo: empty quests/people get illustrations", spool && await ev(() => !!document.querySelector(".modal-card .empty-illo .illo-frame")));
+    await ev(() => document.querySelector(".modal-x").click()); await page.waitForTimeout(80);
     await ev(() => document.querySelector("#solo-i-all").click()); await page.waitForTimeout(100);
     const tr = await ev(() => ({ n: document.querySelectorAll(".tarot").length, text: document.querySelector("#solo-i-out .fortune").textContent.replace(/\s+/g, " ").trim() }));
     t.ok(`solo: inspiration as three tarot cards, text intact (${tr.text.slice(0, 40)})`, tr.n === 3 && /· .+ · /.test(tr.text));

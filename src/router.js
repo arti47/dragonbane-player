@@ -1,6 +1,6 @@
 /* router.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map.
-   Navigation: four tabs — Hero (home/sheet) · Fight (party) · Story (solo | gm) ·
+   Navigation: four tabs — Hero (home/sheet) · Fight (party) · Story (adventure | gm) ·
    Book (rules | about). Story and Book are groups: the tab opens the last screen
    used in that group, and a mode switch at the top of the screen flips between
    them. The docked context button (action.js) sits between Fight and Story. */
@@ -14,14 +14,15 @@ import { Store } from './store.js';
 import { Combat } from './combat.js';
 import { Sync } from './sync.js';
 import { Action } from './action.js';
+import { Adventure } from './adventure.js';
 import { icon } from './icons.js';
 
 export const GROUPS = {
-  story: [["solo", "Solo", "compass"], ["gm", "GM", "dice"]],
+  story: [["adventure", "Adventure", "scroll"], ["gm", "GM", "dice"]],
   book: [["rules", "Rules", "book"], ["about", "Settings", "gear"]],
 };
 const groupOf = (route) => Object.keys(GROUPS).find((g) => g === route || GROUPS[g].some(([r]) => r === route)) || (route === "sheet" ? "home" : route);
-const allowed = (route) => route === "solo" ? Settings.soloMode() : route === "gm" ? GM.enabled() : true;
+const allowed = (route) => route === "gm" ? GM.enabled() : true;
 
 export const Router = {
     route: "home",
@@ -38,6 +39,7 @@ export const Router = {
       document.querySelectorAll(".toast").forEach((t) => t.remove()); // stale notices don't follow you
       document.documentElement.style.setProperty("--mini-h", "0px");
       if (route !== "sheet") window.activeCharacterId = null;
+      if (route === "solo") route = "adventure"; // the solo tools live in the Adventure feed now
       route = this.resolve(route);
       if (!allowed(route)) route = this.resolve("story");
       const grp = groupOf(route);
@@ -74,9 +76,8 @@ export const Router = {
         b.onclick = async () => {
           if (on) return;
           if (!ok) {
-            const what = r === "solo" ? "Solo mode — the app answers your questions as the world" : "the GM screen — party, phases and monsters";
-            if (!(await confirmModal(`Turn on ${what}?`, { title: `Turn on ${label}`, okText: "Turn on" }))) return;
-            Settings.set(r === "solo" ? "soloMode" : "gmScreen", true);
+            if (!(await confirmModal("Turn on the GM screen — party, phases and monsters?", { title: `Turn on ${label}`, okText: "Turn on" }))) return;
+            Settings.set("gmScreen", true);
           }
           this.go(r);
         };
@@ -110,12 +111,15 @@ export const Router = {
       let pending = false;
       window.addEventListener("db:changed", () => { if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; this.updateBadges(); Action.update(); }); });
       window.addEventListener("table:changed", () => Action.update());
+      window.addEventListener("adventure:changed", () => Action.update());
       // Programmatic navigation (coach marks, deep links, tests): dispatch db:go with a route.
       document.addEventListener("db:go", (e) => this.go(e.detail));
       document.querySelectorAll("#app-nav button[data-route]").forEach((b) =>
         b.addEventListener("click", () => this.go(b.dataset.route)));
       Action.init();
-      this.go("home");
+      // A story in progress: open on it ("Continue adventure").
+      let story = false; try { story = Adventure.hasStory() && Store.list().length > 0; } catch (_) {}
+      this.go(story ? "story" : "home");
     }
   };
 

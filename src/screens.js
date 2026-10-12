@@ -11,6 +11,7 @@ import { Pregens, Wizard } from './wizard.js';
 import { Sheet } from './sheet.js';
 import { Combat } from './combat.js';
 import { SoloMode } from './solo.js';
+import { Adventure } from './adventure.js';
 import { GM } from './gm.js';
 import { icon } from './icons.js';
 import { crest, emblem, illo } from './graphics.js';
@@ -62,7 +63,8 @@ export function renderPartyBanner() {
    * ================================================================= */
 
 export const Screens = {
-    solo() { return SoloMode.view(); },
+    adventure() { return Adventure.view(); },
+    solo() { return Adventure.view(); },
     gm() { return GM.view(); },
     // Deep-link to the "How to Play" tutorial: open the Rules tab, expand and
     // scroll to that accordion. Used by the "New here?" buttons.
@@ -130,8 +132,17 @@ export const Screens = {
         const last = myChars.length > 1 && lastId ? myChars.find((x) => x.id === lastId) : null;
         let lastHpM = 0; try { if (last) lastHpM = effHpMax(last); } catch (_) {}
         const resume = last ? `<button type="button" class="resume-card" data-resume="${esc(last.id)}"><span class="rc-play" aria-hidden="true">▶</span><span class="rc-txt"><span class="rc-k">Continue</span><b>${esc(last.identity?.name || "Hero")}</b></span><span class="rc-hp">HP ${last.state?.hp ?? 0}/${lastHpM}</span></button>` : "";
+        // A story in progress leads: "Continue: <place>" opens the Adventure feed.
+        let advCard = "";
+        try {
+          if (Adventure.hasStory()) {
+            const st = Adventure.load(); const sc = Adventure.scene(st); const lastSc = st.scenes[st.scenes.length - 1];
+            advCard = `<button type="button" class="resume-card adv-continue"><span class="rc-play" aria-hidden="true">▶</span><span class="rc-txt"><span class="rc-k">Continue adventure</span><b>${esc((sc || lastSc || {}).place || "Your story")}</b></span><span class="rc-hp">${esc(Adventure.clockText(st.clock))}</span></button>`;
+          }
+        } catch (_) {}
         body = `
           ${sectionTitle("Your heroes")}
+          ${advCard}
           ${resume}
           <div class="card-grid">${myCards || '<p class="stat-line" style="padding:8px">No heroes created by you yet.</p>'}</div>
           <div class="fleuron-div" aria-hidden="true"></div>
@@ -149,7 +160,8 @@ export const Screens = {
       root.querySelector("#quick-hero").addEventListener("click", () => Wizard.quick());
       root.querySelector("#use-pregen").addEventListener("click", () => Pregens.open());
       root.querySelector("#open-tutorial")?.addEventListener("click", () => Screens.openTutorial());
-      root.querySelector(".resume-card")?.addEventListener("click", (e) => Sheet.open(e.currentTarget.dataset.resume));
+      root.querySelector(".resume-card[data-resume]")?.addEventListener("click", (e) => Sheet.open(e.currentTarget.dataset.resume));
+      root.querySelector(".adv-continue")?.addEventListener("click", () => Router.go("story"));
       root.querySelectorAll(".card[data-id]").forEach((card) => {
         card.addEventListener("click", (e) => {
           if (e.target.closest(".btn-toggle-party")) return;
@@ -168,24 +180,6 @@ export const Screens = {
     },
 
     party() { return Combat.view(); },
-
-    // Story tab with neither Solo nor the GM screen switched on: pick how you play.
-    story() {
-      const root = el(`<div class="story-pick">${sectionTitle("Story")}<div class="sp-cards"></div></div>`);
-      const cards = root.querySelector(".sp-cards");
-      [["solo", "soloMode", "compass", "Play solo", "The app answers your questions as the world."],
-       ["gm", "gmScreen", "dice", "Run the table", "You are the GM: party, phases, monsters."]].forEach(([r, key, ic, title, line]) => {
-        const b = el(`<button type="button" class="sp-card" data-mode="${r}"><span class="sp-art" aria-hidden="true">${icon(ic, "ic sp-ic")}</span><b>${title}</b><span class="sp-line">${line}</span></button>`);
-        b.onclick = () => { Settings.set(key, true); Router.go(r); };
-        cards.appendChild(b);
-      });
-      if (Table.synced() || Table.log.length) {
-        const lg = el(`<button type="button" class="btn ghost block u-mt3">📜 Party roll log</button>`);
-        lg.onclick = () => Table.openLog();
-        root.appendChild(lg);
-      }
-      return root;
-    },
 
     rules() { return rulesScreen(); },
 

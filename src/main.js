@@ -1,6 +1,7 @@
 /* main.js — Dragonbane Player (ES module split of the former app.js IIFE).
    See CLAUDE.md §5 for the module map. */
 import { Table } from './table.js';
+import { Adventure } from './adventure.js';
 import { $, el, GLOSSARY, placeHelp } from './core.js';
 import { modal, showToast } from './ui.js';
 import { Sync, Theme } from './sync.js';
@@ -41,6 +42,7 @@ export function init() {
     // Help ⓘ buttons: whenever a screen mounts, slot its help into the title row.
     const screenEl = $("#screen");
     new MutationObserver(() => placeHelp(screenEl, modal)).observe(screenEl, { childList: true });
+    Adventure.init(); // start watching for things to write into the story
     Router.init();
     // Header shrinks to a slim bar once you scroll (hysteresis avoids flicker).
     { let slim = false, raf = 0;

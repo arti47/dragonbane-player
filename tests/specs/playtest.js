@@ -29,7 +29,7 @@ module.exports = {
     await page.goto(baseURL + "/index.html", { waitUntil: "networkidle" });
     await page.waitForTimeout(200);
 
-    // Go to the Solo tab and drop a generator foe (+ hero) into combat via "Fight it".
+    // Go to the Story (Adventure) tab and drop a generator foe (+ hero) into combat via "Fight it".
     await page.evaluate(() => window.__go('solo'));
     await page.waitForTimeout(150);
     await page.evaluate(() => { const b = [...document.querySelectorAll("button")].find((x) => /Fight it/.test(x.textContent)); if (b) b.click(); });
@@ -46,7 +46,9 @@ module.exports = {
     t.ok("F2: foe weapon has a damage die", !!(foe && foe.dmg));
     t.ok("F2: foe weapon has a numeric skill", !!(foe && typeof foe.skill === "number"));
 
-    // We should have landed on the Combat tab; expand the foe card.
+    // The fight runs on the Adventure feed's fight card; open the full tracker for the foe card.
+    t.ok("F2: Fight it starts the fight on the feed", await page.evaluate(() => !!document.querySelector(".adv-fight")));
+    await page.evaluate(() => window.__go('party'));
     await page.waitForTimeout(150);
     const expanded = await page.evaluate(() => {
       const rows = [...document.querySelectorAll(".combat-row")];

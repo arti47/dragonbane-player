@@ -26,8 +26,11 @@ export const Sheet = {
       this.id = id; window.activeCharacterId = id; this._fresh = true;
       try { localStorage.setItem("dragonbane.lastHero", id); } catch (_) {}
       document.querySelectorAll(".toast.toast-error, .toast.toast-warn").forEach((t) => t.remove());
-      this.render();
+      this._mounting = true; try { this.render(); } finally { this._mounting = false; }
     },
+    // Point the sheet's actions (rest, advancement, mission marks) at a hero
+    // without showing the sheet — the Adventure feed uses this so play stays on the feed.
+    use(id) { this.id = id; },
     mutate(fn) {
       const c = Store.get(this.id);
       const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;
@@ -85,9 +88,11 @@ export const Sheet = {
         const w = Dice.roll("D6");
         this.mutate((ch) => { ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + w); ch.state.roundRestUsed = true; });
         this.toast(`Round rest: +${w} WP (used this shift).`);
+        this.restPosted(kind, `+${w} WP`);
       } else if (kind === "shift") {
         this.mutate((ch) => { ch.state.hp = effHpMax(ch); ch.state.wp = effWpMax(ch); ch.state.conditions = {}; ch.state.deathRolls = { successes: 0, failures: 0 }; ch.state.roundRestUsed = false; ch.state.stretchRestUsed = false; if (gm) { ch.state.awakeShifts = 0; } });
         this.toast("Shift rest: full HP & WP, all conditions cleared." + (gm ? " Sleep resets deprivation." : ""));
+        this.restPosted(kind, "full HP & WP, all conditions cleared");
         const cur = Store.get(this.id);
         if ((cur?.spells?.known || []).length > 0) {
           const m = modal("🧙‍♂️ Shift Rest: Prepare Grimoire Spells");
@@ -101,7 +106,7 @@ export const Sheet = {
             </label>`);
             row.querySelector("input").onchange = (e) => {
               Store.update(this.id, ch => { ch.spells.known[i].prepared = e.target.checked; });
-              this.render();
+              this.render(); // no-op when the rest was taken from the feed
             };
             listDiv.appendChild(row);
           });
@@ -128,6 +133,7 @@ export const Sheet = {
           if (!deprived) notes.push(`+${wp} WP`);
           this.mutate((ch) => { ch.state.hp = Math.min(effHpMax(ch), ch.state.hp + hp); ch.state.wp = Math.min(effWpMax(ch), ch.state.wp + wp); ch.state.stretchRestUsed = true; });
           out.innerHTML = `<p class="outcome ok">Stretch rest: ${notes.join(", ")}.${deprived ? " Sleep-deprived → no WP/condition recovery." : ""}</p>`;
+          this.restPosted(kind, notes.join(", "));
           // Condition recovery (up to condHeals) — a stable header + chip area.
           let remaining = condHeals;
           const condHdr = el(`<p class="stat-line" style="margin:6px 0 2px"></p>`);
@@ -150,6 +156,9 @@ export const Sheet = {
         m.body.append(info, assistLbl, restBtn, out);
       }
     },
+    // Tell the Adventure feed a rest was taken (it writes the line and, for a
+    // shift rest, moves the clock on).
+    restPosted(kind, text) { try { window.dispatchEvent(new CustomEvent("adv:rest", { detail: { charId: this.id, kind, text } })); } catch (_) {} },
     // ---- Advanced / GM Automation (Phase 18; gated by Settings.gmAutomation) ----
     advanceClock(unit) {
       if (unit === "round") { this.mutate((ch) => { ch.state.time.round++; }); this.toast("Round +1."); return; }
@@ -724,6 +733,8 @@ export const Sheet = {
       m.body.append(el(`<p class="section-title"><b>Mark five skills</b></p>`), wrap, btn);
     },
     render() {
+      // Off-screen (the sheet's actions run from the Adventure feed): don't mount.
+      if (!this._mounting && window.activeCharacterId !== this.id && ($("#screen").dataset.route || "") !== "sheet") return;
       const c = Store.get(this.id);
       if (!c) { Router.go("home"); return; }
       const inPartyCamp = typeof Sync !== "undefined" && Sync.enabled && Sync.campaign;

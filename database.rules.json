@@ -38,6 +38,20 @@
           ".indexOn": [
             "ts"
           ]
+        },
+        "adventure": {
+          ".read": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists()",
+          "meta": {
+            ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists()"
+          },
+          "entries": {
+            "$entryId": {
+              ".write": "auth !== null && root.child('campaigns/' + $campaignId + '/members/' + auth.uid).exists() && (!data.exists() || data.child('by').val() === auth.uid || root.child('campaigns/' + $campaignId + '/members/' + auth.uid + '/role').val() === 'gm')"
+            },
+            ".indexOn": [
+              "ts"
+            ]
+          }
         }
       }
     },

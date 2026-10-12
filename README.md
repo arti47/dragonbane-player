@@ -16,7 +16,7 @@ Four tabs, plus a round seal in the middle of the nav that always shows your nex
 
 - **Hero** — your heroes. Make one with **Quick hero** (one tap, rules-legal), **Pre-made** (Core Set) or **Build** (step by step). The sheet shows HP/WP rings around your crest, condition seals, skill tiles to roll, spell cards and a paper-doll inventory; **✎ Edit** reveals the setup controls.
 - **Fight** — initiative strip, one fighter at a time (or the full list), big Attack · Cast · Move · Other buttons.
-- **Story** — **Solo** (scene, oracle and tools, every result written into a story timeline) or **GM** (phase wheel, party crests, table tools).
+- **Story** — the **Adventure feed**: the whole game writes itself in as short prose (rolls, wounds, conditions, loot, rests, fights) grouped into sessions and scenes, with a shift clock, quests, people and places. A prompt bar asks *What do you do?*; in a fight a pinned fight card takes over. Solo tools (oracle, inspiration, twists, foes) are feed actions; in a synced campaign the party shares one feed. The **GM** screen (phase wheel, party crests, table tools) sits beside it.
 - **Book** — the rules as illustrated chapters with search, and **Settings** (play-style presets, experience level, every switch under *Advanced*).
 
 Press and hold a condition, attribute, skill, ability or spell anywhere to read its rule card. First launch asks three questions (how well you know the game, how you'll play, get a hero) and beginners get a short guided tour.
@@ -92,8 +92,11 @@ The suite (`tests/specs/`) covers: app boot + ES-module wiring (`smoke`),
 mobile text-overflow at 360/390/430px (`spillage`), rules-accurate derived stats
 (`derivation`), spell-cast modals (`cast`), slot-based encumbrance
 (`inventory`), keyboard/screen-reader accessibility (`a11y`), the GM
-dashboard (`gm`), and the redesigned screens (`redesign`: tabs, context seal,
-onboarding, quick hero legality, sheet layers, dice table, fight, story, Book).
+dashboard (`gm`), the redesigned screens (`redesign`: tabs, context seal,
+onboarding, quick hero legality, sheet layers, dice table, fight, story, Book),
+and the Adventure feed (`adventure`: scenes/sessions, prose lines from rolls,
+damage, conditions, rests and fights, the shift clock, quests, the in-feed fight
+card, solo tools as feed actions, Continue adventure).
 Service workers are blocked during tests. It prints a per-area pass/fail summary and exits non-zero on
 any failure. If Chromium isn't auto-detected, point to it with
 `CHROMIUM_BIN=/path/to/chrome`.

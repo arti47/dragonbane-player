@@ -95,15 +95,29 @@ module.exports = {
         await check(`book(${ch})`);
       }
 
-      // Solo + About
-      await page.evaluate(() => window.__go('solo')); await page.waitForTimeout(150);
-      await check("solo(timeline)");
-      // Each tool opens as a dialog from the action bar.
-      for (const tool of ["ask", "inspire", "twist", "foe", "travel"]) {
-        await page.evaluate((k) => document.querySelector(`.sb-btn[data-tool='${k}']`)?.click(), tool); await page.waitForTimeout(120);
-        await check(`solo(${tool})`);
-        await page.evaluate(() => document.querySelector(".modal-x")?.click()); await page.waitForTimeout(60);
+      // Story = the Adventure feed (solo tools as feed actions) + About
+      await page.evaluate(async () => { const { Combat } = await import("/src/combat.js"); Combat.save({ round: 0, combatants: [] }); }); // the earlier fight would hold the bar
+      await page.evaluate(() => window.__go('story')); await page.waitForTimeout(150);
+      await check("adventure(empty)");
+      await page.evaluate(async () => { const { Adventure } = await import("/src/adventure.js"); Adventure.startScene({ place: "The Very Long Name Of The Ruined Watchtower Above Deepfall", hook: "Search · Ancient · Key" }); Adventure.addThread("Who lit the beacon on the hill?"); Adventure.addNpc("Old Marta", "ferry-woman"); });
+      await page.waitForTimeout(200);
+      await check("adventure(scene)");
+      // Each chip opens its dialog.
+      for (const act of ["scene", "try", "ask", "inspire", "twist", "fight", "travel", "rest", "note", "endscene"]) {
+        const opened = await page.evaluate((k) => { const b = document.querySelector(`.ab-chip[data-act='${k}']`); if (b) b.click(); return !!b; }, act); await page.waitForTimeout(150);
+        if (opened) await check(`adventure(${act})`); else if (act !== "scene") t.ok(`${vw}px adventure chip ${act} present`, false);
+        await page.evaluate(() => document.querySelectorAll(".modal-x").forEach((x) => x.click())); await page.waitForTimeout(80);
       }
+      for (const chip of ["quests", "npcs", "places"]) {
+        await page.evaluate((k) => document.querySelector(`.adv-chips [data-chip='${k}']`)?.click(), chip); await page.waitForTimeout(120);
+        await check(`adventure(${chip})`);
+        await page.evaluate(() => document.querySelectorAll(".modal-x").forEach((x) => x.click())); await page.waitForTimeout(60);
+      }
+      await page.evaluate(async () => { const { Adventure } = await import("/src/adventure.js"); Adventure.startFight(Adventure.foeFromData("npc", DRAGONBANE_NPCS[0].id)); });
+      await page.waitForTimeout(900);
+      await check("adventure(fight)");
+      await page.evaluate(async () => { const { Combat } = await import("/src/combat.js"); Combat.save({ round: 0, combatants: [] }); });
+      await page.waitForTimeout(900);
       await page.evaluate(() => window.__go('about')); await page.waitForTimeout(150);
       await check("about");
 

@@ -79,7 +79,7 @@ export const Table = {
   detach() { this.refs.forEach((x) => x.off()); this.refs = []; this.members = {}; this.loadLocal(); },
 
   // ---- GM controls ---------------------------------------------------------
-  setPhase(key) { this.writeState({ phase: key ? { key, ts: Date.now() } : null }); },
+  setPhase(key) { this.writeState({ phase: key ? { key, ts: Date.now() } : null }); try { window.dispatchEvent(new CustomEvent("adv:phase", { detail: key })); } catch (_) {} },
   phase() { const k = this.state.phase && this.state.phase.key; return PHASES.find((p) => p.key === k) || null; },
   requestRoll(skill, charIds) {
     const req = { id: uid(), skill, charIds: charIds && charIds.length ? charIds : null, ts: Date.now() };
@@ -105,6 +105,7 @@ export const Table = {
       reqId: req && entry.kind === "skill" && req.skill === entry.label && this.targets(req).includes(entry.charId) ? req.id : null,
     };
     Object.keys(e).forEach((k) => e[k] == null && delete e[k]);
+    try { window.dispatchEvent(new CustomEvent("adv:roll", { detail: { ...e } })); } catch (_) {} // the Adventure feed writes it as prose
     if (this.synced()) Sync.db.ref(`campaigns/${Sync.campaign.id}/rolls`).push(e).catch(() => {});
     else { this.log.push({ id: uid(), ...e }); this.log = this.log.slice(-40); localStorage.setItem(this.LOG_KEY, JSON.stringify(this.log)); this.changed(); }
   },

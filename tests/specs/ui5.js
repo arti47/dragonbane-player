@@ -114,7 +114,7 @@ module.exports = {
 
     // Solo mode is a switch.
     await nav("solo");
-    t.ok("solo: 'Rolling as' hero picker on top", await page.evaluate(() => !!document.querySelector(".solo-top .solo-ctx-sel")));
+    t.ok("solo: 'Playing as' hero picker on top", await page.evaluate(() => !!document.querySelector(".adv-head .solo-ctx-sel")));
 
     // GM reference: rolled result card, no leading dash on rows.
     await nav("gm");
